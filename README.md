@@ -1,0 +1,100 @@
+# Restoq
+
+**Intelligent resource management** – Plan. Allocate. Execute.
+Nettsted og app for Restoq (restoq.no): lager, bestilling, varetelling, svinn og fakturakontroll for barer og restauranter. Next.js 16 + Postgres, samme oppsett som Nextly.
+
+- `/` – B2B-landingsside med kontaktskjema (henvendelser lagres og sendes på e-post)
+- `/login` – e-post og passord, eller «Logg inn med Google»
+- `/bytt-passord` – nye brukere velger eget passord første gang
+- `/app` – dispo-appen for kunden (krever innlogging)
+- `/admin` – Restoq-administrasjon: kunder, henvendelser, hendelseslogg
+- `/api-dokumentasjon` – offentlig dokumentasjon av API v1
+- `/personvern`
+
+## Kunder, brukere og roller
+- **Kunde** (bar/restaurant) opprettes i `/admin` med e-post til leder. Lederen får midlertidig passord (på e-post hvis Resend er satt opp, ellers vises det i admin).
+- **Leder** (`owner`): alt i appen, i tillegg innstillinger, varer, logo og farger, brukere, Tripletex, API-nøkler og godkjenning, sending og betaling av fakturaer.
+- **Ansatt** (`staff`): teller, bestiller, tar imot varer, fører svinn og registrerer fakturaer og pakksedler.
+- **Admin** (Restoq): kan åpne appen til hver kunde («Åpne app») og laste inn pilotdata.
+- Hver kunde har egne data. Alle API-kall sjekker kunden mot innloggingen på serveren.
+
+## Appen
+Klientskriptet ligger i `public/restoq-app.js` og `public/restoq-app.css`, og er den samme koden som prototypen i Claude. Når siden har `<script id="boot">`, bruker den serveren (`/api/data`) og henter på nytt hvert 20. sekund, så alle ansatte ser samme tall.
+
+### Beregning
+- Har nå = talt − svinn siden telling − forbruk/uke ÷ 7 × dager siden telling + mottatt siden telling
+- Forbruk/uke = manuelt, ellers faktisk forbruk per 100 000 kr i matsalg fra de to siste tellingene, ellers innkjøpshistorikk – ganget med forventet matsalg
+- **Bestillingsfrekvens per lagertype** (standard: kjøl 3,5 d = 2×/uke, frys 7 d, tørr 14 d, romtemp. 14 d; kan endres under Innstillinger). Syklus = det største av frekvensen og leverandørens intervall mellom leveranser.
+- Bestillingspunkt = forbruk/dag × (intervall + ledetid + sikkerhetsdager). Varen kommer på forslag først når tilgjengelig (lager + åpne ordre) er under bestillingspunktet.
+- Mållager = forbruk/dag × min(holdbarhet, syklus + ledetid + sikkerhetsdager). Forslaget fyller opp til mållageret, rundet opp til pakningsstørrelse.
+- Status: «Bestill nå» hvis dager igjen < ledetid + intervall, «Snart» hvis < + sikkerhetsdager.
+
+### Oppstart for ny kunde
+1. Leder legger inn leverandører (Innstillinger → Legg til leverandør) med leveringsdager og org.nr.
+2. Varer importeres fra Excel/CSV (Varer → Importer varer). Kolonner: Leverandør, Varenr, Navn, Enhet, Pris, Lager, Kategori, Pakning, Holdbarhet, Forbruk per uke. Malen kan lastes ned i appen.
+3. Første varetelling.
+Pilotdata for About Contrasts ligger i `data/about-contrasts.json` og lastes inn fra `/admin`.
+
+## Fakturaer og pakksedler
+- Registreres i appen (fanen Faktura), via API v1, eller hentes fra Tripletex («Hent fra Tripletex» – leverandørfakturaer siste 60 dager, også EHF).
+- **Trevei-matching** (`lib/invoices.ts`): faktura mot bestilling (antall og avtalt pris) og varemottak/pakkseddel (mottatt antall). Flagger fakturert mer enn mottatt, ikke bestilt, mottatt men ikke fakturert, ikke registrert mottatt, prisavvik over 2 % og ukjent vare. Totalbeløp eks. mva kontrolleres mot mottatt × avtalt pris (toleranse 1 %, minst 10 kr).
+- Status: `kontroll` (ingen bestilling funnet) → `avvik` / `matchet` → `godkjent` → `sendt` (bilagsmottak i Tripletex) → `betalt` (lagt til betaling). Godkjenning med avvik krever kommentar. Alt logges i fakturaens historikk.
+- Filer (PDF, PNG, JPEG, TIFF, WebP, EHF/XML, maks 10 MB) lagres i databasen. Filtypen sjekkes ut fra innholdet.
+
+## Tripletex
+Restoq er en *kommersiell integrasjon* (flere kunder). Det krever:
+1. **Consumer token** fra Tripletex. Søk om integrasjon på developer.tripletex.no. Test i `api-test.tripletex.tech` først (`TRIPLETEX_ENV=test`). Godkjenning for produksjon tar ifølge Tripletex-utviklere typisk 2–3 uker. Sett `TRIPLETEX_ENV=prod` når den er godkjent.
+2. Hver kunde lager et **employee token** i sin Tripletex (Brukerinnstillinger → API-tilgang, velg applikasjonen Restoq) og limer det inn under Innstillinger → Tripletex i appen. Tokenet krypteres med `SECRET_KEY` (AES-256-GCM). Kunden må ha tilleggsmodulen «Integrasjoner» i Tripletex (inkludert i noen pakker, tillegg i andre).
+
+Endepunkter som brukes (`lib/tripletex.ts`):
+| Formål | Kall |
+|---|---|
+| Øktnøkkel | `PUT /token/session/:create?consumerToken&employeeToken&expirationDate` (Basic Auth `0:<token>` i senere kall) |
+| Test av kobling | `GET /token/session/>whoAmI` |
+| Send faktura til bilagsmottak | `POST /ledger/voucher/importDocument` (multipart, PDF/PNG/JPEG/TIFF/EHF) |
+| Hent leverandørfakturaer | `GET /supplierInvoice?invoiceDateFrom&invoiceDateTo` |
+| Godkjenn | `PUT /supplierInvoice/{id}/:approve` |
+| Legg til betaling | `POST /supplierInvoice/{id}/:addPayment?paymentType=…` |
+
+**Må verifiseres i Tripletex-testmiljøet før produksjon:** HTTP-metode og parametre for `:approve` og `:addPayment` (særlig hva `paymentType` skal være – settes med `TRIPLETEX_PAYMENT_TYPE`), og feltnavn i svaret fra `/supplierInvoice`. Restoq bokfører ikke selv: fakturaen bokføres (konteres) i Tripletex. Utbetaling krever at banken er koblet til Tripletex.
+
+## API v1 (for skannere, EDI og andre systemer)
+Se `/api-dokumentasjon`. Nøkler lages av leder under Innstillinger → API-nøkler (`Authorization: Bearer rq_…`, bare hash lagres).
+- `POST /api/v1/invoices`, `GET /api/v1/invoices[?status=]`, `GET /api/v1/invoices/:id`
+- `POST /api/v1/packing-slips` (med `"receive": true` registreres varemottaket)
+- `GET /api/v1/orders[?status=]`, `GET /api/v1/items`
+
+## Miljøvariabler (Render → Environment)
+| Navn | Beskrivelse |
+|---|---|
+| `DATABASE_URL` | Postgres. Neon, region AWS Frankfurt: «pooled connection string» med `sslmode=require` |
+| `ADMIN_EMAIL` / `ADMIN_PASSWORD` | Restoq-administrator (opprettes ved oppstart, minst 10 tegn) |
+| `SECRET_KEY` | Minst 32 tegn. Krypterer Tripletex-nøkler. Ikke bytt etter at kunder har koblet til |
+| `APP_URL` | `https://restoq.no` |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | Valgfri. Redirect: `https://restoq.no/api/auth/google/callback`. Bare brukere som finnes i Restoq slipper inn |
+| `RESEND_API_KEY` / `MAIL_FROM` | E-post (invitasjoner, henvendelser). Domenet restoq.no må bekreftes hos Resend |
+| `LEADS_EMAIL` | Mottaker av henvendelser fra forsiden (ellers `ADMIN_EMAIL`) |
+| `TRIPLETEX_CONSUMER_TOKEN` / `TRIPLETEX_ENV` / `TRIPLETEX_PAYMENT_TYPE` | Tripletex (se over) |
+| `LEGAL_ENTITY` / `LEGAL_ORGNR` / `PRIVACY_CONTACT` | Selskapet bak Restoq, vises i bunntekst og personvernerklæring |
+
+Tabellene opprettes automatisk første gang appen kobler til databasen.
+
+## Publisering
+1. Opprett repo `capa79/restoq` på GitHub og push.
+2. Neon: nytt prosjekt `restoq` i AWS Frankfurt, kopier pooled connection string.
+3. Render: New → Blueprint → velg repoet (leser `render.yaml`). Fyll inn miljøvariablene.
+4. Domene: Render → Settings → Custom Domains → `restoq.no` og `www.restoq.no`, og legg inn DNS-postene Render viser hos domeneleverandøren.
+5. Google Cloud: OAuth-klient med redirect over. Resend: bekreft restoq.no.
+
+## Sikkerhet
+- Passord: scrypt (N=2^15, r=8, p=1) med salt. Sesjoner 30 dager, bare hash av nøkkelen lagres.
+- Etter 8 feil på samme e-post eller 30 fra samme IP stenges innlogging i 15 minutter.
+- Alle endringer krever samme opphav (vern mot CSRF). Oppsett kan bare endres av leder.
+- Kontaktskjema med honningkrukke og grense per IP.
+
+## Lokalt
+```
+npm install
+cp .env.example .env.local   # fyll inn
+npm run dev
+```

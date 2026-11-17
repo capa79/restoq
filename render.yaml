@@ -1,0 +1,49 @@
+services:
+  - type: web
+    name: restoq
+    runtime: node
+    region: frankfurt
+    plan: free # bytt til "starter" for at siden aldri skal sove
+    buildCommand: npm ci && npm run build
+    startCommand: npm start
+    healthCheckPath: /
+    autoDeploy: true
+    envVars:
+      - key: NODE_VERSION
+        value: "22"
+      - key: DATABASE_URL
+        sync: false # Neon (region AWS Frankfurt): «pooled connection string» med sslmode=require
+      - key: ADMIN_EMAIL
+        sync: false # Restoq-administrator, f.eks. vidar@capacapital.no
+      - key: ADMIN_PASSWORD
+        sync: false # minst 10 tegn
+      - key: SECRET_KEY
+        generateValue: true # krypterer Tripletex-nøkler i databasen. Ikke bytt etter at kunder har koblet til.
+      - key: APP_URL
+        value: https://restoq.no
+      # «Logg inn med Google». Omdirigerings-URI: https://restoq.no/api/auth/google/callback
+      - key: GOOGLE_CLIENT_ID
+        sync: false
+      - key: GOOGLE_CLIENT_SECRET
+        sync: false
+      # E-post (invitasjoner, henvendelser) via Resend
+      - key: RESEND_API_KEY
+        sync: false
+      - key: MAIL_FROM
+        value: "Restoq <post@restoq.no>"
+      - key: LEADS_EMAIL
+        sync: false # hvem som får henvendelser fra forsiden (ellers ADMIN_EMAIL)
+      # Tripletex: consumer token fra Tripletex etter godkjent søknad om integrasjon
+      - key: TRIPLETEX_CONSUMER_TOKEN
+        sync: false
+      - key: TRIPLETEX_ENV
+        value: test # «prod» når integrasjonen er godkjent for produksjon
+      - key: TRIPLETEX_PAYMENT_TYPE
+        sync: false # valgfri, betalingstype for :addPayment (se README)
+      # Personvern / bunntekst
+      - key: LEGAL_ENTITY
+        sync: false
+      - key: LEGAL_ORGNR
+        sync: false
+      - key: PRIVACY_CONTACT
+        sync: false

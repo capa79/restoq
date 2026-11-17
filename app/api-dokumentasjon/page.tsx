@@ -1,0 +1,116 @@
+import { SiteFooter, SiteNav } from "../site-chrome";
+
+export const metadata = { title: "API-dokumentasjon – Restoq" };
+
+const ex1 = `curl -X POST https://restoq.no/api/v1/invoices \\
+  -H "Authorization: Bearer rq_xxxxxxxxxxxxxxxxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "supplier": "SG",
+    "invoiceNo": "104882",
+    "invoiceDate": "2026-11-17",
+    "dueDate": "2026-12-01",
+    "amountExVat": 1375.60,
+    "vat": 206.34,
+    "amount": 1581.94,
+    "kid": "000104882",
+    "lines": [
+      { "itemNo": "545657", "description": "SMØR 500G", "qty": 8, "unitPrice": 62.50 },
+      { "itemNo": "2474740", "description": "HELMELK 1L", "qty": 40, "unitPrice": 21.89 }
+    ],
+    "file": { "name": "faktura-104882.pdf", "contentBase64": "JVBERi0xLjcK..." }
+  }'`;
+const res1 = `HTTP/1.1 201 Created
+{
+  "id": "m3k9x2ab12cd",
+  "status": "avvik",
+  "orderId": "lq8w1z3k",
+  "match": {
+    "ok": false,
+    "issues": [
+      "Fakturert 1375.60 kr eks. mva, forventet 1250.60 kr ut fra mottatte varer og avtalte priser.",
+      "1 varelinje har avvik."
+    ],
+    "expectedExVat": 1250.60,
+    "invoicedExVat": 1375.60,
+    "lines": [ { "itemNo": "545657", "ordered": 8, "received": 6, "invoiced": 8, "flags": ["Fakturert 8, mottatt 6"] } ]
+  }
+}`;
+const ex2 = `curl -X POST https://restoq.no/api/v1/packing-slips \\
+  -H "Authorization: Bearer rq_xxxxxxxxxxxxxxxxxxxxxxxx" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "supplier": "SG",
+    "slipNo": "PS-77812",
+    "date": "2026-11-17",
+    "receive": true,
+    "lines": [ { "itemNo": "545657", "qty": 6 }, { "itemNo": "2474740", "qty": 40 } ]
+  }'`;
+
+export default function ApiDocs() {
+  return (
+    <div className="site">
+      <SiteNav links={false} />
+      <main className="doc">
+        <h1>Restoq API v1</h1>
+        <p>Med API-et kan skannere, EDI-løsninger og andre systemer registrere leverandørfakturaer og pakksedler i Restoq. Restoq matcher dem automatisk mot bestilling og varemottak. Godkjenning, sending til Tripletex og betaling gjøres av leder i appen.</p>
+
+        <h2>Autentisering</h2>
+        <p>Leder lager en API-nøkkel under <b>Innstillinger → API-nøkler</b>. Nøkkelen gjelder for ett utsted og sendes i hver forespørsel:</p>
+        <pre>Authorization: Bearer rq_xxxxxxxxxxxxxxxxxxxxxxxx</pre>
+        <p>Nøkkelen vises bare én gang. Behandle den som et passord, og slett den i appen hvis den kommer på avveie. Alle kall går over HTTPS og bruker JSON.</p>
+
+        <h2>Endepunkter</h2>
+        <table>
+          <thead><tr><th>Metode og sti</th><th>Hva</th></tr></thead>
+          <tbody>
+            <tr><td><code>POST /api/v1/invoices</code></td><td>Registrer leverandørfaktura. Matches med en gang.</td></tr>
+            <tr><td><code>GET /api/v1/invoices?status=avvik</code></td><td>List fakturaer (filter: kontroll, avvik, matchet, godkjent, sendt, betalt, avvist).</td></tr>
+            <tr><td><code>GET /api/v1/invoices/:id</code></td><td>Faktura med matching og historikk.</td></tr>
+            <tr><td><code>POST /api/v1/packing-slips</code></td><td>Registrer pakkseddel, valgfritt med varemottak.</td></tr>
+            <tr><td><code>GET /api/v1/orders?status=bestilt</code></td><td>Bestillinger med linjer (for å koble skannede dokumenter).</td></tr>
+            <tr><td><code>GET /api/v1/items</code></td><td>Varekatalog: leverandør, varenummer, navn, enhet og avtalt pris.</td></tr>
+          </tbody>
+        </table>
+
+        <h2>Registrer faktura</h2>
+        <pre>{ex1}</pre>
+        <table>
+          <thead><tr><th>Felt</th><th>Beskrivelse</th></tr></thead>
+          <tbody>
+            <tr><td><code>supplier</code> *</td><td>Leverandørkoden fra Innstillinger, f.eks. <code>SG</code>.</td></tr>
+            <tr><td><code>invoiceNo</code> *</td><td>Fakturanummer. Samme nummer fra samme leverandør avvises som duplikat.</td></tr>
+            <tr><td><code>invoiceDate</code>, <code>dueDate</code></td><td>Datoer på formen ÅÅÅÅ-MM-DD.</td></tr>
+            <tr><td><code>amountExVat</code>, <code>vat</code>, <code>amount</code></td><td>Beløp eks. mva, mva og totalt å betale (NOK).</td></tr>
+            <tr><td><code>orderId</code></td><td>Restoq-bestillingen. Utelates den, finner Restoq beste treff hos leverandøren rundt fakturadatoen.</td></tr>
+            <tr><td><code>lines[]</code></td><td><code>itemNo</code> (leverandørens varenummer), <code>description</code>, <code>qty</code>, <code>unitPrice</code> eks. mva.</td></tr>
+            <tr><td><code>file</code></td><td>Valgfritt vedlegg: <code>{"{"} name, contentBase64 {"}"}</code>. PDF, PNG, JPEG, TIFF eller EHF (XML), maks 10 MB. Kreves for å sende fakturaen til Tripletex.</td></tr>
+          </tbody>
+        </table>
+        <p>Svar:</p>
+        <pre>{res1}</pre>
+
+        <h3>Matching</h3>
+        <p>Hver varelinje sammenlignes med bestilt antall, mottatt antall (fra varemottak eller pakkseddel) og avtalt pris. Restoq markerer: fakturert mer enn mottatt, ikke bestilt, mottatt men ikke fakturert, ikke registrert mottatt, prisavvik over 2 % og ukjent vare. Totalbeløpet eks. mva sammenlignes med forventet beløp (mottatt × avtalt pris) med toleranse på 1 %, minst 10 kr. Status blir <code>matchet</code>, <code>avvik</code> eller <code>kontroll</code> (ingen bestilling funnet).</p>
+
+        <h2>Registrer pakkseddel</h2>
+        <pre>{ex2}</pre>
+        <p>Med <code>"receive": true</code> registreres varemottaket på den åpne bestillingen med pakkseddelens antall. Varer som står på bestillingen, men ikke på pakkseddelen, registreres som 0 mottatt.</p>
+
+        <h2>Tripletex</h2>
+        <p>Når leder har koblet Restoq til Tripletex (Innstillinger → Tripletex), sendes godkjente fakturaer til bilagsmottaket i Tripletex for bokføring. Leverandørfakturaer som allerede ligger i Tripletex, for eksempel EHF, hentes inn og matches i stedet for å sendes på nytt. Når fakturaen er bokført i Tripletex, kan den godkjennes og legges til betaling derfra via Restoq. Selve utbetalingen skjer gjennom banken som er koblet til Tripletex.</p>
+
+        <h2>Feil</h2>
+        <table>
+          <thead><tr><th>Kode</th><th>Betydning</th></tr></thead>
+          <tbody>
+            <tr><td>401</td><td>Mangler eller ugyldig API-nøkkel.</td></tr>
+            <tr><td>404</td><td>Fant ikke ressursen.</td></tr>
+            <tr><td>422</td><td>Ugyldige data, f.eks. ukjent leverandør eller duplikat. Se <code>message</code>.</td></tr>
+          </tbody>
+        </table>
+      </main>
+      <SiteFooter />
+    </div>
+  );
+}
