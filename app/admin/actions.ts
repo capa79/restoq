@@ -8,6 +8,7 @@ import { EMAIL_RE, inviteUser } from "@/lib/users";
 import { putDoc } from "@/lib/invoices";
 import { hashPassword, tempPassword, TEMP_PASSWORD_DAYS } from "@/lib/password";
 import { appUrl, mailEnabled, sendMail } from "@/lib/mail";
+import { buildBrand, dataUrlBuffer, getBrand, logoDataUrl, normalizeUrl, saveHero, uniqueSlug } from "@/lib/brand";
 
 // Tilbake til samme fane/side med en melding
 function go(form: FormData, msg: { ok?: string; feil?: string }, fallback = "/admin"): never {
@@ -19,26 +20,108 @@ const str = (form: FormData, k: string, max = 200) => String(form.get(k) ?? "").
 const num = (form: FormData, k: string) => Number(form.get(k));
 
 // ---------- kunder ----------
+const ROLE_WORDS: Record<string, "owner" | "staff"> = { leder: "owner", owner: "owner", sjef: "owner", ansatt: "staff", staff: "staff" };
+/** «e-post, navn, rolle» per linje (rolle: leder/ansatt, standard ansatt). */
+function parseUsers(text: string) {
+  const out: { email: string; name: string; role: "owner" | "staff" }[] = []; const bad: string[] = [];
+  for (const line of text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 50)) {
+    const parts = line.split(/[,;\t]/).map((x) => x.trim());
+    const email = (parts.find((x) => EMAIL_RE.test(x)) ?? "").toLowerCase();
+    if (!email) { bad.push(line); continue; }
+    const rest = parts.filter((x) => x.toLowerCase() !== email);
+    const roleIdx = rest.findIndex((x) => ROLE_WORDS[x.toLowerCase()]);
+    const role = roleIdx >= 0 ? ROLE_WORDS[rest[roleIdx].toLowerCase()] : "staff";
+    out.push({ email, name: rest.filter((_, i) => i !== roleIdx).join(" ").slice(0, 80), role });
+  }
+  return { users: out, bad };
+}
+async function fileBuf(form: FormData, k: string): Promise<Buffer | null> {
+  const f = form.get(k);
+  if (!f || typeof f === "string" || !(f as File).size) return null;
+  if ((f as File).size > 5 * 1024 * 1024) throw new Error("Logoen er større enn 5 MB.");
+  return Buffer.from(await (f as File).arrayBuffer());
+}
+
+/** Onboarding: kunde, brukere, logo og hjemmeside. Whitelabel-siden lages fra logo og hjemmeside. */
 export async function createOrgAction(form: FormData) {
   const me = await requireAdmin();
   const name = str(form, "name", 120);
   const email = str(form, "email").toLowerCase();
   const owner = str(form, "owner", 80);
   const leadId = num(form, "lead");
-  if (!name || !EMAIL_RE.test(email)) go(form, { feil: "Fyll inn navn på kunden og en gyldig e-post for leder." });
+  const websiteRaw = str(form, "website", 300);
+  const website = websiteRaw ? normalizeUrl(websiteRaw) : null;
+  const consent = form.get("consent") === "1";
+  if (!name || !EMAIL_RE.test(email)) go(form, { feil: "Fyll inn navn på stedet og en gyldig e-post for leder." });
+  if (websiteRaw && !website) go(form, { feil: "Hjemmesiden ser ikke ut som en gyldig adresse (f.eks. aboutcontrasts.no)." });
+  let logo: Buffer | null = null;
+  try { logo = await fileBuf(form, "logo"); } catch (e) { go(form, { feil: (e as Error).message }); }
+  const extra = parseUsers(str(form, "users", 5000));
   const p = await db();
-  const id = Number((await p.query("INSERT INTO orgs (name) VALUES ($1) RETURNING id", [name])).rows[0].id);
-  let msg = "";
+  const slug = await uniqueSlug(str(form, "slug", 40) || name);
+  const id = Number((await p.query("INSERT INTO orgs (name, slug, website, orgnr) VALUES ($1, $2, $3, $4) RETURNING id", [name, slug, website ?? "", str(form, "orgnr", 20).replace(/\s/g, "")])).rows[0].id);
+  const lines: string[] = [];
   try {
     const r = await inviteUser({ orgId: id, email, name: owner, role: "owner", by: me.email, orgName: name });
-    msg = r.emailed ? `${name} er opprettet, og ${email} har fått e-post med innlogging.` : `${name} er opprettet. Midlertidig passord for ${email}: ${r.tempPassword} (gjelder i ${TEMP_PASSWORD_DAYS} dager).`;
+    lines.push(r.emailed ? `${email} (leder) har fått e-post.` : `${email} (leder): ${r.tempPassword}`);
   } catch (e) {
     await p.query("DELETE FROM orgs WHERE id = $1", [id]);
     go(form, { feil: e instanceof Error ? e.message : "Kunne ikke opprette kunden." });
   }
+  for (const u of extra.users.filter((u) => u.email !== email)) {
+    try { const r = await inviteUser({ orgId: id, ...u, by: me.email, orgName: name }); lines.push(r.emailed ? `${u.email} har fått e-post.` : `${u.email}: ${r.tempPassword}`); }
+    catch (e) { lines.push(`${u.email}: ${e instanceof Error ? e.message : "feil"}`); }
+  }
+  const built = await buildBrand({ name, website, logo, useSiteImages: consent });
+  await putDoc(id, "config", "brand", { ...built.brand, hero: built.hero ? Date.now() : undefined }, me.id);
+  await saveHero(id, built.hero);
   if (Number.isSafeInteger(leadId) && leadId > 0) await p.query("UPDATE leads SET org_id = $2, handled = TRUE WHERE id = $1", [leadId, id]);
   await audit(me.email, "opprettet kunde", name, id);
-  go(form, { ok: msg });
+  const pw = lines.some((l) => !l.endsWith("e-post.")) ? ` Midlertidige passord (gjelder i ${TEMP_PASSWORD_DAYS} dager): ${lines.join(" · ")}` : ` ${lines.join(" ")}`;
+  const warn = [...built.notes, ...(extra.bad.length ? [`Disse linjene ble hoppet over: ${extra.bad.join(" | ")}`] : [])].join(" ");
+  redirect(`/admin?fane=kunder&kunde=${id}&ok=${encodeURIComponent(`${name} er opprettet med egen side på /v/${slug}.${pw}${warn ? " Merk: " + warn : ""}`)}#utseende`);
+}
+
+/** Lagrer utseendet manuelt (farger, tekst, adresse, ny logo). */
+export async function saveBrandAction(form: FormData) {
+  const me = await requireAdmin();
+  const id = num(form, "org");
+  const p = await db();
+  const org = (await p.query("SELECT name FROM orgs WHERE id = $1", [id])).rows[0];
+  if (!org) go(form, { feil: "Fant ikke kunden." });
+  const cur = await getBrand(id);
+  const color = (k: string, fb: string) => { const v = str(form, k, 7); return /^#[0-9a-f]{6}$/i.test(v) ? v.toLowerCase() : fb; };
+  const next = { ...cur, head: color("head", cur.head), accent: color("accent", cur.accent), tagline: str(form, "tagline", 220), name: str(form, "display", 80) || org.name };
+  try { const b = await fileBuf(form, "logo"); if (b) next.logo = await logoDataUrl(b); } catch (e) { go(form, { feil: `Logoen kunne ikke brukes: ${(e as Error).message}` }); }
+  if (form.get("removeLogo") === "1") next.logo = null;
+  if (form.get("removeHero") === "1") { await saveHero(id, null); delete next.hero; }
+  const slugIn = str(form, "slug", 40);
+  if (slugIn) await p.query("UPDATE orgs SET slug = $2 WHERE id = $1", [id, await uniqueSlug(slugIn, id)]);
+  await putDoc(id, "config", "brand", next, me.id);
+  await audit(me.email, "endret utseende", org.name, id);
+  go(form, { ok: "Utseendet er lagret. Appen og stedets side er oppdatert." });
+}
+
+/** Henter logo, farger, tekst og bilde på nytt fra hjemmesiden. */
+export async function refreshBrandAction(form: FormData) {
+  const me = await requireAdmin();
+  const id = num(form, "org");
+  const p = await db();
+  const org = (await p.query("SELECT name, website FROM orgs WHERE id = $1", [id])).rows[0];
+  if (!org) go(form, { feil: "Fant ikke kunden." });
+  const websiteRaw = str(form, "website", 300) || org.website;
+  const website = normalizeUrl(websiteRaw);
+  if (!website) go(form, { feil: "Legg inn en gyldig hjemmeside først." });
+  let logo: Buffer | null = null;
+  try { logo = await fileBuf(form, "logo"); } catch (e) { go(form, { feil: (e as Error).message }); }
+  const cur = await getBrand(id);
+  const keepLogo = form.get("keepLogo") === "1" && cur.logo;
+  const built = await buildBrand({ name: org.name, website, logo: logo ?? (keepLogo ? dataUrlBuffer(cur.logo!) : null), useSiteImages: form.get("consent") === "1" });
+  await p.query("UPDATE orgs SET website = $2 WHERE id = $1", [id, website]);
+  await putDoc(id, "config", "brand", { ...built.brand, name: cur.name ?? org.name, hero: built.hero ? Date.now() : undefined }, me.id);
+  await saveHero(id, built.hero);
+  await audit(me.email, "hentet utseende fra hjemmesiden", website, id);
+  go(form, built.notes.length ? { ok: "Oppdatert, men merk: " + built.notes.join(" ") } : { ok: "Logo, farger, tekst og bilde er hentet fra hjemmesiden." });
 }
 
 export async function updateOrgAction(form: FormData) {
@@ -47,7 +130,7 @@ export async function updateOrgAction(form: FormData) {
   const name = str(form, "name", 120);
   const note = str(form, "note", 2000);
   if (!name) go(form, { feil: "Kunden må ha et navn." });
-  await (await db()).query("UPDATE orgs SET name = $2, note = $3 WHERE id = $1", [id, name, note]);
+  await (await db()).query("UPDATE orgs SET name = $2, note = $3, orgnr = $4 WHERE id = $1", [id, name, note, str(form, "orgnr", 20).replace(/\s/g, "")]);
   await audit(me.email, "endret kunde", name, id);
   go(form, { ok: "Kunden er lagret." });
 }

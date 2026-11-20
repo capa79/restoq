@@ -679,7 +679,7 @@ function vOppsett(){
 }
 function bindBrand(){
   let logo = BRAND().logo;
-  const cur = () => ({accent:$('#bAccent').value, head:$('#bHead').value, logo});
+  const cur = () => ({...(S.brand||{}), accent:$('#bAccent').value, head:$('#bHead').value, logo});
   const live = () => { const keep = S.brand; S.brand = cur(); applyBrand(); S.brand = keep; };
   ['#bAccent','#bHead'].forEach(s => $(s).addEventListener('input', live));
   $('#bLogo').onchange = e => { const f = e.target.files[0]; if (!f) return;
@@ -692,7 +692,7 @@ function bindBrand(){
     img.onerror = () => toast('Kunne ikke lese bildet.'); img.src = url; };
   const del = $('#bLogoDel'); if (del) del.onclick = () => { logo = null; $('#bLogoPrev').classList.add('hide'); live(); };
   $('#bSave').onclick = async () => { await store.put('config','brand', cur()); toast('Logo og farger er lagret for alle.'); };
-  $('#bReset').onclick = () => confirmBox('Tilbakestille utseendet?', 'Logoen fjernes og fargene settes tilbake til standard.', 'Tilbakestill', async () => { await store.put('config','brand', {...BRAND_DEFAULT}); render(); });
+  $('#bReset').onclick = () => confirmBox('Tilbakestille utseendet?', 'Logoen fjernes og fargene settes tilbake til standard.', 'Tilbakestill', async () => { await store.put('config','brand', {...(S.brand||{}), ...BRAND_DEFAULT}); render(); });
 }
 function supplierModal(set){
   modal(`<h3>Ny leverandør</h3>

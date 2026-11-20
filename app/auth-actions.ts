@@ -10,7 +10,9 @@ export async function loginAction(form: FormData) {
   const pw = String(form.get("password") ?? "");
   const next = safeNext(String(form.get("next") ?? ""));
   const ip = await clientIp();
-  const back = (err: string) => redirect(`/login?feil=${err}&next=${encodeURIComponent(next)}&e=${encodeURIComponent(email)}`);
+  const from = String(form.get("from") ?? "");
+  const base = /^\/v\/[a-z0-9-]{1,48}$/.test(from) ? from : "/login"; // stedets egen side (whitelabel)
+  const back = (err: string) => redirect(`${base}?feil=${err}&next=${encodeURIComponent(next)}&e=${encodeURIComponent(email)}`);
   if (tooManyFails(`ip:${ip}`, `e:${email}`)) back("sperret");
   if (!email || !pw) back("mangler");
   const p = await db();

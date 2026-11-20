@@ -25,11 +25,13 @@ export async function inviteUser(opts: { orgId: number; email: string; name: str
       [opts.orgId, email, opts.name, opts.role, hash]
     );
   }
+  const slug = (await p.query("SELECT slug FROM orgs WHERE id = $1", [opts.orgId])).rows[0]?.slug as string | undefined;
+  const loginUrl = slug ? `${appUrl()}/v/${slug}` : `${appUrl()}/login`;
   await audit(opts.by, existing ? "nullstilte passord" : "la til bruker", email, opts.orgId);
   const sent = await sendMail(
     email,
     `Du har fått tilgang til Restoq – ${opts.orgName}`,
-    `Hei${opts.name ? " " + opts.name : ""}!\n\nDu har fått tilgang til lager- og bestillingsappen for ${opts.orgName}.\n\nLogg inn her: ${appUrl()}/login\nE-post: ${email}\nMidlertidig passord: ${pw}\n\nPassordet gjelder i ${TEMP_PASSWORD_DAYS} dager. Du velger eget passord første gang du logger inn. Har du Google-konto på samme e-post, kan du også bruke «Logg inn med Google».\n\nHilsen Restoq`
+    `Hei${opts.name ? " " + opts.name : ""}!\n\nDu har fått tilgang til lager- og bestillingsappen for ${opts.orgName}.\n\nLogg inn her: ${loginUrl}\nE-post: ${email}\nMidlertidig passord: ${pw}\n\nPassordet gjelder i ${TEMP_PASSWORD_DAYS} dager. Du velger eget passord første gang du logger inn. Har du Google-konto på samme e-post, kan du også bruke «Logg inn med Google».${slug ? "\n\nTips: Legg siden til på hjemskjermen på mobilen, så får du appen som et eget ikon." : ""}\n\nHilsen Restoq`
   );
   return { tempPassword: sent ? null : pw, emailed: sent };
 }

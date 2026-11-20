@@ -11,6 +11,8 @@ import { tripletexConfigured } from "@/lib/tripletex";
 import { googleEnabled } from "@/lib/google-auth";
 import { aiTranslateEnabled } from "@/lib/ai-translate";
 import { kindLabel } from "@/lib/feedback";
+import { getBrand } from "@/lib/brand";
+import { BrandEditor } from "./brand-editor";
 
 export const metadata = { title: "Admin – Restoq", robots: { index: false } };
 export const dynamic = "force-dynamic";
@@ -105,7 +107,7 @@ async function Overview({ badge }: { badge: { leads: number; fb: number; err: nu
 async function Customers() {
   const p = await db();
   const orgs = (await p.query(
-    `SELECT o.id, o.name, o.created_at, count(u.id)::int AS users, max(u.last_login_at) AS last,
+    `SELECT o.id, o.name, o.slug, o.created_at, count(u.id)::int AS users, max(u.last_login_at) AS last,
             (SELECT count(*)::int FROM docs x WHERE x.org_id = o.id AND x.col = 'orders') AS orders,
             (SELECT count(*)::int FROM docs x WHERE x.org_id = o.id AND x.col = 'invoices') AS invoices,
             (SELECT count(*)::int FROM docs x, jsonb_object_keys(CASE WHEN jsonb_typeof(x.data->'ov') = 'object' THEN x.data->'ov' ELSE '{}'::jsonb END) k WHERE x.org_id = o.id AND x.col = 'config' AND x.id = 'items') AS items
@@ -113,17 +115,32 @@ async function Customers() {
   )).rows;
   return (
     <>
-      <div className="card">
-        <h3 style={{ marginTop: 0, marginBottom: 12 }}>Ny kunde</h3>
-        <form action={createOrgAction} className="row" style={{ alignItems: "end" }}>
+      <details className="card onboard" open={!orgs.length}>
+        <summary><h3 style={{ margin: 0, display: "inline" }}>+ Ny kunde (onboarding)</h3></summary>
+        <p className="small muted" style={{ margin: "8px 0 14px" }}>Fyll inn stedet, lederen og eventuelt flere ansatte, last opp logoen og legg inn hjemmesiden. Restoq henter farger, beskrivelse og bilde, og lager stedets egen side på restoq.no/v/… med eget app-ikon. Du kan justere alt etterpå.</p>
+        <form action={createOrgAction} className="obgrid">
           <input type="hidden" name="back" value="/admin?fane=kunder" />
-          <label className="f" style={{ flex: 2, minWidth: 200 }}>Kunde (bar/restaurant)<input name="name" required /></label>
-          <label className="f" style={{ flex: 2, minWidth: 200 }}>Leders e-post<input name="email" type="email" required /></label>
-          <label className="f" style={{ flex: 1, minWidth: 150 }}>Leders navn<input name="owner" /></label>
-          <button className="btn dark">Opprett kunde</button>
+          <fieldset>
+            <legend>1. Stedet</legend>
+            <label className="f">Navn på bar/restaurant<input name="name" required placeholder="About Contrasts" /></label>
+            <label className="f">Hjemmeside<input name="website" placeholder="aboutcontrasts.no" inputMode="url" /></label>
+            <label className="f">Logo (PNG, SVG, JPG eller WebP)<input name="logo" type="file" accept="image/png,image/jpeg,image/svg+xml,image/webp" /></label>
+            <label className="f">Org.nr. (valgfritt)<input name="orgnr" inputMode="numeric" pattern="[0-9 ]{9,11}" /></label>
+            <label className="row small" style={{ gap: 8, alignItems: "flex-start" }}><input type="checkbox" name="consent" value="1" defaultChecked style={{ width: 18, minHeight: 18, marginTop: 2 }} /> <span>Kunden har godkjent at logo og bilde fra hjemmesiden brukes i Restoq. Uten dette hentes bare farger og tekst.</span></label>
+          </fieldset>
+          <fieldset>
+            <legend>2. Brukere</legend>
+            <label className="f">Leders e-post<input name="email" type="email" required /></label>
+            <label className="f">Leders navn<input name="owner" /></label>
+            <label className="f">Flere brukere (én per linje: e-post, navn, rolle)<textarea name="users" rows={5} placeholder={"kokk@sted.no, Ola Nordmann, ansatt\nsous@sted.no, Kari Nordmann, leder"} /></label>
+            <p className="small muted" style={{ margin: 0 }}>Alle får e-post med midlertidig passord og lenke til stedets side. Rolle er «ansatt» hvis du ikke skriver noe.</p>
+          </fieldset>
+          <div className="row" style={{ gridColumn: "1 / -1", justifyContent: "flex-end" }}>
+            <span className="small muted">Henting fra hjemmesiden tar noen sekunder.</span>
+            <button className="btn dark">Opprett kunde og lag stedets side</button>
+          </div>
         </form>
-        <p className="small muted" style={{ marginTop: 8 }}>Lederen får et midlertidig passord og legger selv til leverandører, varer og ansatte.</p>
-      </div>
+      </details>
       <div className="card">
         <h3 style={{ marginTop: 0, marginBottom: 12 }}>Kunder ({orgs.length})</h3>
         <div style={{ overflowX: "auto" }}><table>
@@ -131,7 +148,7 @@ async function Customers() {
           <tbody>
             {orgs.map((o) => (
               <tr key={o.id}>
-                <td><Link href={`/admin?fane=kunder&kunde=${o.id}`}><b>{o.name}</b></Link><div className="small muted">Opprettet {d(o.created_at)}</div></td>
+                <td><Link href={`/admin?fane=kunder&kunde=${o.id}`}><b>{o.name}</b></Link><div className="small muted">Opprettet {d(o.created_at)}{o.slug ? <> · <a href={`/v/${o.slug}`} target="_blank" rel="noopener">/v/{o.slug}</a></> : null}</div></td>
                 <td>{o.users}</td><td>{o.items ?? 0}</td><td>{o.orders}</td><td>{o.invoices}</td><td>{d(o.last)}</td>
                 <td><div className="row" style={{ justifyContent: "flex-end" }}>
                   <form action={openOrgAction}><input type="hidden" name="org" value={o.id} /><button className="btn dark sm">Åpne app</button></form>
@@ -160,6 +177,8 @@ async function Customer({ id, meId }: { id: number; meId: number }) {
   const n = (c: string) => stats.rows.find((r) => r.col === c)?.n ?? 0;
   const back = `/admin?fane=kunder&kunde=${id}`;
   const orgs = (await p.query("SELECT id, name FROM orgs ORDER BY name")).rows;
+  const brand = await getBrand(id);
+  const hasHero = (await p.query("SELECT 1 FROM files WHERE org_id = $1 AND id = 'brand-hero'", [id])).rowCount! > 0;
   return (
     <>
       <p><Link href="/admin?fane=kunder">← Alle kunder</Link></p>
@@ -173,10 +192,12 @@ async function Customer({ id, meId }: { id: number; meId: number }) {
         <form action={updateOrgAction} className="fbform" style={{ marginTop: 10 }}>
           <input type="hidden" name="org" value={id} /><input type="hidden" name="back" value={back} />
           <label className="f">Navn<input name="name" defaultValue={org.name} required /></label>
+          <label className="f">Org.nr.<input name="orgnr" defaultValue={org.orgnr} inputMode="numeric" /></label>
           <label className="f wide">Internt notat (avtale, kontaktperson, pris)<textarea name="note" rows={2} defaultValue={org.note} /></label>
           <div className="row"><button className="btn dark sm">Lagre</button></div>
         </form>
       </div>
+      <BrandEditor orgId={id} orgName={org.name} back={back} brand={brand} slug={org.slug ?? ""} website={org.website} hasHero={hasHero} />
       <div className="card">
         <h3 style={{ marginTop: 0 }}>Brukere hos {org.name} ({users.length})</h3>
         <form action={addUserAction} className="row" style={{ alignItems: "end", marginBottom: 12 }}>
@@ -341,6 +362,8 @@ async function Leads({ vis }: { vis?: string }) {
                 <label className="f" style={{ flex: 2 }}>Kunde<input name="name" defaultValue={l.company || l.name} required /></label>
                 <label className="f" style={{ flex: 2 }}>Leders e-post<input name="email" type="email" defaultValue={l.email} required /></label>
                 <label className="f" style={{ flex: 1 }}>Leders navn<input name="owner" defaultValue={l.name} /></label>
+                <label className="f" style={{ flex: 2 }}>Hjemmeside<input name="website" placeholder="sted.no" /></label>
+                <input type="hidden" name="consent" value="1" />
                 <button className="btn dark sm">Opprett kunde</button>
               </form>
             </details>
