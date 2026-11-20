@@ -182,6 +182,10 @@ CREATE TABLE IF NOT EXISTS i18n_missing (
   last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
   PRIMARY KEY (lang, source)
 );
+-- Henvendelser: status og notat fra adminsiden, og kunden som ble opprettet
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '';
+ALTER TABLE leads ADD COLUMN IF NOT EXISTS org_id BIGINT REFERENCES orgs(id) ON DELETE SET NULL;
+ALTER TABLE orgs ADD COLUMN IF NOT EXISTS note TEXT NOT NULL DEFAULT '';
 CREATE TABLE IF NOT EXISTS audit (
   id BIGSERIAL PRIMARY KEY,
   actor TEXT,

@@ -221,3 +221,17 @@ html.i18n-wait body { visibility: hidden; }
 .langsw li a { display: flex; align-items: center; gap: 8px; padding: 8px 10px; border-radius: 8px; text-decoration: none; color: inherit; font-size: 15px; }
 .langsw li a:hover, .langsw li a[aria-current="true"] { background: #eef0ef; }
 .langsw .flag { border-radius: 2px; flex-shrink: 0; }
+/* admin: brukerliste */
+.site .admin .kpis a.card { text-decoration: none; color: inherit; }
+.site .admin .kpis a.card:hover { border-color: var(--ink); }
+.site .admin .grid2 { gap: 20px; }
+.site .ulist { display: grid; gap: 6px; }
+.site .urow { border: 1px solid var(--line); border-radius: 10px; background: var(--card); }
+.site .urow > summary { list-style: none; cursor: pointer; padding: 10px 14px; display: grid; grid-template-columns: minmax(200px, 1.3fr) auto minmax(220px, 1.4fr); gap: 10px; align-items: center; }
+.site .urow > summary::-webkit-details-marker { display: none; }
+.site .urow[open] > summary { border-bottom: 1px solid var(--line); background: #f6f7f6; border-radius: 10px 10px 0 0; }
+.site .urow:target { outline: 2px solid var(--blue); }
+.site .uedit { padding: 6px 14px 14px; }
+.site .uname { overflow: hidden; text-overflow: ellipsis; }
+.site .danger-text { color: var(--red) !important; }
+@media (max-width: 800px) { .site .urow > summary { grid-template-columns: 1fr; gap: 4px; } }
