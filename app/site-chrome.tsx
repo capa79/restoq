@@ -1,10 +1,13 @@
 import Link from "next/link";
+import { getUiLang } from "@/lib/i18n";
+import { LangSwitch } from "./lang-switch";
 
 export const Logo = () => (
   <svg viewBox="0 0 64 64" aria-hidden="true"><rect width="64" height="64" rx="14" fill="#fff" /><path d="M18 46V18h15.5c6.2 0 10.5 3.7 10.5 9.3 0 4.2-2.4 7.3-6.2 8.6L45 46h-8.4l-6.4-9.4H25.4V46zm7.4-15.6h7.6c2.6 0 4.1-1.3 4.1-3.4s-1.5-3.4-4.1-3.4h-7.6z" fill="#141A18" /><rect x="18" y="50" width="28" height="3" rx="1.5" fill="#D2372B" /></svg>
 );
 
-export function SiteNav({ links = true }: { links?: boolean }) {
+export async function SiteNav({ links = true }: { links?: boolean }) {
+  const lang = await getUiLang();
   return (
     <header className="nav">
       <div className="wrap">
@@ -18,6 +21,7 @@ export function SiteNav({ links = true }: { links?: boolean }) {
             <a href="/#kontakt">Kontakt</a>
           </nav>
         ) : <div style={{ flex: 1 }} />}
+        <LangSwitch current={lang} />
         <Link className="btn ghost sm" href="/login">Logg inn</Link>
       </div>
     </header>

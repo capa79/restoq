@@ -135,3 +135,4 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--surface2)}
 .fbfloat:hover{filter:brightness(1.1)}
 @media (max-width:640px){.fbfloat{bottom:84px;padding:10px 13px}.fbfloat .fbtxt{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}
+.langsw summary{border-color:rgba(127,127,127,.45);color:inherit}

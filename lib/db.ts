@@ -164,6 +164,24 @@ CREATE TABLE IF NOT EXISTS feedback_images (
   data BYTEA NOT NULL
 );
 CREATE INDEX IF NOT EXISTS feedback_images_fb ON feedback_images(feedback_id);
+-- Oversettelser: rettelser gjort på utviklersiden, og tekster som manglet oversettelse da de ble vist
+ALTER TABLE users ADD COLUMN IF NOT EXISTS ui_lang TEXT;
+CREATE TABLE IF NOT EXISTS i18n_overrides (
+  lang TEXT NOT NULL,
+  source TEXT NOT NULL,
+  text TEXT NOT NULL,
+  updated_by TEXT NOT NULL DEFAULT '',
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (lang, source)
+);
+CREATE TABLE IF NOT EXISTS i18n_missing (
+  lang TEXT NOT NULL,
+  source TEXT NOT NULL,
+  path TEXT NOT NULL DEFAULT '',
+  hits INT NOT NULL DEFAULT 1,
+  last_seen TIMESTAMPTZ NOT NULL DEFAULT now(),
+  PRIMARY KEY (lang, source)
+);
 CREATE TABLE IF NOT EXISTS audit (
   id BIGSERIAL PRIMARY KEY,
   actor TEXT,

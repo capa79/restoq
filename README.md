@@ -11,6 +11,20 @@ Nettsted og app for Restoq (restoq.no): lager, bestilling, varetelling, svinn og
 - `/api-dokumentasjon` – offentlig dokumentasjon av API v1
 - `/personvern`
 
+## Språk
+Norsk, engelsk, tysk, polsk og spansk. Språkvelgeren (flagget) ligger i toppen av forsiden, innloggingen og appen. Valget huskes i en informasjonskapsel (`restoq_lang`) og på kontoen.
+- Norsk er originalen. `public/restoq-i18n.js` bytter ut teksten i nettleseren med ordboka `public/i18n/<språk>.json`, også i dialoger og meldinger som kommer etterpå.
+- Tall og datoer i en tekst erstattes med `{0}`, `{1}` … før oppslag, så «3 varer · 2 407 kr» slås opp som «{0} varer · {1} kr». Ukedager i datoer oversettes. Linjer med « · » oversettes del for del.
+- Varenavn (`.iname`), leverandørnavn og alt merket `translate="no"` eller `data-no-translate` oversettes ikke. Admin- og utviklersidene er bare på norsk.
+- Kilde for alle oversettelser: `i18n/translations.tsv` (kolonner nb, en, de, pl, es). Kjør `npm run i18n` etter endringer (skjer også ved `npm run build`).
+- Tekster som mangler oversettelse når en bruker ser dem, meldes til serveren og vises under **Utvikler → Oversettelser**. Der kan de oversettes eller rettes direkte (lagres i databasen og går foran ordboka), kopieres som oppgave, eller oversettes automatisk med Claude hvis `ANTHROPIC_API_KEY` er satt.
+
+## Tilbakemeldinger, feillogg og utviklerside
+- **«Gi tilbakemelding»** (knappen nede til høyre i appen): tekst, type, opptil 3 skjermbilder (krympes og renses for metadata i nettleseren) og automatisk kontekst – side, kunde, rolle, nettleser, versjon, siste feil og kall som feilet. Feil og «feil tall» varsles på e-post til utviklerne.
+- **Feillogg**: feil på serveren (`instrumentation.ts`) og i nettleseren logges automatisk, lagres i 30 dager, like feil samles.
+- **`/utvikler`** (admin og brukere med utviklerrolle): tilbakemeldinger med status, prioritet, tildeling, internt notat og «Kopier som oppgave» (ferdig beskrivelse til Claude Code eller en utvikler), feillogg, oversettelser og systemstatus.
+- **Utviklerrolle** gis under Admin → Utviklere. En utvikler uten konto får en egen konto som bare ser `/utvikler`, ikke kundenes data.
+
 ## Kunder, brukere og roller
 - **Kunde** (bar/restaurant) opprettes i `/admin` med e-post til leder. Lederen får midlertidig passord (på e-post hvis Resend er satt opp, ellers vises det i admin).
 - **Leder** (`owner`): alt i appen, i tillegg innstillinger, varer, logo og farger, brukere, Tripletex, API-nøkler og godkjenning, sending og betaling av fakturaer.
@@ -75,6 +89,7 @@ Se `/api-dokumentasjon`. Nøkler lages av leder under Innstillinger → API-nøk
 | `RESEND_API_KEY` / `MAIL_FROM` | E-post (invitasjoner, henvendelser). Domenet restoq.no må bekreftes hos Resend |
 | `LEADS_EMAIL` | Mottaker av henvendelser fra forsiden (ellers `ADMIN_EMAIL`) |
 | `TRIPLETEX_CONSUMER_TOKEN` / `TRIPLETEX_ENV` / `TRIPLETEX_PAYMENT_TYPE` | Tripletex (se over) |
+| `ANTHROPIC_API_KEY` / `RESTOQ_AI_MODEL` | Valgfri. Automatisk oversettelse av manglende tekster på utviklersiden (standard modell claude-haiku-5-5) |
 | `LEGAL_ENTITY` / `LEGAL_ORGNR` / `PRIVACY_CONTACT` | Selskapet bak Restoq, vises i bunntekst og personvernerklæring |
 
 Tabellene opprettes automatisk første gang appen kobler til databasen.

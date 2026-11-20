@@ -6,26 +6,30 @@ import { googleEnabled } from "@/lib/google-auth";
 import { tripletexConfigured } from "@/lib/tripletex";
 import { logoutAction } from "../auth-actions";
 import { browser, FEEDBACK_KINDS, FEEDBACK_PRIORITIES, FEEDBACK_STATUSES, kindLabel, OPEN_STATUSES, priorityLabel, statusLabel } from "@/lib/feedback";
-import { clearErrorsAction, deleteErrorAction, deleteFeedbackAction, deleteSimilarErrorsAction, updateFeedbackAction } from "./actions";
+import { aiTranslateMissingAction, clearErrorsAction, deleteErrorAction, deleteFeedbackAction, deleteSimilarErrorsAction, ignoreMissingAction, saveTranslationAction, updateFeedbackAction } from "./actions";
+import { readFile } from "node:fs/promises";
+import path from "node:path";
+import { OTHER_LANGS } from "@/lib/i18n";
+import { aiTranslateEnabled } from "@/lib/ai-translate";
 import { CopyButton } from "./copy-button";
 
 export const metadata = { title: "Utvikler – Restoq", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 const fmt = (d: Date | string | null) => (d ? new Intl.DateTimeFormat("nb-NO", { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Oslo" }).format(new Date(d)) : "–");
-type SP = { fane?: string; status?: string; type?: string; kunde?: string; meg?: string; ok?: string };
+type SP = { fane?: string; status?: string; type?: string; kunde?: string; meg?: string; ok?: string; lang?: string };
 
 export default async function Utvikler({ searchParams }: { searchParams: Promise<SP> }) {
   const dev = await requireDeveloper();
   const sp = await searchParams;
-  const fane = ["feillogg", "status"].includes(sp.fane ?? "") ? sp.fane! : "tilbakemeldinger";
+  const fane = ["feillogg", "status", "oversettelser"].includes(sp.fane ?? "") ? sp.fane! : "tilbakemeldinger";
   const p = await db();
   const [newFb, err24] = await Promise.all([
     p.query("SELECT count(*)::int AS n FROM feedback WHERE status = 'ny'"),
     p.query("SELECT count(*)::int AS n FROM error_log WHERE at > now() - interval '24 hours'"),
   ]);
   return (
-    <div className="site">
+    <div className="site" data-no-translate>
       <header className="nav"><div className="wrap"><Link href="/" className="logo">Restoq utvikler</Link><div style={{ flex: 1 }} />
         {dev.role === "admin" ? <Link className="btn ghost sm" href="/admin">Admin</Link> : null}
         {dev.org_id ? <Link className="btn ghost sm" href="/app">Appen</Link> : null}
@@ -34,10 +38,11 @@ export default async function Utvikler({ searchParams }: { searchParams: Promise
         <nav className="devtabs" aria-label="Utvikler">
           <Link href="/utvikler" aria-current={fane === "tilbakemeldinger" ? "page" : undefined}>Tilbakemeldinger {newFb.rows[0].n ? <b>{newFb.rows[0].n} nye</b> : null}</Link>
           <Link href="/utvikler?fane=feillogg" aria-current={fane === "feillogg" ? "page" : undefined}>Feillogg {err24.rows[0].n ? <b>{err24.rows[0].n} siste døgn</b> : null}</Link>
+          <Link href="/utvikler?fane=oversettelser" aria-current={fane === "oversettelser" ? "page" : undefined}>Oversettelser</Link>
           <Link href="/utvikler?fane=status" aria-current={fane === "status" ? "page" : undefined}>Systemstatus</Link>
         </nav>
         {sp.ok ? <div className="note ok">{sp.ok}</div> : null}
-        {fane === "feillogg" ? <Errors /> : fane === "status" ? <Status /> : <Feedback sp={sp} devId={dev.id} />}
+        {fane === "feillogg" ? <Errors /> : fane === "status" ? <Status /> : fane === "oversettelser" ? <Translations lang={sp.lang} /> : <Feedback sp={sp} devId={dev.id} />}
       </main>
     </div>
   );
@@ -209,6 +214,71 @@ async function Status() {
           <tr><td>Ubesvarte henvendelser fra forsiden</td><td>{leads.rows[0].n}</td></tr>
         </tbody></table>
         <p className="small muted">Viser bare om tjenestene er slått på – aldri nøkler eller hemmeligheter.</p>
+      </div>
+    </>
+  );
+}
+
+async function Translations({ lang: langParam }: { lang?: string }) {
+  const lang = OTHER_LANGS.find((l) => l.id === langParam)?.id ?? "en";
+  const p = await db();
+  const [missing, overrides, counts] = await Promise.all([
+    p.query("SELECT source, path, hits, last_seen FROM i18n_missing WHERE lang = $1 ORDER BY hits DESC, last_seen DESC LIMIT 200", [lang]),
+    p.query("SELECT source, text, updated_by, updated_at FROM i18n_overrides WHERE lang = $1 ORDER BY updated_at DESC LIMIT 300", [lang]),
+    p.query("SELECT lang, (SELECT count(*)::int FROM i18n_missing m WHERE m.lang = l.lang) AS missing, (SELECT count(*)::int FROM i18n_overrides o WHERE o.lang = l.lang) AS overrides FROM unnest($1::text[]) AS l(lang)", [OTHER_LANGS.map((l) => l.id)]),
+  ]);
+  let dictSize = 0;
+  try { dictSize = Object.keys(JSON.parse(await readFile(path.join(process.cwd(), "public", "i18n", `${lang}.json`), "utf8"))).length; } catch {}
+  const back = `/utvikler?fane=oversettelser&lang=${lang}`;
+  const tsv = missing.rows.map((m) => m.source).join("\n");
+  const task = `## Restoq: manglende oversettelser (${lang})\n\nLegg disse norske tekstene til i i18n/translations.tsv (kolonner nb, en, de, pl, es), oversett til alle fire språk, behold {0}-plassholderne, og kjør \`npm run i18n\`.\n\n\`\`\`\n${tsv}\n\`\`\``;
+  return (
+    <>
+      <p className="muted">Appen og nettsiden finnes på norsk, engelsk, tysk, polsk og spansk. Tekster som manglet oversettelse da en bruker så dem, havner her. Rett eller oversett dem direkte – rettelsene gjelder med en gang. Tall i teksten vises som {"{0}"}, {"{1}"} …</p>
+      <nav className="devfilters" aria-label="Språk">
+        {OTHER_LANGS.map((l) => { const c = counts.rows.find((r) => r.lang === l.id); return <Link key={l.id} href={`/utvikler?fane=oversettelser&lang=${l.id}`} aria-current={l.id === lang ? "page" : undefined}>{l.label} <b>{c?.missing ?? 0}</b></Link>; })}
+      </nav>
+      <div className="kpis">
+        <div className="card"><span className="small muted">I ordboka</span><b>{dictSize}</b></div>
+        <div className="card"><span className="small muted">Mangler</span><b>{missing.rows.length}</b></div>
+        <div className="card"><span className="small muted">Rettelser</span><b>{overrides.rows.length}</b></div>
+      </div>
+      <div className="card">
+        <div className="row" style={{ justifyContent: "space-between" }}><h3 style={{ margin: 0 }}>Mangler oversettelse</h3>
+          <div className="row">
+            {missing.rows.length ? <CopyButton text={task} label="Kopier som oppgave" /> : null}
+            {aiTranslateEnabled() ? <form action={aiTranslateMissingAction}><input type="hidden" name="back" value={back} /><button className="btn dark sm">Oversett alle manglende med Claude</button></form> : null}
+            {missing.rows.length ? <form action={ignoreMissingAction}><input type="hidden" name="lang" value={lang} /><input type="hidden" name="all" value="1" /><input type="hidden" name="back" value={back} /><button className="btn line sm">Tøm lista</button></form> : null}
+          </div></div>
+        {!aiTranslateEnabled() ? <p className="small muted">Sett ANTHROPIC_API_KEY i Render for å oversette manglende tekster automatisk.</p> : null}
+        {missing.rows.length ? (
+          <table><thead><tr><th>Norsk</th><th>Oversettelse</th><th>Sett</th><th /></tr></thead>
+            <tbody>{missing.rows.map((m) => (
+              <tr key={m.source}>
+                <td style={{ maxWidth: 360 }}>{m.source}<div className="small muted">{m.path}</div></td>
+                <td><form action={saveTranslationAction} className="row" style={{ flexWrap: "nowrap" }}><input type="hidden" name="lang" value={lang} /><input type="hidden" name="source" value={m.source} /><input type="hidden" name="back" value={back} /><input name="text" placeholder="Skriv oversettelsen" style={{ minHeight: 38 }} /><button className="btn dark sm">Lagre</button></form></td>
+                <td className="small">{m.hits}×</td>
+                <td><form action={ignoreMissingAction}><input type="hidden" name="lang" value={lang} /><input type="hidden" name="source" value={m.source} /><input type="hidden" name="back" value={back} /><button className="btn line sm" title="Ikke en tekst som skal oversettes (f.eks. et varenavn)">Ignorer</button></form></td>
+              </tr>))}</tbody></table>
+        ) : <p className="small muted">Ingen manglende tekster registrert for dette språket.</p>}
+      </div>
+      <div className="card">
+        <h3 style={{ marginTop: 0 }}>Rettelser</h3>
+        <form action={saveTranslationAction} className="fbform" style={{ marginBottom: 12 }}>
+          <input type="hidden" name="lang" value={lang} /><input type="hidden" name="back" value={back} />
+          <label className="f">Norsk tekst (nøyaktig som i appen)<input name="source" required /></label>
+          <label className="f">Oversettelse<input name="text" required /></label>
+          <div className="row" style={{ alignItems: "end" }}><button className="btn dark sm">Legg til rettelse</button></div>
+        </form>
+        {overrides.rows.length ? (
+          <table><thead><tr><th>Norsk</th><th>Oversettelse</th><th>Av</th><th /></tr></thead>
+            <tbody>{overrides.rows.map((o) => (
+              <tr key={o.source}><td>{o.source}</td>
+                <td><form action={saveTranslationAction} className="row" style={{ flexWrap: "nowrap" }}><input type="hidden" name="lang" value={lang} /><input type="hidden" name="source" value={o.source} /><input type="hidden" name="back" value={back} /><input name="text" defaultValue={o.text} style={{ minHeight: 38 }} /><button className="btn line sm">Lagre</button></form></td>
+                <td className="small">{o.updated_by}</td>
+                <td><form action={saveTranslationAction}><input type="hidden" name="lang" value={lang} /><input type="hidden" name="source" value={o.source} /><input type="hidden" name="text" value="" /><input type="hidden" name="back" value={back} /><button className="btn line sm">Fjern</button></form></td></tr>))}</tbody></table>
+        ) : <p className="small muted">Ingen rettelser. Ordboka i koden brukes.</p>}
+        <p className="small muted">Rettelser går foran ordboka i koden. Flytt dem gjerne inn i i18n/translations.tsv senere.</p>
       </div>
     </>
   );

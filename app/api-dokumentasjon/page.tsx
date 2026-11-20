@@ -51,7 +51,7 @@ export default function ApiDocs() {
   return (
     <div className="site">
       <SiteNav links={false} />
-      <main className="doc">
+      <main className="doc" data-no-translate>
         <h1>Restoq API v1</h1>
         <p>Med API-et kan skannere, EDI-løsninger og andre systemer registrere leverandørfakturaer og pakksedler i Restoq. Restoq matcher dem automatisk mot bestilling og varemottak. Godkjenning, sending til Tripletex og betaling gjøres av leder i appen.</p>
 

@@ -29,7 +29,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
   const err24 = Number((await p.query("SELECT count(*)::int AS n FROM error_log WHERE at > now() - interval '24 hours'")).rows[0].n);
   const log = (await p.query("SELECT a.*, o.name AS org FROM audit a LEFT JOIN orgs o ON o.id = a.org_id ORDER BY a.created_at DESC LIMIT 40")).rows;
   return (
-    <div className="site">
+    <div className="site" data-no-translate>
       <header className="nav"><div className="wrap"><Link href="/" className="logo">Restoq admin</Link><div style={{ flex: 1 }} /><Link className="btn ghost sm" href="/utvikler">Utvikler{fbNew ? ` (${fbNew})` : ""}</Link><span className="small" style={{ opacity: 0.7 }}>{me.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>
       <main className="admin">
         {sp.ok ? <div className="note ok">{sp.ok}</div> : null}

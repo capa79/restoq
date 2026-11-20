@@ -40,6 +40,9 @@ services:
         value: test # «prod» når integrasjonen er godkjent for produksjon
       - key: TRIPLETEX_PAYMENT_TYPE
         sync: false # valgfri, betalingstype for :addPayment (se README)
+      # Valgfri: automatisk oversettelse av manglende tekster (Utvikler → Oversettelser)
+      - key: ANTHROPIC_API_KEY
+        sync: false
       # Personvern / bunntekst
       - key: LEGAL_ENTITY
         sync: false
