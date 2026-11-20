@@ -948,5 +948,58 @@ async function download(filename, data){
 }
 window.addEventListener('beforeunload', () => { if (countDirty) flushCount(); });
 
+/* ---------- Feilrapportering og tilbakemelding (restoq.no) ---------- */
+const RECENT_ERRORS = [], FAILED_CALLS = [];
+if (MODE_API){
+  const origFetch = window.fetch.bind(window);
+  const remember = (input, init, status) => { try { const u = new URL(typeof input === 'string' ? input : input.url, location.href); if (u.pathname === '/api/errors' || u.pathname === '/api/feedback') return; FAILED_CALLS.push({m:(init && init.method || 'GET').toUpperCase(), u:u.pathname, s:status, t:Date.now()}); if (FAILED_CALLS.length > 6) FAILED_CALLS.shift(); } catch(e){} };
+  window.fetch = async (input, init) => { try { const r = await origFetch(input, init); if (!r.ok && r.status >= 500) remember(input, init, 'HTTP ' + r.status); return r; } catch(e){ if (!(e && e.name === 'AbortError')) remember(input, init, navigator.onLine ? 'nettverksfeil' : 'frakoblet'); throw e; } };
+  let sent = 0; const seen = new Set();
+  const report = (message, stack) => {
+    message = String(message || ''); if (!message || /ResizeObserver loop|Script error\.?$|extension:\/\//i.test(message + (stack || ''))) return;
+    RECENT_ERRORS.push({t:new Date().toLocaleTimeString('nb-NO'), m:message.slice(0,300)}); if (RECENT_ERRORS.length > 5) RECENT_ERRORS.shift();
+    if (sent >= 5 || seen.has(message)) return; seen.add(message); sent++;
+    const calls = FAILED_CALLS.filter(f => Date.now() - f.t < 30000).map(f => `${f.m} ${f.u} – ${f.s}`).join('\n');
+    origFetch('/api/errors', {method:'POST', headers:{'Content-Type':'application/json'}, credentials:'same-origin', keepalive:true, body: JSON.stringify({message, stack: (stack || '') + (calls ? '\n\nKall som feilet:\n' + calls : ''), path: '/app#' + view})}).catch(() => {});
+  };
+  window.addEventListener('error', e => report(e.message, e.error && e.error.stack));
+  window.addEventListener('unhandledrejection', e => { const r = e.reason || {}; if (r.code === 'auth' || r.code === 'forbidden' || r.code === 'http') return; report(r.message || String(r), r.stack); });
+}
+const FB_KINDS = [['feil','Noe virker ikke'],['tall','Feil tall eller forslag'],['forslag','Forslag til forbedring'],['ros','Noe som fungerer bra'],['annet','Annet']];
+async function shrinkImage(file){
+  const url = URL.createObjectURL(file);
+  try { const img = new Image(); img.src = url; await img.decode(); const sc = Math.min(1, 1600 / Math.max(img.naturalWidth, img.naturalHeight)); const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth*sc); c.height = Math.round(img.naturalHeight*sc); const x = c.getContext('2d'); x.fillStyle = '#fff'; x.fillRect(0,0,c.width,c.height); x.drawImage(img,0,0,c.width,c.height); return await new Promise((ok, no) => c.toBlob(b => b ? ok(b) : no(new Error('Bildet kunne ikke leses.')), 'image/jpeg', 0.85)); }
+  finally { URL.revokeObjectURL(url); }
+}
+function feedbackModal(){
+  const shots = [];
+  modal(`<h3>Gi tilbakemelding</h3><div class="small muted">Si fra om feil, rare tall eller ideer. Utviklerne får med hvilken side du er på og nettleseren din.</div>
+    <div class="chips" id="fbKinds">${FB_KINDS.map(([k,l],i) => `<button class="chip ${i===0?'on':''}" data-k="${k}">${l}</button>`).join('')}</div>
+    <label class="f">Hva skjedde?<textarea id="fbMsg" rows="5" maxlength="4000" placeholder="F.eks. «Forslaget for smør er 40, men vi bruker 10 i uka» eller «Lagre-knappen gjør ingenting på iPad»"></textarea></label>
+    <div class="row"><label class="btn" style="cursor:pointer">📷 Legg ved skjermbilde<input type="file" id="fbImg" accept="image/png,image/jpeg,image/webp" multiple class="hide"></label><span class="small muted">Høyst 3 bilder</span></div>
+    <div class="row" id="fbShots"></div><div id="fbErr"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="fbSend">Send</button></div>`, m => {
+    let kind = 'feil';
+    m.querySelectorAll('#fbKinds .chip').forEach(b => b.onclick = () => { kind = b.dataset.k; m.querySelectorAll('#fbKinds .chip').forEach(x => x.classList.toggle('on', x === b)); });
+    const draw = () => { m.querySelector('#fbShots').innerHTML = shots.map((s,i) => `<span style="position:relative"><img src="${s.url}" alt="Skjermbilde ${i+1}" style="height:70px;border-radius:8px;border:1px solid var(--line)"><button class="btn sm danger" data-rm="${i}" style="position:absolute;top:-8px;right:-8px;min-height:26px;padding:0 8px" aria-label="Fjern bilde">×</button></span>`).join(''); m.querySelectorAll('[data-rm]').forEach(b => b.onclick = () => { URL.revokeObjectURL(shots[+b.dataset.rm].url); shots.splice(+b.dataset.rm, 1); draw(); }); };
+    m.querySelector('#fbImg').onchange = async e => { for (const f of [...e.target.files].slice(0, 3 - shots.length)){ try { const blob = await shrinkImage(f); shots.push({blob, url: URL.createObjectURL(blob)}); } catch(x){ toast('Bildet kunne ikke leses.'); } } e.target.value = ''; draw(); };
+    m.querySelector('#fbSend').onclick = async () => {
+      const msg = m.querySelector('#fbMsg').value.trim(); if (msg.length < 3){ m.querySelector('#fbErr').innerHTML = '<div class="note bad">Skriv litt om hva du vil si fra om.</div>'; return; }
+      const b = m.querySelector('#fbSend'); b.disabled = true; b.textContent = 'Sender …';
+      const ctx = [`Kunde: ${S.me?.org || '–'} · rolle: ${S.me?.role || '–'}`, `Visning: ${view} · skjerm ${innerWidth}×${innerHeight}`, `Varer: ${C ? C.items.length : 0} · bestillinger: ${S.orders.length} · siste telling: ${C && C.cur ? C.cur.date : 'ingen'}`];
+      if (RECENT_ERRORS.length) ctx.push('Siste feil i nettleseren:\n' + RECENT_ERRORS.map(e => `${e.t} ${e.m}`).join('\n'));
+      if (FAILED_CALLS.length) ctx.push('Kall som feilet:\n' + FAILED_CALLS.map(f => `${f.m} ${f.u} – ${f.s}`).join('\n'));
+      const fd = new FormData(); fd.append('kind', kind); fd.append('message', msg); fd.append('path', '/app#' + view); fd.append('context', ctx.join('\n'));
+      shots.forEach((s,i) => fd.append('image', s.blob, `skjermbilde-${i+1}.jpg`));
+      try { const r = await fetch('/api/feedback', {method:'POST', body:fd, credentials:'same-origin'}); const j = await r.json().catch(() => ({})); if (!r.ok) throw new Error(j.error || 'Kunne ikke sende.'); shots.forEach(s => URL.revokeObjectURL(s.url)); closeModal(); toast('Takk! Tilbakemeldingen er sendt.'); }
+      catch(e){ m.querySelector('#fbErr').innerHTML = `<div class="note bad">${esc(e.message)}</div>`; b.disabled = false; b.textContent = 'Send'; }
+    };
+  });
+}
+if (MODE_API){
+  const fb = document.createElement('button'); fb.className = 'fbfloat'; fb.type = 'button'; fb.setAttribute('aria-label', 'Gi tilbakemelding'); fb.innerHTML = '<span aria-hidden="true">💬</span><span class="fbtxt"> Gi tilbakemelding</span>';
+  fb.onclick = feedbackModal; document.body.appendChild(fb);
+}
+
 render();
 connect();

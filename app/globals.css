@@ -176,3 +176,38 @@
 .site .admin th { font-size: 12px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
 .site .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 @media (prefers-reduced-motion: reduce) { .site * { transition: none !important; scroll-behavior: auto !important; } }
+
+/* utviklerside */
+.site .devtabs { display: flex; gap: 6px; border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+.site .devtabs a { text-decoration: none; padding: 10px 14px; border-radius: 10px 10px 0 0; font-weight: 600; color: var(--muted); }
+.site .devtabs a[aria-current="page"] { color: var(--ink); background: var(--card); border: 1px solid var(--line); border-bottom-color: var(--card); margin-bottom: -1px; }
+.site .devtabs b { background: var(--red); color: #fff; font-size: 12px; padding: 1px 7px; border-radius: 99px; margin-left: 4px; }
+.site .devfilters { display: flex; gap: 6px; flex-wrap: wrap; }
+.site .devfilters a { text-decoration: none; border: 1px solid var(--line); background: var(--card); border-radius: 99px; padding: 6px 12px; font-size: 14px; }
+.site .devfilters a[aria-current="page"] { background: var(--ink); color: #fff; border-color: var(--ink); }
+.site .devfilters b { font-variant-numeric: tabular-nums; margin-left: 2px; }
+.site .devfilters.sub a { font-size: 13px; padding: 4px 10px; }
+.site .devfilters .sep { width: 1px; background: var(--line); margin: 0 4px; }
+.site .tag { display: inline-block; font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 99px; background: #eceeed; color: var(--muted); text-transform: uppercase; letter-spacing: 0.03em; }
+.site .tag.k-feil, .site .tag.k-tall, .site .tag.p-hoy { background: #fde8e6; color: #b42318; }
+.site .tag.k-forslag, .site .tag.s-planlagt, .site .tag.s-under_arbeid { background: #e4eefa; color: var(--blue); }
+.site .tag.k-ros, .site .tag.s-ferdig { background: #e3f4ea; color: var(--green); }
+.site .tag.s-ny, .site .tag.p-middels { background: #fff1d6; color: var(--amber); }
+.site .card.fb { border-left: 5px solid var(--line); display: grid; gap: 6px; }
+.site .card.fb.st-ny { border-left-color: var(--amber); }
+.site .card.fb.st-under_arbeid, .site .card.fb.st-planlagt { border-left-color: var(--blue); }
+.site .card.fb.st-ferdig { border-left-color: var(--green); opacity: 0.8; }
+.site .fbmsg { white-space: pre-wrap; font-size: 17px; margin: 4px 0; }
+.site .thumbs { display: flex; gap: 8px; flex-wrap: wrap; }
+.site .thumbs img { height: 110px; border-radius: 8px; border: 1px solid var(--line); object-fit: cover; }
+.site .stack { background: var(--ink); color: #e8edeb; padding: 12px; border-radius: 8px; font-size: 12px; overflow-x: auto; white-space: pre-wrap; }
+.site .fbedit summary { cursor: pointer; font-weight: 600; margin-top: 4px; }
+.site .fbform { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 10px; }
+.site .fbform .wide { grid-column: 1 / -1; }
+@media (max-width: 700px) { .site .fbform { grid-template-columns: 1fr; } }
+.site .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 12px; }
+.site .kpis .card { display: grid; gap: 2px; padding: 16px; }
+.site .kpis b { font-family: var(--display); font-size: 28px; }
+@media (max-width: 700px) { .site .kpis { grid-template-columns: 1fr 1fr; } }
+.site .errrow { display: flex; gap: 10px; align-items: flex-start; padding: 10px 0; border-bottom: 1px solid var(--line); }
+.site .errrow summary { cursor: pointer; }

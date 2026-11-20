@@ -66,3 +66,31 @@ export async function leadHandledAction(form: FormData) {
   await p.query("UPDATE leads SET handled = NOT handled WHERE id = $1", [Number(form.get("id"))]);
   revalidatePath("/admin");
 }
+
+/** Gir eller fjerner utviklertilgang. Finnes ikke brukeren, opprettes en utviklerkonto uten kunde. */
+export async function developerAction(form: FormData) {
+  const me = await requireAdmin();
+  const email = String(form.get("email") ?? "").trim().toLowerCase();
+  const name = String(form.get("name") ?? "").trim().slice(0, 80);
+  const on = String(form.get("on") ?? "1") === "1";
+  if (!EMAIL_RE.test(email)) redirect("/admin?feil=" + encodeURIComponent("Skriv inn en gyldig e-postadresse."));
+  const p = await db();
+  const u = (await p.query("SELECT id, role FROM users WHERE lower(email) = $1", [email])).rows[0];
+  if (u) {
+    await p.query("UPDATE users SET is_developer = $2 WHERE id = $1", [u.id, on]);
+    await audit(me.email, on ? "ga utviklertilgang" : "fjernet utviklertilgang", email);
+    redirect("/admin?ok=" + encodeURIComponent(on ? `${email} har fått utviklertilgang.` : `Utviklertilgangen til ${email} er fjernet.`) + "#utviklere");
+  }
+  if (!on) redirect("/admin#utviklere");
+  const { hashPassword, tempPassword, TEMP_PASSWORD_DAYS } = await import("@/lib/password");
+  const { sendMail, appUrl } = await import("@/lib/mail");
+  const pw = tempPassword();
+  await p.query(
+    `INSERT INTO users (email, name, role, is_developer, password_hash, must_change_password, temp_password_expires_at)
+     VALUES ($1, $2, 'staff', TRUE, $3, TRUE, now() + interval '${TEMP_PASSWORD_DAYS} days')`,
+    [email, name, await hashPassword(pw)]
+  );
+  await audit(me.email, "opprettet utviklerkonto", email);
+  const sent = await sendMail(email, "Du har fått utviklertilgang til Restoq", `Hei${name ? " " + name : ""}!\n\nDu har fått tilgang til utviklersiden i Restoq, med tilbakemeldinger fra testerne og feilloggen.\n\nLogg inn: ${appUrl()}/login\nE-post: ${email}\nMidlertidig passord: ${pw}\n\nPassordet gjelder i ${TEMP_PASSWORD_DAYS} dager. Du velger eget passord første gang du logger inn.\n\nHilsen Restoq`);
+  redirect("/admin?ok=" + encodeURIComponent(sent ? `Utviklerkonto opprettet. ${email} har fått e-post.` : `Utviklerkonto opprettet. Midlertidig passord for ${email}: ${pw} (gjelder i ${TEMP_PASSWORD_DAYS} dager).`) + "#utviklere");
+}

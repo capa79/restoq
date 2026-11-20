@@ -8,8 +8,12 @@ export const dynamic = "force-dynamic";
 // Selve appen er et klientskript (public/restoq-app.js) som henter og lagrer data via /api/data.
 export default async function AppPage() {
   const me = await requireUser();
-  if (!me.org_id) redirect(me.role === "admin" ? "/admin" : "/login");
-  const boot = JSON.stringify({ name: me.name, email: me.email, role: me.role, org: me.org_name }).replace(/</g, "\\u003c");
+  if (!me.org_id) {
+    if (me.role === "admin") redirect("/admin");
+    if (me.is_developer) redirect("/utvikler");
+    redirect("/login?feil=ingen-kunde");
+  }
+  const boot = JSON.stringify({ name: me.name, email: me.email, role: me.role, org: me.org_name, dev: me.is_developer, version: (process.env.RENDER_GIT_COMMIT ?? "").slice(0, 7) }).replace(/</g, "\\u003c");
   return (
     <>
       <link rel="stylesheet" href="/restoq-app.css" precedence="default" />
@@ -23,6 +27,7 @@ export default async function AppPage() {
           <div className="sp" />
           <span className="sync" id="sync"><i /><span>Kobler til …</span></span>
           {me.role === "admin" ? <a className="iconbtn" href="/admin">Admin</a> : null}
+          {me.is_developer ? <a className="iconbtn" href="/utvikler">Utvikler</a> : null}
           <button className="iconbtn" id="btnSettings" aria-label="Innstillinger">⚙<span className="lbl"> Innstillinger</span></button>
           <form method="post" action="/api/auth/logout" style={{ margin: 0 }}><button className="iconbtn" type="submit" title={`Logget inn som ${me.email}`}>Logg ut</button></form>
         </header>

@@ -13,6 +13,7 @@ export type CurrentUser = {
   name: string;
   role: Role;
   is_root: boolean;
+  is_developer: boolean;
   must_change_password: boolean;
   /** Kunden brukeren jobber i (for admin: kunden som er åpnet, ellers null) */
   org_id: number | null;
@@ -57,7 +58,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
   if (!token) return null;
   const p = await db();
   const { rows } = await p.query(
-    `SELECT u.id, u.email, u.name, u.role, u.is_root, u.must_change_password, s.last_seen_at,
+    `SELECT u.id, u.email, u.name, u.role, u.is_root, u.is_developer, u.must_change_password, s.last_seen_at,
             COALESCE(CASE WHEN u.role = 'admin' THEN s.acting_org_id ELSE u.org_id END, NULL) AS org_id,
             o.name AS org_name
        FROM sessions s JOIN users u ON u.id = s.user_id
@@ -76,6 +77,7 @@ export async function getCurrentUser(): Promise<CurrentUser | null> {
     name: r.name,
     role: r.role,
     is_root: r.is_root,
+    is_developer: r.is_developer || r.role === "admin",
     must_change_password: r.must_change_password,
     org_id: r.org_id == null ? null : Number(r.org_id),
     org_name: r.org_name ?? null,
@@ -86,6 +88,19 @@ export async function requireUser(): Promise<CurrentUser> {
   const u = await getCurrentUser();
   if (!u) redirect("/login");
   if (u.must_change_password) redirect("/bytt-passord");
+  return u;
+}
+
+/** Startside etter innlogging: admin → /admin, utvikler uten kunde → /utvikler, ellers appen. */
+export function homeFor(u: { role: string; is_developer?: boolean; org_id?: number | null }, next = "/app"): string {
+  if (u.role === "admin" && next === "/app") return "/admin";
+  if (!u.org_id && u.is_developer && next === "/app") return "/utvikler";
+  return next;
+}
+
+export async function requireDeveloper(): Promise<CurrentUser> {
+  const u = await requireUser();
+  if (!u.is_developer) redirect("/app");
   return u;
 }
 

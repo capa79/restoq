@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { audit, db } from "@/lib/db";
 import { GOOGLE_COOKIE, googleEnabled, googleIdentity } from "@/lib/google-auth";
-import { clientIp, createSession, safeNext } from "@/lib/session";
+import { clientIp, createSession, homeFor, safeNext } from "@/lib/session";
 import { noteFail, tooManyFails } from "@/lib/rate-limit";
 
 const to = (req: NextRequest, path: string) => {
@@ -35,7 +35,7 @@ export async function GET(req: NextRequest) {
   const p = await db();
   // Først på Google-ID, ellers på bekreftet e-post (første gang)
   const { rows } = await p.query(
-    `SELECT id, email, role, google_sub FROM users
+    `SELECT id, email, role, google_sub, is_developer, org_id FROM users
       WHERE google_sub = $1 OR (google_sub IS NULL AND lower(email) = $2)
       ORDER BY (google_sub = $1) DESC NULLS LAST LIMIT 1`,
     [id.sub, id.email]
@@ -50,5 +50,5 @@ export async function GET(req: NextRequest) {
   await createSession(Number(u.id));
   await audit(u.email, "logget inn med Google");
   const next = safeNext(saved.next ?? "");
-  return to(req, u.role === "admin" && next === "/app" ? "/admin" : next);
+  return to(req, homeFor({ role: u.role, is_developer: u.is_developer, org_id: u.org_id == null ? null : Number(u.org_id) }, next));
 }

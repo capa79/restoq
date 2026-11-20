@@ -131,4 +131,7 @@ tr.click{cursor:pointer}tr.click:hover td{background:var(--surface2)}
   main{padding:14px 12px 100px} nav.tabs button{font-size:11px;padding:6px 2px}
   .seg button{min-width:0;flex-basis:100%}
 }
+.fbfloat{position:fixed;right:16px;bottom:96px;z-index:25;background:var(--head);color:var(--head-ink);border:0;border-radius:99px;padding:10px 16px;font-weight:600;box-shadow:0 6px 20px rgba(0,0,0,.2);cursor:pointer;min-height:44px}
+.fbfloat:hover{filter:brightness(1.1)}
+@media (max-width:640px){.fbfloat{bottom:84px;padding:10px 13px}.fbfloat .fbtxt{display:none}}
 @media (prefers-reduced-motion:reduce){*{transition:none!important}}

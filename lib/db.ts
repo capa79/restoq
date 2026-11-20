@@ -120,6 +120,50 @@ CREATE TABLE IF NOT EXISTS api_keys (
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   last_used_at TIMESTAMPTZ
 );
+-- Utviklerrollen (tildeles av admin). Utviklere uten kunde ser bare /utvikler.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS is_developer BOOLEAN NOT NULL DEFAULT FALSE;
+-- Feillogg (server og nettleser). Ryddes etter 30 dager.
+CREATE TABLE IF NOT EXISTS error_log (
+  id BIGSERIAL PRIMARY KEY,
+  at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  source TEXT NOT NULL CHECK (source IN ('server','client')),
+  message TEXT NOT NULL,
+  stack TEXT NOT NULL DEFAULT '',
+  path TEXT NOT NULL DEFAULT '',
+  digest TEXT NOT NULL DEFAULT '',
+  user_agent TEXT NOT NULL DEFAULT '',
+  org_id BIGINT,
+  user_id BIGINT
+);
+CREATE INDEX IF NOT EXISTS error_log_at ON error_log(at DESC);
+-- Tilbakemeldinger fra testerne (knappen «Gi tilbakemelding» i appen)
+CREATE TABLE IF NOT EXISTS feedback (
+  id BIGSERIAL PRIMARY KEY,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  org_id BIGINT REFERENCES orgs(id) ON DELETE SET NULL,
+  user_id BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  kind TEXT NOT NULL DEFAULT 'annet',
+  message TEXT NOT NULL,
+  path TEXT NOT NULL DEFAULT '',
+  context TEXT NOT NULL DEFAULT '',
+  user_agent TEXT NOT NULL DEFAULT '',
+  version TEXT NOT NULL DEFAULT '',
+  status TEXT NOT NULL DEFAULT 'ny',
+  priority TEXT NOT NULL DEFAULT '',
+  dev_note TEXT NOT NULL DEFAULT '',
+  assigned_to BIGINT REFERENCES users(id) ON DELETE SET NULL,
+  updated_at TIMESTAMPTZ,
+  updated_by TEXT NOT NULL DEFAULT '',
+  handled_at TIMESTAMPTZ
+);
+CREATE INDEX IF NOT EXISTS feedback_created ON feedback(created_at DESC);
+CREATE TABLE IF NOT EXISTS feedback_images (
+  id BIGSERIAL PRIMARY KEY,
+  feedback_id BIGINT NOT NULL REFERENCES feedback(id) ON DELETE CASCADE,
+  mime TEXT NOT NULL,
+  data BYTEA NOT NULL
+);
+CREATE INDEX IF NOT EXISTS feedback_images_fb ON feedback_images(feedback_id);
 CREATE TABLE IF NOT EXISTS audit (
   id BIGSERIAL PRIMARY KEY,
   actor TEXT,

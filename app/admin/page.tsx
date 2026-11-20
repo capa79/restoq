@@ -1,5 +1,6 @@
 import Link from "next/link";
-import { createOrgAction, deleteOrgAction, leadHandledAction, loadPilotAction, openOrgAction } from "./actions";
+import { createOrgAction, deleteOrgAction, developerAction, leadHandledAction, loadPilotAction, openOrgAction } from "./actions";
+import { kindLabel } from "@/lib/feedback";
 import { logoutAction } from "../auth-actions";
 import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
@@ -22,16 +23,25 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
        FROM orgs o LEFT JOIN users u ON u.org_id = o.id GROUP BY o.id ORDER BY o.name`
   )).rows;
   const leads = (await p.query("SELECT * FROM leads ORDER BY handled, created_at DESC LIMIT 100")).rows;
+  const devs = (await p.query("SELECT u.id, u.email, u.name, u.role, o.name AS org, u.last_login_at FROM users u LEFT JOIN orgs o ON o.id = u.org_id WHERE u.is_developer AND u.role <> 'admin' ORDER BY u.email")).rows;
+  const fb = (await p.query("SELECT f.id, f.kind, f.message, f.created_at, o.name AS org FROM feedback f LEFT JOIN orgs o ON o.id = f.org_id WHERE f.status = 'ny' ORDER BY f.created_at DESC LIMIT 5")).rows;
+  const fbNew = Number((await p.query("SELECT count(*)::int AS n FROM feedback WHERE status = 'ny'")).rows[0].n);
+  const err24 = Number((await p.query("SELECT count(*)::int AS n FROM error_log WHERE at > now() - interval '24 hours'")).rows[0].n);
   const log = (await p.query("SELECT a.*, o.name AS org FROM audit a LEFT JOIN orgs o ON o.id = a.org_id ORDER BY a.created_at DESC LIMIT 40")).rows;
   return (
     <div className="site">
-      <header className="nav"><div className="wrap"><Link href="/" className="logo">Restoq admin</Link><div style={{ flex: 1 }} /><span className="small" style={{ opacity: 0.7 }}>{me.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>
+      <header className="nav"><div className="wrap"><Link href="/" className="logo">Restoq admin</Link><div style={{ flex: 1 }} /><Link className="btn ghost sm" href="/utvikler">Utvikler{fbNew ? ` (${fbNew})` : ""}</Link><span className="small" style={{ opacity: 0.7 }}>{me.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>
       <main className="admin">
         {sp.ok ? <div className="note ok">{sp.ok}</div> : null}
         {sp.feil ? <div className="note bad">{sp.feil}</div> : null}
         <div className="card">
           <h3 style={{ marginTop: 0 }}>Oppsett</h3>
           <p className="small">E-post: {mailEnabled() ? "på" : "av (midlertidige passord vises her)"} · Google-innlogging: {googleEnabled() ? "på" : "av"} · Tripletex: {tripletexConfigured() ? (process.env.TRIPLETEX_ENV === "prod" ? "på (produksjon)" : "på (testmiljø)") : "av"}</p>
+        </div>
+        <div className="card">
+          <div className="row" style={{ justifyContent: "space-between" }}><h3 style={{ margin: 0 }}>Fra testerne</h3><Link className="btn dark sm" href="/utvikler">Åpne utviklersiden</Link></div>
+          <p className="small muted" style={{ margin: "6px 0 10px" }}>{fbNew} nye tilbakemeldinger · {err24} feil i loggen siste døgn</p>
+          {fb.length ? <table><tbody>{fb.map((f) => <tr key={f.id}><td className="small">{d(f.created_at)}</td><td><span className="tag">{kindLabel(f.kind)}</span></td><td className="small">{f.org ?? "–"}</td><td><Link href={`/utvikler#fb-${f.id}`}>{String(f.message).slice(0, 110)}</Link></td></tr>)}</tbody></table> : <p className="small muted">Ingen nye tilbakemeldinger.</p>}
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0, marginBottom: 12 }}>Ny kunde</h3>
@@ -62,6 +72,16 @@ export default async function Admin({ searchParams }: { searchParams: Promise<{ 
               {!orgs.length ? <tr><td colSpan={6} className="muted">Ingen kunder ennå.</td></tr> : null}
             </tbody>
           </table></div>
+        </div>
+        <div className="card" id="utviklere">
+          <h3 style={{ marginTop: 0, marginBottom: 6 }}>Utviklere</h3>
+          <p className="small muted" style={{ marginBottom: 12 }}>Utviklere ser tilbakemeldinger fra testerne og feilloggen på /utvikler. En utvikler uten konto får en egen konto uten tilgang til kundenes data. Alle brukere hos kundene kan sende tilbakemeldinger fra appen.</p>
+          <form action={developerAction} className="row" style={{ alignItems: "end", marginBottom: 12 }}>
+            <label className="f" style={{ flex: 2, minWidth: 200 }}>E-post<input name="email" type="email" required /></label>
+            <label className="f" style={{ flex: 1, minWidth: 150 }}>Navn<input name="name" /></label>
+            <input type="hidden" name="on" value="1" /><button className="btn dark">Gi utviklertilgang</button>
+          </form>
+          {devs.length ? <table><thead><tr><th>Utvikler</th><th>Kunde</th><th>Sist innlogget</th><th /></tr></thead><tbody>{devs.map((u) => <tr key={u.id}><td>{u.name ? `${u.name} · ` : ""}{u.email}</td><td>{u.org ?? "Ingen (bare utviklersiden)"}</td><td>{d(u.last_login_at)}</td><td><form action={developerAction}><input type="hidden" name="email" value={u.email} /><input type="hidden" name="on" value="0" /><button className="btn line sm">Fjern tilgang</button></form></td></tr>)}</tbody></table> : <p className="small muted">Ingen utviklere ennå. Som admin har du selv tilgang til utviklersiden.</p>}
         </div>
         <div className="card">
           <h3 style={{ marginTop: 0, marginBottom: 12 }}>Henvendelser fra forsiden</h3>

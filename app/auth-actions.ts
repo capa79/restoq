@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { audit, db } from "@/lib/db";
 import { hashPassword, passwordProblem, verifyPassword } from "@/lib/password";
 import { clearFails, noteFail, tooManyFails } from "@/lib/rate-limit";
-import { clientIp, createSession, destroySession, getCurrentUser, safeNext } from "@/lib/session";
+import { clientIp, createSession, destroySession, getCurrentUser, homeFor, safeNext } from "@/lib/session";
 
 export async function loginAction(form: FormData) {
   const email = String(form.get("email") ?? "").trim().toLowerCase();
@@ -15,7 +15,7 @@ export async function loginAction(form: FormData) {
   if (!email || !pw) back("mangler");
   const p = await db();
   const { rows } = await p.query(
-    "SELECT id, password_hash, must_change_password, temp_password_expires_at, role FROM users WHERE lower(email) = $1",
+    "SELECT id, password_hash, must_change_password, temp_password_expires_at, role, is_developer, org_id FROM users WHERE lower(email) = $1",
     [email]
   );
   const u = rows[0];
@@ -30,7 +30,7 @@ export async function loginAction(form: FormData) {
   await createSession(Number(u.id));
   await audit(email, "logget inn");
   if (u.must_change_password) redirect("/bytt-passord");
-  redirect(u.role === "admin" && next === "/app" ? "/admin" : next);
+  redirect(homeFor({ role: u.role, is_developer: u.is_developer, org_id: u.org_id == null ? null : Number(u.org_id) }, next));
 }
 
 export async function changePasswordAction(form: FormData) {
@@ -44,7 +44,7 @@ export async function changePasswordAction(form: FormData) {
   const p = await db();
   await p.query("UPDATE users SET password_hash = $2, must_change_password = FALSE, temp_password_expires_at = NULL WHERE id = $1", [me.id, await hashPassword(pw)]);
   await audit(me.email, "valgte nytt passord", "", me.org_id);
-  redirect(me.role === "admin" ? "/admin" : "/app");
+  redirect(homeFor(me));
 }
 
 export async function logoutAction() {

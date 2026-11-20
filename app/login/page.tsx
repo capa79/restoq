@@ -3,7 +3,7 @@ import { redirect } from "next/navigation";
 import { loginAction } from "../auth-actions";
 import { SiteNav } from "../site-chrome";
 import { googleEnabled } from "@/lib/google-auth";
-import { getCurrentUser, safeNext } from "@/lib/session";
+import { getCurrentUser, homeFor, safeNext } from "@/lib/session";
 
 export const metadata = { title: "Logg inn – Restoq", robots: { index: false } };
 
@@ -12,6 +12,7 @@ const ERR: Record<string, string> = {
   mangler: "Fyll inn e-post og passord.",
   sperret: "For mange forsøk. Vent 15 minutter og prøv igjen.",
   utlopt: "Det midlertidige passordet har gått ut. Be lederen din om et nytt.",
+  "ingen-kunde": "Kontoen din er ikke knyttet til noen kunde. Kontakt Restoq.",
 };
 const GERR: Record<string, string> = {
   "ingen-konto": "Google-kontoen har ikke tilgang til Restoq. Be lederen din legge deg til med samme e-postadresse.",
@@ -24,7 +25,7 @@ export default async function Login({ searchParams }: { searchParams: Promise<Re
   const sp = await searchParams;
   const next = safeNext(sp.next);
   const me = await getCurrentUser().catch(() => null);
-  if (me && !sp.feil) redirect(me.must_change_password ? "/bytt-passord" : me.role === "admin" && next === "/app" ? "/admin" : next);
+  if (me && !sp.feil) redirect(me.must_change_password ? "/bytt-passord" : homeFor(me, next));
   const err = (sp.feil && ERR[sp.feil]) || (sp.google && GERR[sp.google]);
   return (
     <div className="site auth">
