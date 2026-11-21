@@ -1022,3 +1022,14 @@ Uten leverandør	No supplier	Ohne Lieferant	Bez dostawcy	Sin proveedor
 På fakturaen:	On the invoice:	Auf der Rechnung:	Na fakturze:	En la factura:
 Alle leverandører	All suppliers	Alle Lieferanten	Wszyscy dostawcy	Todos los proveedores
 Fil	File	Datei	Plik	Archivo
+Varenavnene står slik de er registrert, ofte på norsk som på fakturaen (f.eks. «EPLE» eller «MELK»). Prøv et annet ord eller varenummeret.	Item names are shown as registered, often in Norwegian as on the invoice (e.g. “EPLE” or “MELK”). Try another word or the item number.	Artikelnamen stehen so, wie sie erfasst wurden, oft auf Norwegisch wie auf der Rechnung (z. B. „EPLE“ oder „MELK“). Versuchen Sie ein anderes Wort oder die Artikelnummer.	Nazwy towarów są takie, jak zostały zarejestrowane, często po norwesku jak na fakturze (np. „EPLE” lub „MELK”). Spróbuj innego słowa lub numeru towaru.	Los nombres de los artículos aparecen tal como se registraron, a menudo en noruego como en la factura (p. ej., «EPLE» o «MELK»). Prueba otra palabra o el número de artículo.
+Fant ingen vare som passer «	No item matches “	Kein Artikel passt zu „	Brak towaru pasującego do „	Ningún artículo coincide con «
+». 	”. 	“. 	”. 	». 
+Dere har ingen varer ennå. Legg inn varer under Varer eller med Kom i gang-veiviseren.	You have no items yet. Add items under Items or with the Get started wizard.	Sie haben noch keine Artikel. Legen Sie Artikel unter Artikel oder mit dem Einrichtungsassistenten an.	Nie masz jeszcze towarów. Dodaj towary w Towarach lub kreatorem Pierwsze kroki.	Todavía no tienes artículos. Añade artículos en Artículos o con el asistente Primeros pasos.
++ Legg til «	+ Add “	+ „	+ Dodaj „	+ Añadir «
+» som ny vare	” as a new item	“ als neuen Artikel hinzufügen	” jako nowy towar	» como artículo nuevo
+Velg en vare fra lista først.	Choose an item from the list first.	Wählen Sie zuerst einen Artikel aus der Liste.	Najpierw wybierz towar z listy.	Elige primero un artículo de la lista.
+Skriv inn antall.	Enter the quantity.	Geben Sie die Menge ein.	Wpisz ilość.	Introduce la cantidad.
+Varenummer (valgfritt)	Item number (optional)	Artikelnummer (optional)	Numer towaru (opcjonalnie)	Número de artículo (opcional)
+Legg inn en leverandør først (Innstillinger → Leverandører).	Add a supplier first (Settings → Suppliers).	Legen Sie zuerst einen Lieferanten an (Einstellungen → Lieferanten).	Najpierw dodaj dostawcę (Ustawienia → Dostawcy).	Añade primero un proveedor (Ajustes → Proveedores).
+Fyll inn varenavn.	Enter the item name.	Geben Sie den Artikelnamen ein.	Wpisz nazwę towaru.	Introduce el nombre del artículo.

@@ -533,23 +533,37 @@ const isoMon = d => { const x = new Date(d + 'T12:00:00'); const wd = (x.getDay(
 const wbar = (label, v, max, right, cls='') => `<div class="wbar ${cls}"><span class="wbar-l">${label}</span><span class="wbar-t"><i style="width:${max > 0 ? Math.max(2, v / max * 100) : 0}%"></i></span><span class="wbar-v">${right}</span></div>`;
 const pct = (a, b) => b > 0 ? nf1.format(a / b * 100) + ' %' : '–';
 
+/* ---- Varesøk: små/store bokstaver, æøå, flertall og vanlige engelske ord ---- */
+const SEARCH_EN = {apple:'eple',milk:'melk',butter:'smør',cheese:'ost',cream:'fløte',egg:'egg',chicken:'kylling',beef:'storfe',pork:'svin',salmon:'laks',cod:'torsk',shrimp:'reke',prawn:'reke',potato:'potet',tomato:'tomat',onion:'løk',garlic:'hvitløk',lemon:'sitron',lime:'lime',orange:'appelsin',bread:'brød',flour:'mel',sugar:'sukker',salt:'salt',pepper:'pepper',oil:'olje',rice:'ris',pasta:'pasta',wine:'vin',beer:'øl',coffee:'kaffe',tea:'te',juice:'juice',water:'vann',glass:'glass',napkin:'serviett',lettuce:'salat',salad:'salat',carrot:'gulrot',cucumber:'agurk',mushroom:'sopp',strawberry:'jordbær',berry:'bær',ice:'is',chocolate:'sjokolade',yogurt:'yoghurt',ham:'skinke',bacon:'bacon',lamb:'lam',fish:'fisk',sauce:'saus',vinegar:'eddik',herb:'urt',basil:'basilikum',bun:'brød',syrup:'sirup',soda:'brus',spirit:'brennevin',vodka:'vodka',gin:'gin',rum:'rom'};
+const searchNorm = t => String(t || '').toLowerCase().replace(/ø/g, 'o').replace(/æ/g, 'ae').normalize('NFKD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9 ]+/g, ' ');
+function searchWords(q){
+  return searchNorm(q).split(/\s+/).filter(Boolean).map(w => {
+    const base = w.length > 4 ? w.replace(/(ies|es|er|s|e)$/, '') : w;
+    const en = SEARCH_EN[w] || SEARCH_EN[w.replace(/s$/, '')] || SEARCH_EN[w.replace(/es$/, '')] || SEARCH_EN[base];
+    return [base, ...(en ? [searchNorm(en).replace(/(er|e)$/, '') || searchNorm(en)] : [])];
+  });
+}
+function itemMatches(i, words){
+  const hay = searchNorm([i.name, i.no, i.gtin, i.cat, i.group, SET().suppliers[i.sup]?.name].join(' '));
+  return words.every(alts => alts.some(a => hay.includes(a)));
+}
 function vSvinn(){
   const items = getItems(); if (!UI.wDate) UI.wDate = C.today;
   const byId = Object.fromEntries(items.map(i => [i.id, i]));
   const sel = UI.wItem ? byId[UI.wItem] : null;
   const sq = UI.wSearch.trim().toLowerCase();
-  const hits = sq && !sel ? items.filter(i => (i.name+' '+i.no).toLowerCase().includes(sq)).slice(0,8) : [];
+  const hits = sq && !sel ? (w => items.filter(i => itemMatches(i, w)))(searchWords(sq)).slice(0,8) : [];
   const list = [...S.waste].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (b.ts||0)-(a.ts||0));
   const ri = reasonInfo(UI.wReason);
 
   let h = `<div><h2>Avskrivning</h2><div class="muted">Registrer alt som kastes eller tas ut av lageret, samme dag: brekkasje, utgått dato, bedervet vare, feil i produksjon, personalmat. Det trekkes fra lageret og viser hva som avskrives mest – og hvorfor.</div></div>` + roNote();
   h += `<div class="card grid" style="gap:14px"><h3>Ny avskrivning</h3>`;
   h += sel ? `<div class="row between note good" style="margin:0"><div><div class="iname">${esc(sel.name)}</div><div class="isub">${sel.sup} ${esc(sel.no)} · ${esc(sel.unit)} · ${kr(sel.price)}/${esc(sel.unit)}</div></div><button class="btn sm" id="wClear">Bytt vare</button></div>`
-    : `<label class="f">Hvilken vare?<input type="search" id="wSearch" placeholder="Skriv navn, f.eks. «melk» eller «vinglass»" value="${esc(UI.wSearch)}" autocomplete="off"></label>${hits.length?`<div class="card flush">${hits.map(i=>`<div class="countrow click" data-pick="${esc(i.id)}" style="grid-template-columns:1fr auto;cursor:pointer"><div><div class="iname">${esc(i.name)}</div><div class="isub">${i.sup} ${esc(i.no)} · ${esc(i.stor)}</div></div><span class="muted">${esc(i.unit)}</span></div>`).join('')}</div>`:sq?'<div class="small muted">Ingen treff.</div>':''}`;
+    : `<label class="f">Hvilken vare?<input type="search" id="wSearch" placeholder="Skriv navn, f.eks. «melk» eller «vinglass»" value="${esc(UI.wSearch)}" autocomplete="off"></label>${hits.length?`<div class="card flush">${hits.map(i=>`<div class="countrow click" data-pick="${esc(i.id)}" style="grid-template-columns:1fr auto;cursor:pointer"><div><div class="iname">${esc(i.name)}</div><div class="isub">${i.sup} ${esc(i.no)} · ${esc(i.stor)}</div></div><span class="muted">${esc(i.unit)}</span></div>`).join('')}</div>`:sq?`<div class="note warn small" style="margin:0"><div>${items.length ? `Fant ingen vare som passer «<span translate="no">${esc(UI.wSearch.trim())}</span>». Varenavnene står slik de er registrert, ofte på norsk som på fakturaen (f.eks. «EPLE» eller «MELK»). Prøv et annet ord eller varenummeret.` : 'Dere har ingen varer ennå. Legg inn varer under Varer eller med Kom i gang-veiviseren.'}${S.canManage || !MODE_API ? `<div class="row" style="margin-top:8px"><button class="btn sm" id="wNewItem">+ Legg til «<span translate="no">${esc(UI.wSearch.trim())}</span>» som ny vare</button>${items.length ? '' : '<button class="btn sm" data-go="komigang">Kom i gang</button>'}</div>` : ''}</div></div>`:''}`;
   h += `<div class="grid g2"><label class="f">Antall${sel?' ('+esc(sel.unit)+')':''}<input type="text" inputmode="decimal" id="wQty" value="${esc(UI.wQty)}" placeholder="f.eks. 2 eller 0,5"></label><label class="f">Dato<input type="date" id="wDate" value="${UI.wDate}"></label></div>
     <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Årsak<div class="chips">${WASTE_REASONS.map(r=>`<button class="chip ${reasonOf(UI.wReason)===r.k?'on':''}" data-reason="${esc(r.k)}">${esc(r.k)}</button>`).join('')}</div>${ri.t==='uttak'?'<span class="small" style="font-weight:400">Føres som uttak, ikke svinn (se merknad i oversikten).</span>':''}</div>
     <label class="f">Kommentar${ri.k==='Annet'||ri.k==='Brekkasje'?' (hva skjedde?)':' (valgfritt)'}<input type="text" id="wComment" value="${esc(UI.wComment)}" placeholder="${ri.k==='Brekkasje'?'f.eks. mistet kasse ved varemottak':'f.eks. kjøleskap 2 for varmt'}"></label>
-    <div class="row between"><span class="muted">${sel && num(UI.wQty) ? 'Verdi: <b>'+kr(num(UI.wQty)*sel.price)+'</b>' : ''}</span><button class="btn primary lg" id="wSave" ${sel && num(UI.wQty) > 0 && S.canWrite ? '' : 'disabled'}>Registrer avskrivning</button></div></div>`;
+    <div class="row between"><span class="muted">${sel && num(UI.wQty) ? 'Verdi: <b>'+kr(num(UI.wQty)*sel.price)+'</b>' : ''}</span><span class="row" style="gap:10px">${!sel ? '<span class="small muted">Velg en vare fra lista først.</span>' : !(num(UI.wQty) > 0) ? '<span class="small muted">Skriv inn antall.</span>' : ''}<button class="btn primary lg" id="wSave" ${sel && num(UI.wQty) > 0 && S.canWrite ? '' : 'disabled'}>Registrer avskrivning</button></span></div></div>`;
 
   // ---------- oversikt ----------
   const per = UI.wPer || '30'; const [from, to] = wRange(per);
@@ -605,6 +619,8 @@ function vSvinn(){
   const ws = $('#wSearch'); if (ws) ws.oninput = e => { UI.wSearch = e.target.value; render(); };
   document.querySelectorAll('[data-pick]').forEach(d => d.onclick = () => { UI.wItem = d.dataset.pick; UI.wSearch = ''; render(); setTimeout(()=>{ const x=$('#wQty'); x && x.focus(); },0); });
   const wc = $('#wClear'); if (wc) wc.onclick = () => { UI.wItem = null; render(); };
+  const wn = $('#wNewItem'); if (wn) wn.onclick = () => newItemModal({name: UI.wSearch.trim()}, id => { UI.wItem = id; UI.wSearch = ''; render(); });
+  document.querySelectorAll('#view [data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   $('#wQty').oninput = e => { UI.wQty = e.target.value; render(); };
   $('#wDate').onchange = e => { UI.wDate = e.target.value; };
   $('#wComment').oninput = e => { UI.wComment = e.target.value; };
@@ -688,11 +704,11 @@ function itemDrawer(id){
     const del = d.querySelector('#iDel'); if (del) del.onclick = async () => { const cfg = JSON.parse(JSON.stringify(S.itemcfg)); cfg.ov[id].removed = true; await saveItemCfg(cfg); closeLayer(); };
   });
 }
-function newItemModal(){
+function newItemModal(pre = {}, onAdded){
   const set = SET();
   modal(`<h3>Ny vare</h3><div class="small muted">For nye retter eller nye produkter. Siden varen ikke har innkjøpshistorikk, må du anslå forbruk per uke.</div>
-    <div class="grid g2"><label class="f">Leverandør<select id="nSup">${Object.keys(set.suppliers).map(c=>`<option translate="no" value="${esc(c)}">${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('') || '<option value="">Legg til leverandør først</option>'}</select></label><label class="f">Varenummer<input type="text" id="nNo"></label></div>
-    <label class="f">Varenavn (som på fakturaen)<input type="text" id="nName"></label>
+    <div class="grid g2"><label class="f">Leverandør<select id="nSup">${Object.keys(set.suppliers).map(c=>`<option translate="no" value="${esc(c)}">${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('') || '<option value="">Legg til leverandør først</option>'}</select></label><label class="f">Varenummer (valgfritt)<input type="text" id="nNo"></label></div>
+    <label class="f">Varenavn (som på fakturaen)<input type="text" id="nName" value="${esc(pre.name || '')}"></label>
     <div class="grid g2"><label class="f">Enhet<input type="text" id="nUnit" value="stk"></label><label class="f">Pris per enhet eks. mva<input type="text" inputmode="decimal" id="nPrice"></label></div>
     <div class="grid g2"><label class="f">Lager<select id="nStor">${STORES.map(s=>`<option>${s}</option>`).join('')}</select></label><label class="f">Kategori<select id="nCat">${catOptions('', '')}</select></label></div>
     <div class="grid g2"><label class="f">Forbruk per uke<input type="text" inputmode="decimal" id="nMan"></label><label class="f">Holdbarhet (dager)<input type="text" inputmode="numeric" id="nShelf" value="14"></label></div>
@@ -701,12 +717,13 @@ function newItemModal(){
     bindCatStor(m, '#nCat', '#nStor');
     m.querySelector('#nOk').onclick = async () => {
       const g = s => m.querySelector(s).value.trim(); const sup = g('#nSup'), no = g('#nNo'), name = g('#nName');
-      if (!no || !name){ toast('Fyll inn varenummer og navn.'); return; }
-      const id = sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
+      if (!sup){ toast('Legg inn en leverandør først (Innstillinger → Leverandører).'); return; }
+      if (!name){ toast('Fyll inn varenavn.'); return; }
+      const id = sup + '-' + (no ? no.replace(/[^A-Za-z0-9]/g,'') : 'M' + Date.now().toString(36).toUpperCase());
       if (getItems().find(i => i.id === id)){ toast('Varen finnes allerede.'); return; }
       const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
       cfg.ov[id] = {id, custom:true, sup, no, name:name.toUpperCase(), unit:g('#nUnit')||'stk', price:num(g('#nPrice'))||0, stor:g('#nStor'), ...splitCat(g('#nCat')), active: catStocked(splitCat(g('#nCat')).group), area:'Kjøkken', manual:num(g('#nMan')), shelf:num(g('#nShelf')), pack:num(g('#nPack'))||1, h100:0, b13:0, b6:0, ndel:0, last:null};
-      await saveItemCfg(cfg); closeModal(); toast('Varen er lagt til.');
+      await saveItemCfg(cfg); closeModal(); toast('Varen er lagt til.'); if (onAdded) onAdded(id);
     };
   });
 }
