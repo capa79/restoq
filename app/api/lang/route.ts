@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/origin";
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { isUiLang, LANG_COOKIE } from "@/lib/i18n";
@@ -9,10 +10,10 @@ export async function GET(req: NextRequest) {
   let ref = "/";
   try {
     const r = new URL(req.headers.get("referer") ?? "");
-    if (r.host === req.nextUrl.host) ref = r.pathname + r.search;
+    if (r.host === req.nextUrl.host || r.origin === publicOrigin(req)) ref = r.pathname + r.search;
   } catch {}
   const next = safeNext(req.nextUrl.searchParams.get("next") ?? ref, "/");
-  const res = NextResponse.redirect(new URL(next, req.url), 303);
+  const res = NextResponse.redirect(publicOrigin(req) + next, 303);
   if (isUiLang(l)) {
     res.cookies.set(LANG_COOKIE, l, { httpOnly: false, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: 60 * 60 * 24 * 365 });
     const u = await getCurrentUser().catch(() => null);

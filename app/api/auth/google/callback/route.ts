@@ -1,3 +1,4 @@
+import { publicOrigin } from "@/lib/origin";
 import { NextRequest, NextResponse } from "next/server";
 import { audit, db } from "@/lib/db";
 import { GOOGLE_COOKIE, googleEnabled, googleIdentity } from "@/lib/google-auth";
@@ -5,7 +6,7 @@ import { clientIp, createSession, homeFor, safeNext } from "@/lib/session";
 import { noteFail, tooManyFails } from "@/lib/rate-limit";
 
 const to = (req: NextRequest, path: string) => {
-  const res = NextResponse.redirect(new URL(path, req.url), 303);
+  const res = NextResponse.redirect(publicOrigin(req) + path, 303);
   res.cookies.delete({ name: GOOGLE_COOKIE, path: "/api/auth/google" });
   return res;
 };
