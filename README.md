@@ -20,6 +20,9 @@ Norsk, engelsk, tysk, polsk og spansk. Språkvelgeren (flagget) ligger i toppen 
 ## Avskrivning og varer fra faktura
 
 - **Avskrivning** (tidligere Svinn): brekkasje, utgått på dato, bedervet/feil oppbevaring, feil i produksjon, overproduksjon, returnert av gjest, personalmat, representasjon og annet. Oversikt per periode over hva som avskrives mest og hvorfor: andel av varekjøp, største årsak, topp 10 varer, kategori, utvikling og forslag til tiltak. Personalmat og representasjon er uttak (mval. § 8-3 første ledd bokstav d og e, § 3-21) og holdes utenfor svinnet. CSV-eksport skiller kassert og uttak.
+- **Leverandører** (Innstillinger → Leverandører): org.nr., adresse, kontonummer/IBAN, e-post, telefon, kundenummer, kontaktpersoner og leveringsdager. Org.nr. og kontonummer kontrolleres med modulus 11. Skannes en faktura fra ukjent leverandør, spørres brukeren om den skal opprettes (forhåndsutfylt fra fakturaen). Avviker kontonummeret på fakturaen fra det registrerte, vises en advarsel om mulig fakturasvindel.
+- **Samme vare hos flere leverandører** (navn, størrelse, strekkode) varsles i bestilling, varer og fakturagjennomgang med den andre leverandørens pris omregnet per mengde.
+- **Roller hos kunden:** administrator (legger til/fjerner brukere, endrer roller og alt annet) og ansatt. Minst én administrator per kunde.
 - **Legg inn varer** manuelt, fra Excel/CSV eller fra faktura. En opplastet faktura leses av Claude (leverandør, linjer, priser, mva); nye varer opprettes og endrede priser oppdateres først etter godkjenning. Prisendringer lagres som prishistorikk på varen.
 
 - Tekster som mangler oversettelse når en bruker ser dem, meldes til serveren og vises under **Utvikler → Oversettelser**. Der kan de oversettes eller rettes direkte (lagres i databasen og går foran ordboka), kopieres som oppgave, eller oversettes automatisk med Claude hvis `ANTHROPIC_API_KEY` er satt.

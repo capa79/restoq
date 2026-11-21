@@ -20,8 +20,8 @@ const str = (form: FormData, k: string, max = 200) => String(form.get(k) ?? "").
 const num = (form: FormData, k: string) => Number(form.get(k));
 
 // ---------- kunder ----------
-const ROLE_WORDS: Record<string, "owner" | "staff"> = { leder: "owner", owner: "owner", sjef: "owner", ansatt: "staff", staff: "staff" };
-/** «e-post, navn, rolle» per linje (rolle: leder/ansatt, standard ansatt). */
+const ROLE_WORDS: Record<string, "owner" | "staff"> = { administrator: "owner", admin: "owner", leder: "owner", owner: "owner", sjef: "owner", ansatt: "staff", staff: "staff" };
+/** «e-post, navn, rolle» per linje (rolle: administrator/ansatt, standard ansatt). */
 function parseUsers(text: string) {
   const out: { email: string; name: string; role: "owner" | "staff" }[] = []; const bad: string[] = [];
   for (const line of text.split(/\r?\n/).map((l) => l.trim()).filter(Boolean).slice(0, 50)) {
@@ -63,7 +63,7 @@ export async function createOrgAction(form: FormData) {
   const lines: string[] = [];
   try {
     const r = await inviteUser({ orgId: id, email, name: owner, role: "owner", by: me.email, orgName: name });
-    lines.push(r.emailed ? `${email} (leder) har fått e-post.` : `${email} (leder): ${r.tempPassword}`);
+    lines.push(r.emailed ? `${email} (administrator) har fått e-post.` : `${email} (administrator): ${r.tempPassword}`);
   } catch (e) {
     await p.query("DELETE FROM orgs WHERE id = $1", [id]);
     go(form, { feil: e instanceof Error ? e.message : "Kunne ikke opprette kunden." });
@@ -208,7 +208,7 @@ export async function editUserAction(form: FormData) {
     orgId = /^\d+$/.test(o) ? Number(o) : null;
     if (u.role === "owner" && role !== "owner" && u.org_id) {
       const n = Number((await p.query("SELECT count(*)::int AS n FROM users WHERE org_id = $1 AND role = 'owner' AND id <> $2", [u.org_id, u.id])).rows[0].n);
-      if (n === 0) go(form, { feil: "Kunden må ha minst én leder. Gjør en annen bruker til leder først." });
+      if (n === 0) go(form, { feil: "Kunden må ha minst én administrator. Gjør en annen bruker til administrator først." });
     }
   }
   await p.query("UPDATE users SET name = $2, email = $3, role = $4, org_id = $5, google_sub = CASE WHEN lower(email) = $3 THEN google_sub ELSE NULL END WHERE id = $1", [u.id, name, email, role, orgId]);
@@ -267,7 +267,7 @@ export async function deleteUserAction(form: FormData) {
   const p = await db();
   if (u.role === "owner" && u.org_id) {
     const n = Number((await p.query("SELECT count(*)::int AS n FROM users WHERE org_id = $1 AND role = 'owner' AND id <> $2", [u.org_id, u.id])).rows[0].n);
-    if (n === 0) go(form, { feil: "Dette er kundens eneste leder. Gjør en annen bruker til leder først, eller slett kunden." });
+    if (n === 0) go(form, { feil: "Dette er kundens eneste administrator. Gjør en annen bruker til administrator først, eller slett kunden." });
   }
   await p.query("DELETE FROM users WHERE id = $1", [u.id]);
   await audit(me.email, "slettet bruker", u.email, u.org_id);

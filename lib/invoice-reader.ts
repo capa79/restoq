@@ -4,9 +4,9 @@ import sharp from "sharp";
 
 export const invoiceReaderEnabled = () => Boolean(process.env.ANTHROPIC_API_KEY);
 
-export type ReadLine = { itemNo: string; description: string; qty: number | null; unit: string; unitPrice: number | null; lineTotal: number | null; vatRate: number | null; storage: string; category: string; shelfDays: number | null };
+export type ReadLine = { itemNo: string; gtin?: string; description: string; qty: number | null; unit: string; unitPrice: number | null; lineTotal: number | null; vatRate: number | null; storage: string; category: string; shelfDays: number | null };
 export type ReadInvoice = {
-  supplierName: string; supplierOrgNo: string; invoiceNo: string; invoiceDate: string; dueDate: string; kid: string; orderRef: string;
+  supplierName: string; supplierOrgNo: string; supplierAddress?: string; supplierPostalCode?: string; supplierCity?: string; supplierBankAccount?: string; supplierIban?: string; supplierBic?: string; supplierEmail?: string; supplierPhone?: string; supplierWebsite?: string; supplierContact?: string; customerNo?: string; invoiceNo: string; invoiceDate: string; dueDate: string; kid: string; orderRef: string;
   currency: string; amountExVat: number | null; vat: number | null; amount: number | null; isCreditNote: boolean; lines: ReadLine[]; warnings: string[];
 };
 
@@ -15,6 +15,13 @@ const SCHEMA = {
   properties: {
     supplierName: { type: "string", description: "Leverandørens (selgerens) navn, ikke kjøperens" },
     supplierOrgNo: { type: "string", description: "Leverandørens organisasjonsnummer, bare 9 sifre" },
+    supplierAddress: { type: "string", description: "Leverandørens gateadresse eller postboks" },
+    supplierPostalCode: { type: "string" }, supplierCity: { type: "string" },
+    supplierBankAccount: { type: "string", description: "Leverandørens norske kontonummer (11 sifre) som det skal betales til" },
+    supplierIban: { type: "string" }, supplierBic: { type: "string" },
+    supplierEmail: { type: "string" }, supplierPhone: { type: "string" }, supplierWebsite: { type: "string" },
+    supplierContact: { type: "string", description: "Kontaktperson/selger hos leverandøren hvis oppgitt" },
+    customerNo: { type: "string", description: "Kjøperens kundenummer hos leverandøren" },
     invoiceNo: { type: "string" }, invoiceDate: { type: "string", description: "YYYY-MM-DD" }, dueDate: { type: "string", description: "YYYY-MM-DD eller tom" },
     kid: { type: "string" }, orderRef: { type: "string", description: "Ordrenummer, bestillingsreferanse eller pakkseddelnummer hvis oppgitt" },
     currency: { type: "string", description: "ISO-kode, normalt NOK" },
@@ -26,6 +33,7 @@ const SCHEMA = {
         type: "object",
         properties: {
           itemNo: { type: "string", description: "Leverandørens varenummer/artikkelnummer, tom hvis mangler" },
+          gtin: { type: "string", description: "EAN/GTIN-strekkode hvis oppgitt, ellers tom" },
           description: { type: "string", description: "Varenavn slik det står på fakturaen" },
           qty: { type: ["number", "null"], description: "Fakturert antall (negativt på kreditlinjer)" },
           unit: { type: "string", description: "Enheten antallet gjelder, f.eks. stk, kg, l, krt, pk, fl" },
@@ -36,12 +44,12 @@ const SCHEMA = {
           category: { type: "string", description: "Kort kategori på norsk, f.eks. Meieri, Kjøtt, Fisk, Grønt, Tørrvarer, Drikke, Emballasje, Rengjøring" },
           shelfDays: { type: ["number", "null"], description: "Anslått typisk holdbarhet i dager for uåpnet vare" },
         },
-        required: ["itemNo", "description", "qty", "unit", "unitPrice", "lineTotal", "vatRate", "storage", "category", "shelfDays"],
+        required: ["itemNo", "gtin", "description", "qty", "unit", "unitPrice", "lineTotal", "vatRate", "storage", "category", "shelfDays"],
       },
     },
     warnings: { type: "array", items: { type: "string" }, description: "Korte merknader på norsk om noe er uleselig, usikkert eller ikke stemmer (f.eks. sum av linjer ≠ total)" },
   },
-  required: ["supplierName", "supplierOrgNo", "invoiceNo", "invoiceDate", "dueDate", "kid", "orderRef", "currency", "amountExVat", "vat", "amount", "isCreditNote", "lines", "warnings"],
+  required: ["supplierName", "supplierOrgNo", "supplierAddress", "supplierPostalCode", "supplierCity", "supplierBankAccount", "supplierIban", "supplierBic", "supplierEmail", "supplierPhone", "supplierWebsite", "supplierContact", "customerNo", "invoiceNo", "invoiceDate", "dueDate", "kid", "orderRef", "currency", "amountExVat", "vat", "amount", "isCreditNote", "lines", "warnings"],
 };
 
 export async function readInvoice(file: { mime: string; data: Buffer; name: string }): Promise<ReadInvoice> {
@@ -79,6 +87,7 @@ export async function readInvoice(file: { mime: string; data: Buffer; name: stri
   if (!out) throw new Error("Fant ingen fakturadata i svaret.");
   // Rydding og kontroll av summer
   out.supplierOrgNo = String(out.supplierOrgNo ?? "").replace(/\D/g, "").slice(-9);
+  out.supplierBankAccount = String(out.supplierBankAccount ?? "").replace(/\D/g, "");
   out.lines = (out.lines ?? []).filter((l) => l && (l.description || l.itemNo)).slice(0, 400);
   out.warnings = out.warnings ?? [];
   const sum = out.lines.reduce((s, l) => s + (l.lineTotal ?? (l.qty ?? 0) * (l.unitPrice ?? 0)), 0);

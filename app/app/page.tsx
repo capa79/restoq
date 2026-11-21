@@ -23,8 +23,8 @@ export default async function AppPage() {
       <div className="app">
         <header className="top">
           <img id="hLogo" className="hide" alt="" />
-          <div>
-            <div className="title" id="hTitle" translate="no">Restoq</div>
+          <div className="hname">
+            <div className="title" id="hTitle" translate="no">{me.org_name ?? "Restoq"}</div>
             <div className="powered hide" id="hSub" translate="no">powered by <b>Restoq</b></div>
           </div>
           <div className="sp" />

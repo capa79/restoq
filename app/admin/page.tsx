@@ -22,7 +22,7 @@ const dt = (v: Date | string | null) => (v ? new Intl.DateTimeFormat("nb-NO", { 
 const nf = new Intl.NumberFormat("nb-NO");
 type SP = { fane?: string; kunde?: string; q?: string; rolle?: string; ok?: string; feil?: string; vis?: string };
 const TABS = [["oversikt", "Oversikt"], ["kunder", "Kunder"], ["brukere", "Brukere"], ["henvendelser", "Henvendelser"], ["logg", "Hendelseslogg"], ["oppsett", "Oppsett"]] as const;
-const ROLE: Record<string, string> = { admin: "Administrator", owner: "Leder", staff: "Ansatt" };
+const ROLE: Record<string, string> = { admin: "Restoq-admin", owner: "Kunde-admin", staff: "Ansatt" };
 
 export default async function Admin({ searchParams }: { searchParams: Promise<SP> }) {
   const me = await requireAdmin();
@@ -117,7 +117,7 @@ async function Customers() {
     <>
       <details className="card onboard" open={!orgs.length}>
         <summary><h3 style={{ margin: 0, display: "inline" }}>+ Ny kunde (onboarding)</h3></summary>
-        <p className="small muted" style={{ margin: "8px 0 14px" }}>Fyll inn stedet, lederen og eventuelt flere ansatte, last opp logoen og legg inn hjemmesiden. Restoq henter farger, beskrivelse og bilde, og lager stedets egen side på restoq.no/v/… med eget app-ikon. Du kan justere alt etterpå.</p>
+        <p className="small muted" style={{ margin: "8px 0 14px" }}>Fyll inn stedet, én eller flere administratorer for kunden og eventuelt ansatte, last opp logoen og legg inn hjemmesiden. Restoq henter farger, beskrivelse og bilde, og lager stedets egen side på restoq.no/v/… med eget app-ikon. Du kan justere alt etterpå.</p>
         <form action={createOrgAction} className="obgrid">
           <input type="hidden" name="back" value="/admin?fane=kunder" />
           <fieldset>
@@ -130,10 +130,10 @@ async function Customers() {
           </fieldset>
           <fieldset>
             <legend>2. Brukere</legend>
-            <label className="f">Leders e-post<input name="email" type="email" required /></label>
-            <label className="f">Leders navn<input name="owner" /></label>
-            <label className="f">Flere brukere (én per linje: e-post, navn, rolle)<textarea name="users" rows={5} placeholder={"kokk@sted.no, Ola Nordmann, ansatt\nsous@sted.no, Kari Nordmann, leder"} /></label>
-            <p className="small muted" style={{ margin: 0 }}>Alle får e-post med midlertidig passord og lenke til stedets side. Rolle er «ansatt» hvis du ikke skriver noe.</p>
+            <label className="f">Administrator for kunden – e-post<input name="email" type="email" required /></label>
+            <label className="f">Administrator – navn<input name="owner" /></label>
+            <label className="f">Flere brukere (én per linje: e-post, navn, rolle)<textarea name="users" rows={5} placeholder={"daglig.leder@sted.no, Kari Nordmann, administrator\nkokk@sted.no, Ola Nordmann, ansatt"} /></label>
+            <p className="small muted" style={{ margin: 0 }}><b>Administrator</b> kan legge til og fjerne brukere i sin bedrift, endre roller og endre alt i systemet (varer, leverandører, innstillinger, logo, fakturaer). <b>Ansatt</b> kan telle, bestille, ta imot varer og føre avskrivning. Skriv «administrator» bak dem som skal ha det; uten rolle blir de ansatte. Alle får e-post med midlertidig passord og lenke til stedets side.</p>
           </fieldset>
           <div className="row" style={{ gridColumn: "1 / -1", justifyContent: "flex-end" }}>
             <span className="small muted">Henting fra hjemmesiden tar noen sekunder.</span>
@@ -204,7 +204,7 @@ async function Customer({ id, meId }: { id: number; meId: number }) {
           <input type="hidden" name="org" value={id} /><input type="hidden" name="back" value={back} />
           <label className="f" style={{ flex: 2, minWidth: 200 }}>E-post<input name="email" type="email" required /></label>
           <label className="f" style={{ flex: 1, minWidth: 140 }}>Navn<input name="name" /></label>
-          <label className="f" style={{ minWidth: 130 }}>Rolle<select name="role" defaultValue="staff"><option value="staff">Ansatt</option><option value="owner">Leder</option></select></label>
+          <label className="f" style={{ minWidth: 130 }}>Rolle<select name="role" defaultValue="staff"><option value="staff">Ansatt</option><option value="owner">Administrator</option></select></label>
           <button className="btn dark">Legg til bruker</button>
         </form>
         <UserList users={users} orgs={orgs} back={back} meId={meId} />
@@ -258,7 +258,7 @@ function UserList({ users, orgs, back, meId }: { users: URow[]; orgs: { id: numb
                 {u.role === "admin" ? <div className="small muted" style={{ alignSelf: "end" }}>Administrator i Restoq</div> : (
                   <>
                     <label className="f">Kunde<select name="org" defaultValue={u.org_id ?? ""}><option value="">Ingen (bare utviklersiden)</option>{orgs.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
-                    <label className="f">Rolle hos kunden<select name="role" defaultValue={u.role}><option value="staff">Ansatt</option><option value="owner">Leder</option></select></label>
+                    <label className="f">Rolle hos kunden<select name="role" defaultValue={u.role}><option value="staff">Ansatt</option><option value="owner">Administrator (kan endre brukere og alt annet)</option></select></label>
                   </>
                 )}
                 <div className="row" style={{ alignItems: "end" }}><button className="btn dark sm">Lagre</button></div>
@@ -296,7 +296,7 @@ async function Users({ sp, meId }: { sp: SP; meId: number }) {
         <form className="row" style={{ alignItems: "end" }}>
           <input type="hidden" name="fane" value="brukere" />
           <label className="f" style={{ flex: 2, minWidth: 220 }}>Søk etter navn, e-post eller kunde<input name="q" defaultValue={q} /></label>
-          <label className="f" style={{ minWidth: 160 }}>Rolle<select name="rolle" defaultValue={rolle}><option value="">Alle</option><option value="owner">Ledere</option><option value="staff">Ansatte</option><option value="utvikler">Utviklere</option><option value="admin">Administratorer</option></select></label>
+          <label className="f" style={{ minWidth: 160 }}>Rolle<select name="rolle" defaultValue={rolle}><option value="">Alle</option><option value="owner">Kunde-admin</option><option value="staff">Ansatte</option><option value="utvikler">Utviklere</option><option value="admin">Administratorer</option></select></label>
           <button className="btn dark">Søk</button>
         </form>
       </div>
@@ -311,7 +311,7 @@ async function Users({ sp, meId }: { sp: SP; meId: number }) {
           <form action={addUserAction} className="fbform" style={{ gridTemplateColumns: "1fr 1fr" }}>
             <input type="hidden" name="back" value={back} />
             <label className="f">Kunde<select name="org" required>{orgs.rows.map((o) => <option key={o.id} value={o.id}>{o.name}</option>)}</select></label>
-            <label className="f">Rolle<select name="role" defaultValue="staff"><option value="staff">Ansatt</option><option value="owner">Leder</option></select></label>
+            <label className="f">Rolle<select name="role" defaultValue="staff"><option value="staff">Ansatt</option><option value="owner">Administrator</option></select></label>
             <label className="f">E-post<input name="email" type="email" required /></label>
             <label className="f">Navn<input name="name" /></label>
             <div className="row"><button className="btn dark sm">Legg til</button></div>
@@ -360,8 +360,8 @@ async function Leads({ vis }: { vis?: string }) {
               <form action={createOrgAction} className="row" style={{ alignItems: "end", marginTop: 8 }}>
                 <input type="hidden" name="lead" value={l.id} /><input type="hidden" name="back" value="/admin?fane=kunder" />
                 <label className="f" style={{ flex: 2 }}>Kunde<input name="name" defaultValue={l.company || l.name} required /></label>
-                <label className="f" style={{ flex: 2 }}>Leders e-post<input name="email" type="email" defaultValue={l.email} required /></label>
-                <label className="f" style={{ flex: 1 }}>Leders navn<input name="owner" defaultValue={l.name} /></label>
+                <label className="f" style={{ flex: 2 }}>Administrator – e-post<input name="email" type="email" defaultValue={l.email} required /></label>
+                <label className="f" style={{ flex: 1 }}>Administrator – navn<input name="owner" defaultValue={l.name} /></label>
                 <label className="f" style={{ flex: 2 }}>Hjemmeside<input name="website" placeholder="sted.no" /></label>
                 <input type="hidden" name="consent" value="1" />
                 <button className="btn dark sm">Opprett kunde</button>

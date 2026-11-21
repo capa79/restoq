@@ -786,3 +786,28 @@ Kassert etter kategori	Discarded by category	Entsorgt nach Kategorie	Wyrzucone w
 Ingenting kassert.	Nothing discarded.	Nichts entsorgt.	Nic nie wyrzucono.	Nada desechado.
 Ingenting kassert i perioden.	Nothing discarded in the period.	Im Zeitraum nichts entsorgt.	W tym okresie nic nie wyrzucono.	Nada desechado en el periodo.
 bare uttak i perioden	only withdrawals in the period	nur Entnahmen im Zeitraum	tylko pobrania w tym okresie	solo retiradas en el periodo
+Leverandører	Suppliers	Lieferanten	Dostawcy	Proveedores
++ Ny leverandør	+ New supplier	+ Neuer Lieferant	+ Nowy dostawca	+ Nuevo proveedor
+Ny leverandør	New supplier	Neuer Lieferant	Nowy dostawca	Nuevo proveedor
+Opprett leverandør	Create supplier	Lieferant anlegen	Utwórz dostawcę	Crear proveedor
+Ja, opprett leverandør	Yes, create supplier	Ja, Lieferant anlegen	Tak, utwórz dostawcę	Sí, crear proveedor
+Nei, velg en eksisterende	No, choose an existing one	Nein, bestehenden wählen	Nie, wybierz istniejącego	No, elegir uno existente
+Kontaktinfo, kontonr. og adresser	Contact info, account no. and addresses	Kontakt, Kontonr. und Adressen	Kontakt, nr konta i adresy	Contacto, n.º de cuenta y direcciones
+Kontaktpersoner	Contact persons	Ansprechpartner	Osoby kontaktowe	Personas de contacto
++ Kontaktperson	+ Contact person	+ Ansprechpartner	+ Osoba kontaktowa	+ Persona de contacto
+Kontonummer	Account number	Kontonummer	Numer konta	Número de cuenta
+Adresse	Address	Adresse	Adres	Dirección
+Postnr.	Postcode	PLZ	Kod pocztowy	Código postal
+Sted	City	Ort	Miejscowość	Ciudad
+Telefon	Phone	Telefon	Telefon	Teléfono
+Nettside	Website	Webseite	Strona internetowa	Sitio web
+Vårt kundenummer	Our customer number	Unsere Kundennummer	Nasz numer klienta	Nuestro número de cliente
+E-post (bestilling)	Email (orders)	E-Mail (Bestellung)	E-mail (zamówienia)	Correo (pedidos)
+Levering og bestilling	Delivery and ordering	Lieferung und Bestellung	Dostawa i zamówienia	Entrega y pedidos
+Samme vare hos andre leverandører	Same item from other suppliers	Gleicher Artikel bei anderen Lieferanten	Ten sam towar u innych dostawców	Mismo artículo en otros proveedores
+Ikke samme vare	Not the same item	Nicht derselbe Artikel	To nie ten sam towar	No es el mismo artículo
+Administrator	Administrator	Administrator	Administrator	Administrador
+Ansatt	Employee	Mitarbeiter	Pracownik	Empleado
+Rediger	Edit	Bearbeiten	Edytuj	Editar
+Vis	View	Anzeigen	Pokaż	Ver
+Tilbake	Back	Zurück	Wstecz	Volver

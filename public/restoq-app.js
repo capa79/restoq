@@ -141,8 +141,12 @@ function applyBrand(){
   root.setProperty('--brand', b.accent); root.setProperty('--head', b.head); root.setProperty('--head-ink', inkFor(b.head));
   const lg = $('#hLogo'), tt = $('#hTitle');
   const pw = $('#hSub');
-  if (b.logo){ lg.src = b.logo; lg.alt = 'Logo'; lg.classList.remove('hide'); tt.classList.add('hide'); pw.classList.remove('hide'); }
-  else { lg.classList.add('hide'); tt.classList.remove('hide'); tt.textContent = 'Restoq'; pw.classList.add('hide'); }
+  // Topplinje: logo – firmanavn – powered by Restoq
+  const name = (S.brand && S.brand.name) || (S.me && S.me.org) || '';
+  if (b.logo){ lg.src = b.logo; lg.alt = name ? 'Logo ' + name : 'Logo'; lg.classList.remove('hide'); } else lg.classList.add('hide');
+  tt.textContent = name || 'Restoq'; tt.classList.remove('hide');
+  pw.classList.toggle('hide', !name && !b.logo);
+  document.title = name ? name + ' – Restoq' : 'Restoq';
 }
 /* foreslå firmafarger fra logoen: vanligste mørke/fargesterke tone */
 function colorsFromImage(img){
@@ -284,7 +288,7 @@ function render(){
   const nB = C.items.filter(r => r.status === 'bestill').length;
   renderTabs(nB);
   const ae = document.activeElement; const keep = ae && ae.id ? {id:ae.id, s:ae.selectionStart, e:ae.selectionEnd} : null;
-  ({oversikt:vOversikt, bestill:vBestill, mottak:vMottak, telling:vTelling, svinn:vSvinn, varer:vVarer, faktura:vFaktura, oppsett:vOppsett}[view] || vOversikt)();
+  ({oversikt:vOversikt, bestill:vBestill, mottak:vMottak, telling:vTelling, svinn:vSvinn, varer:vVarer, faktura:vFaktura, oppsett:vOppsett, leverandorer:vLeverandorer}[view] || vOversikt)();
   if (keep){ const el = document.getElementById(keep.id); if (el && el !== document.activeElement){ el.focus(); try { if (keep.s != null) el.setSelectionRange(keep.s, keep.e); } catch(e){} } }
 }
 const nInv = () => S.invoices.filter(i => ['kontroll','avvik'].includes(i.status)).length;
@@ -373,7 +377,7 @@ function vBestill(){
        <div style="min-width:240px;flex:1;max-width:360px"><input type="search" id="ordSearch" placeholder="Søk vare eller varenummer" value="${esc(UI.ordSearch)}"></div></div>`;
   h += `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Vare</th><th>Status</th><th class="n">Har nå</th><th>Holder</th><th class="n">Bruk/uke</th><th class="n">Forslag</th><th>Bestill</th><th class="n">Sum</th></tr></thead><tbody>`;
   h += rows.length ? rows.map(r => { const v = qtyOf(r); const changed = draft[r.id] != null && draft[r.id] !== r.sugg; return `<tr>
-      <td><div class="iname click" data-item="${esc(r.id)}" style="cursor:pointer">${esc(r.name)}</div><div class="isub">Varenr ${esc(r.no)} · ${esc(r.unit)}${r.pack!==1?' · pakning '+q(r.pack):''} · ${kr(r.price)}/${esc(r.unit)}${r.wasteRisk?' · <span style="color:var(--amber);font-weight:600">svinnrisiko</span>':''}</div></td>
+      <td><div class="iname click" data-item="${esc(r.id)}" style="cursor:pointer">${esc(r.name)}</div><div class="isub">Varenr ${esc(r.no)} · ${esc(r.unit)}${r.pack!==1?' · pakning '+q(r.pack):''} · ${kr(r.price)}/${esc(r.unit)}${r.wasteRisk?' · <span style="color:var(--amber);font-weight:600">svinnrisiko</span>':''}</div>${altNote(r)}</td>
       <td>${pill(r.status)}</td><td class="n">${q(r.avail)}</td><td><span class="tab">${coverTxt(r)}</span></td><td class="n">${q(r.usageWeek)}</td><td class="n">${q(r.sugg)}</td>
       <td><div class="stepper"><button data-step="-1" data-id="${esc(r.id)}" aria-label="Mindre" ${ro()}>−</button><input id="q-${esc(r.id)}" inputmode="decimal" data-qty="${esc(r.id)}" value="${v ? nf1.format(v).replace(/\s/g,'') : ''}" placeholder="0" style="${changed?'color:var(--blue)':''}" ${ro()}><button data-step="1" data-id="${esc(r.id)}" aria-label="Mer" ${ro()}>+</button></div></td>
       <td class="n">${v ? kr(v*(r.price||0)) : '–'}</td></tr>`; }).join('') : `<tr><td colspan="8"><div class="empty">${sq ? 'Ingen treff.' : 'Ingen forslag for '+code+' akkurat nå. Velg «Alle varer» for å legge til noe manuelt.'}</div></td></tr>`;
@@ -629,7 +633,7 @@ function vVarer(){
     <select id="vSup" style="width:auto"><option value="">Alle leverandører</option>${Object.keys(SET().suppliers).map(c=>`<option ${UI.vSup===c?'selected':''}>${c}</option>`).join('')}</select>
     <select id="vStore" style="width:auto"><option value="">Alle lager</option>${STORES.map(s=>`<option ${UI.vStore===s?'selected':''}>${s}</option>`).join('')}</select></div></div>`;
   h += `<div class="card flush"><div class="tblwrap" style="max-height:calc(100vh - 330px)"><table><thead><tr>${th('name','Vare')}<th>Status</th>${th('stockNow','Har nå',1)}${th('open','Åpne ordre',1)}${th('usageWeek','Bruk/uke',1)}${th('cover','Holder')}<th>Tom ca.</th>${th('sugg','Forslag',1)}${th('value','Verdi',1)}</tr></thead><tbody>
-    ${rows.map(r => `<tr class="click" data-item="${esc(r.id)}"><td><div class="iname">${esc(r.name)}</div><div class="isub">${r.sup} ${esc(r.no)} · ${esc(r.stor)} · ${esc(r.unit)}${r.wasteRisk?' · <span style="color:var(--amber);font-weight:600">bruk først</span>':''}</div></td><td>${pill(r.status)}</td><td class="n">${r.countDate?q(r.stockNow):'–'}</td><td class="n">${r.open?q(r.open):''}</td><td class="n">${q(r.usageWeek)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap">${r.countDate?coverBar(r):''}<span class="tab">${r.countDate?coverTxt(r):''}</span></div></td><td>${r.countDate&&r.runsOut?fmtD(r.runsOut):''}</td><td class="n">${r.sugg?'<b>'+q(r.sugg)+'</b>':''}</td><td class="n">${r.countDate?kr(r.value):''}</td></tr>`).join('') || '<tr><td colspan="9"><div class="empty">Ingen varer passer filteret.</div></td></tr>'}
+    ${rows.map(r => `<tr class="click" data-item="${esc(r.id)}"><td><div class="iname">${esc(r.name)}</div><div class="isub">${r.sup} ${esc(r.no)} · ${esc(r.stor)} · ${esc(r.unit)}${r.wasteRisk?' · <span style="color:var(--amber);font-weight:600">bruk først</span>':''}${altsFor(r).length?` · <span class="altbadge" title="Kjøpes også hos andre leverandører">${altsFor(r).length+1} leverandører</span>`:''}</div></td><td>${pill(r.status)}</td><td class="n">${r.countDate?q(r.stockNow):'–'}</td><td class="n">${r.open?q(r.open):''}</td><td class="n">${q(r.usageWeek)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap">${r.countDate?coverBar(r):''}<span class="tab">${r.countDate?coverTxt(r):''}</span></div></td><td>${r.countDate&&r.runsOut?fmtD(r.runsOut):''}</td><td class="n">${r.sugg?'<b>'+q(r.sugg)+'</b>':''}</td><td class="n">${r.countDate?kr(r.value):''}</td></tr>`).join('') || '<tr><td colspan="9"><div class="empty">Ingen varer passer filteret.</div></td></tr>'}
   </tbody></table></div></div>`;
   $('#view').innerHTML = h;
   $('#vSearch').oninput = e => { UI.vSearch = e.target.value; render(); };
@@ -659,6 +663,7 @@ function itemDrawer(id){
       <span class="tot">= Tilgjengelig</span><span class="tot num">${q(r.avail)}</span></div>` : '<div class="muted">Ikke talt ennå. Tell varen for å få beholdning.</div>'}
       <div class="small muted" style="margin-top:10px">Forbruk/uke bygger på ${srcTxt}${r.usageSource!=='manuell'?`, skalert til forventet matsalg ${kr(C.sales)}/uke`:''}. ${esc(r.stor)} fylles opp hver ${q(r.cycle)}. dag (${esc(FREQ_TXT[r.stor]||'')}${r.cycle > r.freq ? ', begrenset av leverandørens leveringsrytme' : ''}). Varen kommer på forslag når tilgjengelig er under ${q(r.reorderPoint)} (forbruk fram til neste levering + sikkerhet). Da bestilles det opp til mållageret: forbruk per dag × ${q(r.horizon)} dager (${q(r.cycle)} syklus + ${sp.lead} ledetid + ${sp.safety} sikkerhet${r.shelf && r.shelf < (r.cycle+sp.lead+sp.safety) ? ', begrenset av holdbarhet '+r.shelf+' d' : ''}) = ${q(r.target)}, rundet opp til pakning ${q(r.pack)}. Forslag nå: <b>${q(r.sugg)}</b>.</div></div>
     <div class="card"><dl class="kv"><dt>Pris</dt><dd>${kr(r.price)} per ${esc(r.unit)} eks. mva</dd><dt>Kjøpt 13 uker</dt><dd>${q(r.b13)} ${esc(r.unit)} · ${r.ndel||0} leveranser</dd><dt>Sist levert</dt><dd>${fmtDL(r.last)}</dd><dt>Tidligste utløp</dt><dd>${r.expiry?fmtDL(r.expiry)+' ('+r.daysToExp+' d)':'–'}</dd></dl></div>
+    ${altsFor(r).length ? `<div class="card"><h3 style="margin-bottom:8px">Samme vare hos andre leverandører</h3><table><tbody>${altsFor(r).map(o => { const c = comparePrice(r, r.price, o); const d = c.d; return `<tr><td><div class="iname">${esc(o.name)}</div><div class="isub" translate="no">${esc(set.suppliers[o.sup]?.name||o.sup)} · ${esc(o.no)}</div></td><td class="n"><b>${kr(o.price)}</b>/${esc(o.unit)}${c.note?`<div class="isub">${esc(c.note)}</div>`:''}${d!=null&&Math.abs(d)>=0.5?`<div class="isub" style="color:${d<0?'var(--green)':'var(--red)'}">${d>0?'+':''}${nf1.format(d)} %</div>`:''}</td><td class="n"><button class="btn sm" data-notsame="${esc(o.id)}" ${roM()}>Ikke samme vare</button></td></tr>`; }).join('')}</tbody></table><div class="small muted" style="margin-top:6px">Funnet automatisk ut fra varenavn, størrelse og strekkode.</div></div>` : ''}
     <div class="card grid" style="gap:12px"><h3>Innstillinger for varen</h3>
       <div class="grid g2"><label class="f">Pakningsstørrelse (minste bestilling)<input type="text" inputmode="decimal" id="iPack" value="${String(r.pack).replace('.',',')}"></label><label class="f">Holdbarhet (dager)<input type="text" inputmode="numeric" id="iShelf" value="${r.shelf??''}"></label></div>
       <label class="f">Manuelt forbruk per uke (${esc(r.unit)}) – tomt = automatisk<input type="text" inputmode="decimal" id="iMan" value="${r.manual!=null&&r.manual!==''?String(r.manual).replace('.',','):''}" placeholder="Bruk ved ny rett, event o.l."></label>
@@ -674,6 +679,7 @@ function itemDrawer(id){
       cfg.ov[id] = {...(cfg.ov[id]||{}), ...o};
       await saveItemCfg(cfg); closeLayer(); toast('Varen er oppdatert.');
     };
+    d.querySelectorAll('[data-notsame]').forEach(b => b.onclick = async () => { const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {}; const o = cfg.ov[id] || {}; o.notSame = [...new Set([...(o.notSame||[]), b.dataset.notsame])]; cfg.ov[id] = o; ALT_CACHE = null; await saveItemCfg(cfg); closeLayer(); toast('Koblingen er fjernet.'); });
     const del = d.querySelector('#iDel'); if (del) del.onclick = async () => { const cfg = JSON.parse(JSON.stringify(S.itemcfg)); cfg.ov[id].removed = true; await saveItemCfg(cfg); closeLayer(); };
   });
 }
@@ -713,7 +719,7 @@ function vOppsett(){
     <div class="grid g3" style="align-items:end"><label class="f">Forventet matsalg per uke (kr eks. mva)<input type="text" inputmode="numeric" id="sExp" value="${set.expectedSales||''}" placeholder="Auto: ${nf0.format(avg4)}"></label>
     <div class="small"><div class="muted">Snitt siste 4 uker</div><b>${kr(avg4)}</b></div><div class="small"><div class="muted">Snitt 13 uker · faktor nå</div><b>${kr(a13)} · ${nf1.format(expectedSales(set)/(a13||1)*100)} %</b></div></div></div>`;
   const itemsBySup = {}; getItems().forEach(i => itemsBySup[i.sup] = (itemsBySup[i.sup]||0) + 1);
-  h += `<div class="card grid" style="gap:14px"><div class="row between"><h3>Leverandører</h3><button class="btn sm" id="supAdd" ${roM()}>+ Legg til leverandør</button></div>${Object.keys(set.suppliers).length ? '' : '<div class="muted">Ingen leverandører ennå.</div>'}${Object.keys(set.suppliers).map(c => { const s = set.suppliers[c]; return `<div class="grid" style="gap:10px;border-top:1px solid var(--line);padding-top:12px"><div class="row between"><b translate="no">${esc(s.name)} (${esc(c)})</b><span class="row"><span class="small muted">${itemsBySup[c]||0} varer</span>${itemsBySup[c] ? '' : `<button class="btn sm danger" data-supdel="${esc(c)}" ${roM()}>Fjern</button>`}</span></div>
+  h += `<div class="card grid" style="gap:14px"><div class="row between"><h3>Leverandører</h3><div class="row"><button class="btn sm" data-go="leverandorer">Kontaktinfo, kontonr. og adresser</button><button class="btn sm" id="supAdd" ${roM()}>+ Legg til leverandør</button></div></div>${Object.keys(set.suppliers).length ? '' : '<div class="muted">Ingen leverandører ennå.</div>'}${Object.keys(set.suppliers).map(c => { const s = set.suppliers[c]; return `<div class="grid" style="gap:10px;border-top:1px solid var(--line);padding-top:12px"><div class="row between"><b translate="no">${esc(s.name)} (${esc(c)})</b><span class="row"><span class="small muted">${itemsBySup[c]||0} varer</span>${itemsBySup[c] ? '' : `<button class="btn sm danger" data-supdel="${esc(c)}" ${roM()}>Fjern</button>`}</span></div>
       <div class="chips">${[1,2,3,4,5,6,0].map(d=>`<button class="chip ${s.wd&&s.wd.includes(d)?'on':''}" data-wd="${c}:${d}">${WD[d]}</button>`).join('')}<span class="small muted" style="align-self:center">leveringsdager</span></div>
       <div class="grid g3"><label class="f">Dager mellom leveranser<input type="text" inputmode="decimal" data-sp="${c}:interval" value="${String(s.interval).replace('.',',')}"></label><label class="f">Ledetid (dager)<input type="text" inputmode="decimal" data-sp="${c}:lead" value="${s.lead}"></label><label class="f">Sikkerhetsdager<input type="text" inputmode="decimal" data-sp="${c}:safety" value="${s.safety}"></label></div>
       <div class="grid g3"><label class="f">Leveringsdager (tekst)<input type="text" data-sp="${c}:days" value="${esc(s.days)}"></label><label class="f">Notat til den som bestiller<input type="text" data-sp="${c}:notes" value="${esc(s.notes)}"></label><label class="f">Org.nr (kobler fakturaer fra Tripletex)<input type="text" inputmode="numeric" data-sp="${c}:orgnr" value="${esc(s.orgnr||'')}"></label></div></div>`; }).join('')}</div>`;
@@ -723,7 +729,7 @@ function vOppsett(){
   h += `<div class="row" style="justify-content:flex-end"><button class="btn primary lg" id="sSave" ${roM()}>Lagre innstillinger</button></div>`;
   if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="ttxCard"><h3>Tripletex</h3><div id="ttxBody" class="muted small">Henter status …</div></div>
     <div class="card grid" style="gap:12px" id="keysCard"><div class="row between"><h3>API-nøkler</h3><button class="btn sm" id="kAdd">+ Ny API-nøkkel</button></div><div class="small muted">For skannere, EDI og andre systemer som skal registrere fakturaer og pakksedler i Restoq. Se <a href="/api-dokumentasjon" target="_blank" rel="noopener">API-dokumentasjonen</a>.</div><div id="keysList" class="muted small">Henter …</div></div>`;
-  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="usersCard"><div class="row between"><h3>Brukere</h3><button class="btn sm" id="uAdd">+ Legg til ansatt</button></div><div class="small muted">Ansatte kan telle, bestille, ta imot varer og føre svinn. Ledere kan i tillegg endre innstillinger, varer, logo og brukere.</div><div id="usersList" class="muted small">Henter brukere …</div></div>`;
+  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="usersCard"><div class="row between"><h3>Brukere</h3><button class="btn sm" id="uAdd">+ Legg til ansatt</button></div><div class="small muted">Ansatte kan telle, bestille, ta imot varer og føre avskrivning. Administratorer kan i tillegg legge til og fjerne brukere, endre roller og endre innstillinger, varer, leverandører, logo og fakturaer. Det må alltid være minst én administrator.</div><div id="usersList" class="muted small">Henter brukere …</div></div>`;
   const B = BRAND();
   h += `<div class="card grid" style="gap:14px"><h3>Logo og firmafarger</h3><div class="small muted">Last opp logoen til baren eller restauranten. Appen foreslår firmafargene fra logoen, og du kan justere dem selv. Da ser appen ut som stedets egen, med «powered by Restoq» ved siden av logoen.</div>
     <div class="row"><img id="bLogoPrev" class="logoprev ${B.logo?'':'hide'}" src="${B.logo||''}" alt="Logo"><label class="btn primary" style="cursor:pointer">${B.logo?'Bytt logo':'Last opp logo'}<input type="file" id="bLogo" accept="image/png,image/jpeg,image/svg+xml,image/webp" class="hide" ${roM()}></label>${B.logo?'<button class="btn danger" id="bLogoDel">Fjern logo</button>':''}<span class="small muted">PNG eller SVG med gjennomsiktig bakgrunn ser best ut.</span></div>
@@ -738,7 +744,7 @@ function vOppsett(){
   document.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => { const [c,d] = b.dataset.wd.split(':'); const s = set.suppliers[c]; s.wd = s.wd || []; const n = +d; s.wd = s.wd.includes(n) ? s.wd.filter(x=>x!==n) : [...s.wd, n]; b.classList.toggle('on'); });
   $('#sSave').onclick = async () => { await saveSettings(read()); toast('Innstillingene er lagret.'); };
   $('#fDef').onclick = () => { document.querySelectorAll('[data-freq]').forEach(inp => inp.value = String(FREQ_DEFAULT[inp.dataset.freq]).replace('.',',')); toast('Anbefalte frekvenser er fylt inn. Trykk «Lagre innstillinger».'); };
-  $('#supAdd').onclick = () => supplierModal(read());
+  $('#supAdd').onclick = () => supplierEditModal(null, {});
   document.querySelectorAll('[data-supdel]').forEach(b => b.onclick = () => confirmBox('Fjerne leverandøren?', 'Leverandøren har ingen varer og fjernes fra oppsettet.', 'Fjern', async () => { const s = read(); delete s.suppliers[b.dataset.supdel]; await saveSettings(s); render(); }));
   if ($('#usersCard')) loadUsers();
   if ($('#ttxCard')) loadTtx();
@@ -830,16 +836,17 @@ async function loadUsers(){
   try {
     const j = await api('GET', '/api/users');
     box.className = '';
-    box.innerHTML = `<table><thead><tr><th>Navn</th><th>E-post</th><th>Rolle</th><th>Sist innlogget</th><th></th></tr></thead><tbody>${j.users.map(u => `<tr><td><span translate="no">${esc(u.name||'–')}</span>${u.me?' <span class="small muted">(deg)</span>':''}</td><td translate="no">${esc(u.email)}</td><td>${u.role==='owner'?'Leder':'Ansatt'}${u.must_change_password?' <span class="pill p-tell">invitert</span>':''}</td><td>${u.last_login_at?fmtDL(String(u.last_login_at).slice(0,10)):'–'}</td><td class="n">${u.me?'':`<button class="btn sm" data-ureset="${esc(u.email)}" data-uname="${esc(u.name)}" data-urole="${u.role}">Nytt passord</button> <button class="btn sm danger" data-udel="${u.id}">Fjern</button>`}</td></tr>`).join('')}</tbody></table>`;
+    box.innerHTML = `<table><thead><tr><th>Navn</th><th>E-post</th><th>Rolle</th><th>Sist innlogget</th><th></th></tr></thead><tbody>${j.users.map(u => `<tr><td><span translate="no">${esc(u.name||'–')}</span>${u.me?' <span class="small muted">(deg)</span>':''}</td><td translate="no">${esc(u.email)}</td><td>${u.me ? (u.role==='owner'?'Administrator':'Ansatt') : `<select data-urole-set="${u.id}" style="width:auto;min-height:36px;padding:4px 8px"><option value="owner" ${u.role==='owner'?'selected':''}>Administrator</option><option value="staff" ${u.role!=='owner'?'selected':''}>Ansatt</option></select>`}${u.must_change_password?' <span class="pill p-tell">invitert</span>':''}</td><td>${u.last_login_at?fmtDL(String(u.last_login_at).slice(0,10)):'–'}</td><td class="n">${u.me?'':`<button class="btn sm" data-ureset="${esc(u.email)}" data-uname="${esc(u.name)}" data-urole="${u.role}">Nytt passord</button> <button class="btn sm danger" data-udel="${u.id}">Fjern</button>`}</td></tr>`).join('')}</tbody></table>`;
     box.querySelectorAll('[data-udel]').forEach(b => b.onclick = () => confirmBox('Fjerne brukeren?', 'Brukeren mister tilgangen med en gang.', 'Fjern', async () => { try { await api('DELETE', '/api/users/' + b.dataset.udel); } catch(e){ toast(e.message || 'Kunne ikke fjerne.'); } loadUsers(); }));
     box.querySelectorAll('[data-ureset]').forEach(b => b.onclick = () => inviteUser({email:b.dataset.ureset, name:b.dataset.uname, role:b.dataset.urole}));
+    box.querySelectorAll('[data-urole-set]').forEach(s => s.onchange = async () => { try { await api('PATCH', '/api/users/' + s.dataset.uroleSet, {role: s.value}); toast(s.value === 'owner' ? 'Brukeren er nå administrator.' : 'Brukeren er nå ansatt.'); } catch(e){ toast(e.message || 'Kunne ikke endre rollen.'); } loadUsers(); });
   } catch(e){ box.textContent = 'Kunne ikke hente brukerne.'; }
   const add = $('#uAdd'); if (add) add.onclick = () => inviteUser(null);
 }
 function inviteUser(pre){
   modal(`<h3>${pre ? 'Nytt passord' : 'Legg til ansatt'}</h3>
     <div class="grid g2"><label class="f">Navn<input type="text" id="iuName" value="${esc(pre?.name||'')}"></label><label class="f">E-post<input type="text" id="iuEmail" inputmode="email" value="${esc(pre?.email||'')}" ${pre?'readonly':''}></label></div>
-    <label class="f">Rolle<select id="iuRole"><option value="staff" ${pre?.role!=='owner'?'selected':''}>Ansatt – teller, bestiller, mottak og svinn</option><option value="owner" ${pre?.role==='owner'?'selected':''}>Leder – også innstillinger, varer og brukere</option></select></label>
+    <label class="f">Rolle<select id="iuRole"><option value="staff" ${pre?.role!=='owner'?'selected':''}>Ansatt – teller, bestiller, varemottak og avskrivning</option><option value="owner" ${pre?.role==='owner'?'selected':''}>Administrator – kan også legge til og fjerne brukere og endre alt i systemet</option></select></label>
     <div class="small muted">Brukeren får et midlertidig passord på e-post og velger eget ved første innlogging. Har de Google-konto på samme adresse, kan de også logge inn med Google.</div><div id="iuRes"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary" id="iuOk">${pre ? 'Lag nytt passord' : 'Legg til'}</button></div>`, m => {
     m.querySelector('#iuOk').onclick = async () => {
@@ -900,7 +907,7 @@ function bindLines(m, getSup, getOrder){
 }
 function invoiceModal(){
   const sups = Object.keys(SET().suppliers);
-  if (!sups.length){ toast('Legg inn leverandører under Innstillinger først.'); return; }
+  if (!sups.length && !S.features?.readInvoice){ toast('Legg inn leverandører under Innstillinger først.'); return; }
   modal(`<h3>Registrer faktura</h3>
     <div class="grid g3"><label class="f">Leverandør<select id="ivSup">${sups.map(c => `<option value="${esc(c)}">${esc(c)} – ${esc(SET().suppliers[c].name)}</option>`).join('')}</select></label><label class="f">Fakturanummer<input type="text" id="ivNo"></label><label class="f">KID (valgfritt)<input type="text" id="ivKid" inputmode="numeric"></label></div>
     <div class="grid g3"><label class="f">Fakturadato<input type="date" id="ivDate" value="${C.today}"></label><label class="f">Forfall<input type="date" id="ivDue" value="${addDays(C.today,14)}"></label><label class="f">Bestilling<select id="ivOrder"></select></label></div>
@@ -916,7 +923,7 @@ function invoiceModal(){
     const getLines = bindLines(m, sup, ord);
     const ex = m.querySelector('#ivEx'), vat = m.querySelector('#ivVat'), tot = m.querySelector('#ivTot');
     ex.oninput = () => { const v = num(ex.value); if (v != null && !vat.value){ tot.placeholder = nf1.format(v*1.15) + ' (15 % mva)'; } };
-    let parsed = null;
+    let parsed = null, applySup = null;
     const rd = m.querySelector('#ivRead');
     const doRead = async () => {
       if (!file || !rd) return; rd.disabled = true; const res = m.querySelector('#ivReadRes'); res.innerHTML = '<div class="note info small"><span class="spin"></span> Leser fakturaen – det tar 10–30 sekunder …</div>';
@@ -927,8 +934,8 @@ function invoiceModal(){
         const put = (s, v) => { if (v != null && v !== '') m.querySelector(s).value = typeof v === 'number' ? String(v).replace('.',',') : v; };
         put('#ivNo', inv.invoiceNo); put('#ivKid', inv.kid); put('#ivDate', inv.invoiceDate); put('#ivDue', inv.dueDate); put('#ivEx', inv.amountExVat); put('#ivVat', inv.vat); put('#ivTot', inv.amount);
         if (inv.lines.length){ m.querySelector('#lnTbl tbody').innerHTML = inv.lines.map(l => lineRow({itemNo:l.itemNo, description:l.description, qty:l.qty, unitPrice:l.unitPrice})).join(''); m.querySelectorAll('.ln-del').forEach(b => b.onclick = () => b.closest('tr').remove()); m.querySelector('details').open = true; }
-        res.innerHTML = `<div class="note good small">Lest: ${inv.lines.length} linjer${found ? '' : `. Fant ikke leverandøren <b translate="no">${esc(inv.supplierName||'')}</b> – ${S.canManage ? '<button class="btn sm" id="ivNewSup">Opprett leverandør</button>' : 'be en leder legge den til'}`}. Sjekk feltene før du registrerer.</div>${inv.warnings?.length ? `<div class="note warn small">${inv.warnings.map(esc).join('<br>')}</div>` : ''}`;
-        const ns = m.querySelector('#ivNewSup'); if (ns) ns.onclick = async () => { ns.disabled = true; const c = await createSupplierFrom(inv); const sel = m.querySelector('#ivSup'); sel.insertAdjacentHTML('beforeend', `<option value="${esc(c)}">${esc(c)} – ${esc(inv.supplierName)}</option>`); sel.value = c; fillOrders(); ns.replaceWith(document.createTextNode('opprettet som ' + c + '.')); };
+        res.innerHTML = `<div class="note good small">Lest: ${inv.lines.length} linjer. Sjekk feltene før du registrerer.</div>${inv.warnings?.length ? `<div class="note warn small">${inv.warnings.map(esc).join('<br>')}</div>` : ''}<div class="supcheck">${supplierCheckHtml(inv, found)}</div>`;
+        applySup = bindSupplierCheck(res.querySelector('.supcheck'), inv, c => { const sel = m.querySelector('#ivSup'); sel.insertAdjacentHTML('beforeend', `<option value="${esc(c)}">${esc(c)} – ${esc(SET().suppliers[c].name)}</option>`); sel.value = c; fillOrders(); }, () => m.querySelector('#ivSup').focus());
       } catch(err){ res.innerHTML = `<div class="note bad small">${esc(err.message || 'Kunne ikke lese fakturaen.')}</div>`; }
       rd.disabled = false;
     };
@@ -937,6 +944,7 @@ function invoiceModal(){
     m.querySelector('#ivOk').onclick = async () => {
       const b = m.querySelector('#ivOk'); b.disabled = true;
       try {
+        if (applySup) await applySup(sup());
         const r = await api('POST', '/api/invoices', {supplier:sup(), invoiceNo:m.querySelector('#ivNo').value, kid:m.querySelector('#ivKid').value, invoiceDate:m.querySelector('#ivDate').value, dueDate:m.querySelector('#ivDue').value, orderId:ord() || null, amountExVat:num(ex.value), vat:num(vat.value), amount:num(tot.value), fileId:file?.id || null, lines:getLines()});
         closeModal(); await apiLoad(true);
         if (parsed && parsed.lines.length) reviewItemsModal(sup(), {...parsed, invoiceNo:m.querySelector('#ivNo').value, invoiceDate:m.querySelector('#ivDate').value}, () => invoiceDrawer(r.invoice.id)); else invoiceDrawer(r.invoice.id);
@@ -971,7 +979,7 @@ function invoiceDrawer(id){
   const set = SET(); const m = inv.match || {lines:[], issues:[]};
   const o = S.orders.find(x => x.id === inv.orderId);
   const can = S.canManage; const t = inv.ttx || {};
-  const html = `<div class="row between"><div><div class="small muted">${esc(set.suppliers[inv.supplier]?.name || inv.supplier)}</div><h2>Faktura ${esc(inv.invoiceNo)}</h2></div><button class="btn" data-close>Lukk</button></div>
+  const html = `<div class="row between"><div><div class="small muted"><a href="#leverandorer" class="invsup" translate="no">${esc(set.suppliers[inv.supplier]?.name || inv.supplier)}</a></div><h2>Faktura ${esc(inv.invoiceNo)}</h2></div><button class="btn" data-close>Lukk</button></div>
     <div class="row">${invPill(inv.status)}${inv.fileId?`<a class="btn sm" href="/api/files/${esc(inv.fileId)}" target="_blank" rel="noopener">📎 Åpne faktura</a>`:''}${t.supplierInvoiceId?'<span class="pill p-behov">I Tripletex</span>':''}</div>
     <div class="card"><dl class="kv"><dt>Fakturadato</dt><dd>${fmtDL(inv.invoiceDate)}</dd><dt>Forfall</dt><dd>${inv.dueDate?fmtDL(inv.dueDate):'–'}</dd><dt>Beløp eks. mva</dt><dd>${inv.amountExVat!=null?kr(inv.amountExVat):'–'}</dd><dt>Å betale</dt><dd>${inv.amount!=null?kr(inv.amount):'–'}</dd>${inv.kid?`<dt>KID</dt><dd>${esc(inv.kid)}</dd>`:''}<dt>Bestilling</dt><dd>${o?`${fmtDL(o.orderDate)} → levert ${fmtDL(o.deliveryDate)} (${o.status})`:'Ikke funnet'}</dd>${m.expectedExVat!=null?`<dt>Forventet ut fra mottak</dt><dd>${kr(m.expectedExVat)} eks. mva</dd>`:''}</dl></div>
     ${m.issues && m.issues.length ? `<div class="note bad"><div><b>Avvik</b><ul style="margin:6px 0 0;padding-left:18px">${m.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>` : m.orderId ? '<div class="note good">Fakturaen stemmer med bestilling og varemottak.</div>' : ''}
@@ -990,6 +998,7 @@ function invoiceDrawer(id){
       <div class="small muted">Godkjent faktura sendes til bilagsmottaket i Tripletex, der den bokføres. Når bilaget er bokført, trykker du «Hent fra Tripletex», og fakturaen kan sendes til betaling. Selve utbetalingen skjer via banken som er koblet til Tripletex.</div></div>
     <div class="card"><h3 style="margin-bottom:8px">Historikk</h3>${(inv.history||[]).slice().reverse().map(h => `<div class="small"><b>${fmtDL(h.ts.slice(0,10))}</b> ${esc(h.action)} – ${esc(h.by)}${h.note?': '+esc(h.note):''}</div>`).join('')}</div>`;
   drawer(html, d => {
+    const isl = d.querySelector('.invsup'); if (isl) isl.onclick = e => { e.preventDefault(); closeLayer(); supplierEditModal(inv.supplier); };
     d.querySelector('#dvMatch').onclick = async () => { try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: d.querySelector('#dvOrder').value || null}); await apiLoad(true); invoiceDrawer(id); } catch(e){ toast(e.message || 'Feil.'); } };
     d.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
       const act = b.dataset.act; const note = d.querySelector('#dvNote').value;
@@ -1026,6 +1035,183 @@ async function loadKeys(){
 function isoWeek(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); const y0 = new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t - y0) / DAY + 1) / 7); }
 
 /* ---------- dialoger, filer ---------- */
+/* ===== Leverandørregister ===== */
+// Kontrollsiffer (modulus 11): org.nr (9 siffer) og norsk kontonummer (11 siffer)
+function mod11ok(digits, weights){ if (digits.length !== weights.length + 1) return false; const s = weights.reduce((a, w, i) => a + w * +digits[i], 0); let k = 11 - (s % 11); if (k === 11) k = 0; if (k === 10) return false; return k === +digits[digits.length - 1]; }
+const orgnrOk = v => { const d = String(v||'').replace(/\D/g,''); return d.length === 9 && mod11ok(d, [3,2,7,6,5,4,3,2]); };
+const kontoOk = v => { const d = String(v||'').replace(/\D/g,''); return d.length === 11 && mod11ok(d, [5,4,3,2,7,6,5,4,3,2]); };
+const fmtKonto = v => { const d = String(v||'').replace(/\D/g,''); return d.length === 11 ? `${d.slice(0,4)}.${d.slice(4,6)}.${d.slice(6)}` : String(v||''); };
+const fmtOrg = v => { const d = String(v||'').replace(/\D/g,''); return d.length === 9 ? `${d.slice(0,3)} ${d.slice(3,6)} ${d.slice(6)}` : String(v||''); };
+const SUP_FIELDS = [['orgnr','Org.nr.'],['address','Adresse'],['zip','Postnr.'],['city','Sted'],['bank','Kontonummer'],['iban','IBAN'],['bic','BIC/SWIFT'],['email','E-post (bestilling)'],['phone','Telefon'],['web','Nettside'],['customerNo','Vårt kundenummer']];
+/** Felter som kan hentes fra en lest faktura. */
+const supFromInvoice = inv => ({name: inv.supplierName || '', orgnr: inv.supplierOrgNo || '', address: inv.supplierAddress || '', zip: inv.supplierPostalCode || '', city: inv.supplierCity || '', bank: (inv.supplierBankAccount||'').replace(/\D/g,''), iban: inv.supplierIban || '', bic: inv.supplierBic || '', email: inv.supplierEmail || '', phone: inv.supplierPhone || '', web: inv.supplierWebsite || '', customerNo: inv.customerNo || '', contacts: inv.supplierContact ? [{name: inv.supplierContact, role:'', phone:'', email:''}] : []});
+
+/** Skjema for leverandør (brukes alene og inne i fakturalesingen). Returnerer {html, bind(m) -> read()}. */
+function supplierForm(s, opts = {}){
+  s = {wd:[], interval:7, lead:1, safety:2, notes:'', contacts:[], ...s};
+  const isNew = !opts.code;
+  const contactRow = c => `<div class="grid g4 sf-contact"><input class="sf-cn" placeholder="Navn" value="${esc(c.name||'')}"><input class="sf-cr" placeholder="Rolle, f.eks. selger" value="${esc(c.role||'')}"><input class="sf-cp" placeholder="Telefon" inputmode="tel" value="${esc(c.phone||'')}"><div class="row" style="flex-wrap:nowrap;gap:6px"><input class="sf-ce" placeholder="E-post" inputmode="email" value="${esc(c.email||'')}"><button type="button" class="btn sm danger sf-cdel" aria-label="Fjern kontaktperson">×</button></div></div>`;
+  const html = `<div class="supform grid" style="gap:12px">
+    <div class="grid g3">${isNew ? `<label class="f">Kode (2–4 tegn)<input class="sf-code" maxlength="4" value="${esc(opts.suggestCode||'')}" placeholder="f.eks. ASKO"></label>` : ''}<label class="f" style="${isNew?'':'grid-column:span 2'}">Navn<input class="sf-name" value="${esc(s.name||'')}"></label><label class="f">Org.nr.<input class="sf-orgnr" inputmode="numeric" value="${esc(fmtOrg(s.orgnr))}"><span class="small sf-orgchk"></span></label></div>
+    <div class="grid g3"><label class="f" style="grid-column:span 1">Adresse<input class="sf-address" value="${esc(s.address||'')}"></label><label class="f">Postnr.<input class="sf-zip" inputmode="numeric" value="${esc(s.zip||'')}"></label><label class="f">Sted<input class="sf-city" value="${esc(s.city||'')}"></label></div>
+    <div class="grid g3"><label class="f">Kontonummer<input class="sf-bank" inputmode="numeric" value="${esc(fmtKonto(s.bank))}" placeholder="1234.56.78901"><span class="small sf-bankchk"></span></label><label class="f">IBAN (utenlandsk)<input class="sf-iban" value="${esc(s.iban||'')}"></label><label class="f">BIC/SWIFT<input class="sf-bic" value="${esc(s.bic||'')}"></label></div>
+    <div class="grid g4"><label class="f">E-post (bestilling)<input class="sf-email" inputmode="email" value="${esc(s.email||'')}"></label><label class="f">Telefon<input class="sf-phone" inputmode="tel" value="${esc(s.phone||'')}"></label><label class="f">Nettside<input class="sf-web" value="${esc(s.web||'')}"></label><label class="f">Vårt kundenummer<input class="sf-cust" value="${esc(s.customerNo||'')}"></label></div>
+    <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Kontaktpersoner<div class="sf-contacts grid" style="gap:8px">${(s.contacts||[]).map(contactRow).join('')}</div><div><button type="button" class="btn sm sf-cadd">+ Kontaktperson</button></div></div>
+    <details ${isNew?'open':''}><summary style="cursor:pointer;font-weight:600">Levering og bestilling</summary>
+      <div class="grid" style="gap:12px;margin-top:10px"><div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Leveringsdager<div class="chips sf-wd">${[1,2,3,4,5,6,0].map(d=>`<button type="button" class="chip ${(s.wd||[]).includes(d)?'on':''}" data-d="${d}">${WD[d]}</button>`).join('')}</div></div>
+      <div class="grid g3"><label class="f">Ledetid (dager)<input class="sf-lead" inputmode="decimal" value="${String(s.lead??1).replace('.',',')}"></label><label class="f">Sikkerhetsdager<input class="sf-safety" inputmode="decimal" value="${String(s.safety??2).replace('.',',')}"></label><label class="f">Minste ordre / gebyr (notat)<input class="sf-notes" value="${esc(s.notes||'')}"></label></div></div></details>
+  </div>`;
+  const bind = m => {
+    const f = c => m.querySelector(c);
+    const chk = (inp, out, ok, label) => { const v = inp.value.replace(/\D/g,''); out.textContent = !v ? '' : ok(v) ? '✓ gyldig' : `✗ ugyldig ${label} (kontrollsiffer stemmer ikke)`; out.style.color = ok(v) ? 'var(--green)' : 'var(--red)'; out.style.fontWeight = '600'; };
+    const oc = () => chk(f('.sf-orgnr'), f('.sf-orgchk'), orgnrOk, 'org.nr.'), bc = () => chk(f('.sf-bank'), f('.sf-bankchk'), kontoOk, 'kontonummer');
+    f('.sf-orgnr').oninput = oc; f('.sf-bank').oninput = bc; oc(); bc();
+    const bindDel = () => m.querySelectorAll('.sf-cdel').forEach(b => b.onclick = () => b.closest('.sf-contact').remove());
+    f('.sf-cadd').onclick = () => { f('.sf-contacts').insertAdjacentHTML('beforeend', contactRow({})); bindDel(); }; bindDel();
+    const wd = new Set(s.wd || []); m.querySelectorAll('.sf-wd .chip').forEach(b => b.onclick = () => { const d = +b.dataset.d; wd.has(d) ? wd.delete(d) : wd.add(d); b.classList.toggle('on'); });
+    return () => {
+      const g = c => (f(c)?.value || '').trim();
+      const days = [...wd].sort((a,b)=>((a+6)%7)-((b+6)%7));
+      const out = {...s, name: g('.sf-name'), orgnr: g('.sf-orgnr').replace(/\D/g,''), address: g('.sf-address'), zip: g('.sf-zip'), city: g('.sf-city'), bank: g('.sf-bank').replace(/\D/g,''), iban: g('.sf-iban').replace(/\s/g,'').toUpperCase(), bic: g('.sf-bic').toUpperCase(), email: g('.sf-email'), phone: g('.sf-phone'), web: g('.sf-web'), customerNo: g('.sf-cust'),
+        contacts: [...m.querySelectorAll('.sf-contact')].map(r => ({name: r.querySelector('.sf-cn').value.trim(), role: r.querySelector('.sf-cr').value.trim(), phone: r.querySelector('.sf-cp').value.trim(), email: r.querySelector('.sf-ce').value.trim()})).filter(c => c.name || c.phone || c.email),
+        wd: days, days: days.length ? days.map(d => WDL[d]).join(', ') : (s.days || 'Etter avtale'), interval: days.length ? Math.round(7 / days.length * 10) / 10 : (s.interval || 7), lead: num(g('.sf-lead')) ?? 1, safety: num(g('.sf-safety')) ?? 2, notes: g('.sf-notes'), fees: s.fees || ''};
+      const code = isNew ? g('.sf-code').toUpperCase().replace(/[^A-ZÆØÅ0-9]/g,'') : opts.code;
+      const errs = [];
+      if (!out.name) errs.push('Fyll inn navn.');
+      if (isNew && (code.length < 2 || SET().suppliers[code])) errs.push(code.length < 2 ? 'Koden må ha 2–4 tegn.' : 'Koden er allerede i bruk.');
+      if (out.orgnr && !orgnrOk(out.orgnr)) errs.push('Org.nr. er ugyldig.');
+      if (out.bank && !kontoOk(out.bank)) errs.push('Kontonummeret er ugyldig.');
+      return {code, sup: out, errs};
+    };
+  };
+  return {html, bind};
+}
+function suggestCode(name){
+  const set = SET(); const words = normName(name).replace(/\b(AS|ASA|AB|DA|ANS|NORGE)\b/g,'').split(/\s+/).filter(Boolean);
+  let base = (words.length > 1 ? words.map(w => w[0]).join('') : (words[0] || 'LEV')).slice(0,4); if (base.length < 2) base = (words[0] || 'LEV').slice(0,3);
+  let code = base, i = 2; while (set.suppliers[code]) code = base.slice(0,3) + i++; return code;
+}
+async function saveSupplier(code, sup){ const set = JSON.parse(JSON.stringify(SET())); const old = set.suppliers[code]; if (old && old.bank && sup.bank && old.bank !== sup.bank) sup.bankChanged = {from: old.bank, at: C.today, by: S.me?.name || S.me?.email || ''}; set.suppliers[code] = sup; await saveSettings(set); }
+function supplierEditModal(code, prefill, onSaved){
+  const s = code ? SET().suppliers[code] : prefill || {};
+  const form = supplierForm(s, {code, suggestCode: code ? '' : suggestCode(s.name || '')});
+  modal(`<h3>${code ? 'Leverandør: <span translate="no">' + esc(s.name) + '</span>' : 'Ny leverandør'}</h3>${S.canManage ? '' : '<div class="note warn small">Bare leder kan endre leverandører.</div>'}${form.html}<div class="sf-err"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="sfOk" ${roM()}>${code ? 'Lagre' : 'Opprett leverandør'}</button></div>`, m => {
+    const read = form.bind(m);
+    m.querySelector('#sfOk').onclick = async () => {
+      const r = read(); if (r.errs.length){ m.querySelector('.sf-err').innerHTML = `<div class="note bad small">${r.errs.map(esc).join('<br>')}</div>`; return; }
+      if (code && SET().suppliers[code]?.bank && r.sup.bank && SET().suppliers[code].bank !== r.sup.bank && !confirm(`Kontonummeret endres fra ${fmtKonto(SET().suppliers[code].bank)} til ${fmtKonto(r.sup.bank)}. Har du bekreftet endringen direkte med leverandøren (ikke bare via e-post eller faktura)?`)) return;
+      await saveSupplier(r.code, r.sup); closeModal(); toast(code ? 'Leverandøren er lagret.' : 'Leverandøren er opprettet.'); onSaved ? onSaved(r.code) : render();
+    };
+  });
+}
+function vLeverandorer(){
+  const set = SET(); const items = getItems();
+  const nItems = {}; items.forEach(i => nItems[i.sup] = (nItems[i.sup]||0) + 1);
+  const lastInv = {}; S.invoices.forEach(i => { if (!lastInv[i.supplier] || (i.invoiceDate||'') > lastInv[i.supplier].invoiceDate) lastInv[i.supplier] = i; });
+  const codes = Object.keys(set.suppliers).sort((a,b) => set.suppliers[a].name.localeCompare(set.suppliers[b].name, 'nb'));
+  let h = `<div class="row between"><div><h2>Leverandører</h2><div class="muted">Kontaktinfo, kontonummer, adresser og leveringsdager. Kontonummeret brukes til å oppdage fakturaer med endret konto.</div></div><div class="row"><button class="btn" data-go="oppsett">Tilbake</button><button class="btn primary" id="supNew" ${roM()}>+ Ny leverandør</button></div></div>`;
+  h += codes.length ? `<div class="grid g2">${codes.map(c => { const s = set.suppliers[c]; const warn = [!s.orgnr && 'mangler org.nr.', s.orgnr && !orgnrOk(s.orgnr) && 'ugyldig org.nr.', !s.bank && !s.iban && 'mangler kontonummer', s.bank && !kontoOk(s.bank) && 'ugyldig kontonummer'].filter(Boolean); const li = lastInv[c];
+    return `<div class="card grid" style="gap:8px"><div class="row between"><div><h3 translate="no">${esc(s.name)}</h3><div class="small muted">${esc(c)}${s.orgnr?' · org.nr. '+esc(fmtOrg(s.orgnr)):''}</div></div><button class="btn sm" data-supedit="${esc(c)}">${S.canManage?'Rediger':'Vis'}</button></div>
+      <dl class="kv">${s.address||s.city?`<dt>Adresse</dt><dd translate="no">${esc([s.address, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</dd>`:''}${s.bank||s.iban?`<dt>Konto</dt><dd>${esc(s.bank?fmtKonto(s.bank):s.iban)}${s.bankChanged?` <span class="pill p-tell">endret ${fmtD(s.bankChanged.at)}</span>`:''}</dd>`:''}${s.email||s.phone?`<dt>Bestilling</dt><dd translate="no">${[s.email&&`<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>`, s.phone&&`<a href="tel:${esc(s.phone)}">${esc(s.phone)}</a>`].filter(Boolean).join(' · ')}</dd>`:''}${(s.contacts||[]).length?`<dt>Kontakt</dt><dd translate="no">${s.contacts.map(k => `${esc(k.name)}${k.role?' ('+esc(k.role)+')':''}${k.phone?' · <a href="tel:'+esc(k.phone)+'">'+esc(k.phone)+'</a>':''}${k.email?' · <a href="mailto:'+esc(k.email)+'">'+esc(k.email)+'</a>':''}`).join('<br>')}</dd>`:''}<dt>Levering</dt><dd>${esc(s.days||'Etter avtale')} · ledetid ${q(s.lead??1)} d</dd>${s.customerNo?`<dt>Kundenr.</dt><dd>${esc(s.customerNo)}</dd>`:''}</dl>
+      <div class="row small"><a href="#varer" data-supitems="${esc(c)}">${nItems[c]||0} varer</a><span class="muted">·</span><span class="muted">${li?'siste faktura '+fmtDL(li.invoiceDate):'ingen fakturaer'}</span>${warn.length?`<span class="pill p-tell">${esc(warn.join(', '))}</span>`:''}</div></div>`; }).join('')}</div>` : '<div class="card"><div class="empty">Ingen leverandører ennå. Opprett en, eller last opp en faktura under Varer → Legg inn varer.</div></div>';
+  $('#view').innerHTML = h;
+  $('#supNew').onclick = () => supplierEditModal(null, {});
+  document.querySelectorAll('[data-supedit]').forEach(b => b.onclick = () => supplierEditModal(b.dataset.supedit));
+  document.querySelectorAll('[data-supitems]').forEach(a => a.onclick = e => { e.preventDefault(); UI.vSup = a.dataset.supitems; go('varer'); });
+}
+
+/** Etter lesing: ny leverandør (spør om opprettelse) eller kjent leverandør (oppdater detaljer, varsle om endret kontonummer). */
+function supplierCheckHtml(inv, found){
+  if (!found){
+    if (!S.canManage) return `<div class="note warn small">Leverandøren <b translate="no">${esc(inv.supplierName||'')}</b> finnes ikke i Restoq. Be en leder opprette den, eller velg en eksisterende.</div>`;
+    return `<div class="note info small sc-ask"><div><b>Ny leverandør: <span translate="no">${esc(inv.supplierName || 'ukjent')}</span>${inv.supplierOrgNo?' ('+esc(fmtOrg(inv.supplierOrgNo))+')':''}</b><br>Finnes ikke i Restoq. Vil du opprette den? Opplysningene fra fakturaen fylles inn.<div class="row" style="margin-top:8px"><button type="button" class="btn sm primary sc-yes">Ja, opprett leverandør</button><button type="button" class="btn sm sc-no">Nei, velg en eksisterende</button></div></div></div><div class="sc-form"></div>`;
+  }
+  const s = SET().suppliers[found]; const fromInv = supFromInvoice(inv);
+  const bankInv = fromInv.bank, ibanInv = fromInv.iban.replace(/\s/g,'').toUpperCase();
+  let h = '';
+  if ((bankInv && s.bank && bankInv !== s.bank) || (ibanInv && s.iban && ibanInv !== s.iban.replace(/\s/g,'').toUpperCase()))
+    h += `<div class="note bad small"><div><b>⚠ Kontonummeret på fakturaen (${esc(bankInv ? fmtKonto(bankInv) : ibanInv)}) er ikke det samme som registrert for <span translate="no">${esc(s.name)}</span> (${esc(s.bank ? fmtKonto(s.bank) : s.iban)}).</b> Dette er et vanlig tegn på fakturasvindel. Bekreft kontonummeret med leverandøren på et kjent telefonnummer før fakturaen betales.</div></div>`;
+  const missing = SUP_FIELDS.filter(([k]) => !s[k] && fromInv[k]).map(([k, l]) => [k, l]);
+  if (missing.length && S.canManage) h += `<label class="row small" style="gap:8px"><input type="checkbox" class="sc-fill" checked style="width:20px;height:20px"> Legg til fra fakturaen hos <span translate="no">${esc(s.name)}</span>: ${missing.map(([k,l]) => esc(l.toLowerCase()) + ' ' + esc(k==='bank'?fmtKonto(fromInv[k]):k==='orgnr'?fmtOrg(fromInv[k]):fromInv[k])).join(', ')}</label>`;
+  return h + `<div class="small"><a href="#leverandorer" class="sc-link">Åpne leverandøren <span translate="no">${esc(s.name)}</span></a></div>`;
+}
+/** Binder spørsmålet. onCreated(code) kalles når ny leverandør er lagret. Returnerer async apply(code) som lagrer valgte tillegg. */
+function bindSupplierCheck(box, inv, onCreated, onDecline){
+  const yes = box.querySelector('.sc-yes'), no = box.querySelector('.sc-no');
+  if (yes) yes.onclick = () => {
+    const pre = supFromInvoice(inv); const form = supplierForm(pre, {suggestCode: suggestCode(pre.name)});
+    box.querySelector('.sc-ask').remove();
+    const fb = box.querySelector('.sc-form'); fb.innerHTML = `<div class="card" style="background:var(--surface2)"><h3 style="margin-bottom:8px">Ny leverandør</h3>${form.html}<div class="sf-err"></div><div class="row" style="justify-content:flex-end;margin-top:8px"><button type="button" class="btn primary sc-save">Opprett leverandør</button></div></div>`;
+    const read = form.bind(fb);
+    fb.querySelector('.sc-save').onclick = async () => { const r = read(); if (r.errs.length){ fb.querySelector('.sf-err').innerHTML = `<div class="note bad small">${r.errs.map(esc).join('<br>')}</div>`; return; } await saveSupplier(r.code, r.sup); fb.innerHTML = `<div class="note good small">Leverandøren <b translate="no">${esc(r.sup.name)}</b> (${esc(r.code)}) er opprettet.</div>`; onCreated && onCreated(r.code); };
+  };
+  if (no) no.onclick = () => { box.querySelector('.sc-ask').remove(); onDecline && onDecline(); };
+  const link = box.querySelector('.sc-link'); if (link) link.onclick = e => { e.preventDefault(); closeModal(); go('leverandorer'); };
+  return async code => {
+    const fill = box.querySelector('.sc-fill'); if (!fill || !fill.checked || !code) return;
+    const s = {...SET().suppliers[code]}; const fromInv = supFromInvoice(inv);
+    SUP_FIELDS.forEach(([k]) => { if (!s[k] && fromInv[k]) s[k] = fromInv[k]; });
+    if (!(s.contacts||[]).length && fromInv.contacts.length) s.contacts = fromInv.contacts;
+    await saveSupplier(code, s);
+  };
+}
+
+/* ===== Samme vare hos flere leverandører ===== */
+const SIZE_RE = /(\d+(?:[.,]\d+)?)\s*(ML|CL|DL|L|LTR|G|GR|KG)\b/g;
+function sizeKey(name){ const out = []; String(name||'').toUpperCase().replace(/(\d),(\d)/g,'$1.$2').replace(SIZE_RE, (m, n, u) => { const v = parseFloat(n); const ml = {ML:1, CL:10, DL:100, L:1000, LTR:1000}[u]; const g = {G:1, GR:1, KG:1000}[u]; out.push(ml ? Math.round(v*ml)+'ml' : Math.round(v*g)+'g'); return m; }); return out.sort().join('+'); }
+const STOP = new Set(['STK','PK','PAK','PAKKE','KRT','KARTONG','BOKS','BX','FL','FLASKE','X','KG','G','L','ML','CL','DL','LTR','GR','STYKK','STK.','ENERGY','DRINK','ORIGINAL','NORSK','IMPORT','FERSK','FRYST','SKIVET','PRESSET','AV','OG','MED','I','TIL','DS','BOX']);
+const nameTokens = n => new Set(String(n||'').toUpperCase().replace(/(\d),(\d)/g,'$1.$2').replace(SIZE_RE,' ').replace(/[^A-ZÆØÅ]+/g,' ').split(' ').filter(w => w.length >= 2 && !STOP.has(w)));
+function sameProduct(a, b){
+  if (a.sup === b.sup) return false;
+  const na = a.notSame || [], nb = b.notSame || []; if (na.includes(b.id) || nb.includes(a.id)) return false;
+  if ((a.same || []).includes(b.id) || (b.same || []).includes(a.id)) return true;
+  if (a.gtin && b.gtin) return String(a.gtin) === String(b.gtin);
+  const ta = nameTokens(a.name), tb = nameTokens(b.name); if (!ta.size || !tb.size) return false;
+  let inter = 0; ta.forEach(t => { if (tb.has(t)) inter++; });
+  const jac = inter / (ta.size + tb.size - inter);
+  const sa = sizeKey(a.name), sb = sizeKey(b.name);
+  if (sa && sb && sa !== sb) return false;
+  return jac >= 0.6 || (inter >= 2 && Math.min(ta.size, tb.size) === inter);
+}
+let ALT_CACHE = null, ALT_KEY = '';
+function altIndex(){
+  const items = getItems().filter(i => i.active !== false);
+  const key = items.length + ':' + JSON.stringify(S.itemcfg?.ov ? Object.keys(S.itemcfg.ov).length : 0) + ':' + items.reduce((s,i)=>s+(i.price||0),0).toFixed(2);
+  if (ALT_CACHE && ALT_KEY === key) return ALT_CACHE;
+  const idx = {}; const byTok = {};
+  items.forEach(i => nameTokens(i.name).forEach(t => (byTok[t] ??= []).push(i)));
+  items.forEach(i => { const cand = new Set(); nameTokens(i.name).forEach(t => (byTok[t]||[]).forEach(o => cand.add(o))); (i.same||[]).forEach(id => { const o = items.find(x => x.id === id); o && cand.add(o); }); const alts = [...cand].filter(o => o.id !== i.id && sameProduct(i, o)); if (alts.length) idx[i.id] = alts; });
+  ALT_CACHE = idx; ALT_KEY = key; return idx;
+}
+const altsFor = item => altIndex()[item.id] || (getItems().some(i => i.id === item.id) ? [] : getItems().filter(o => o.active !== false && sameProduct(item, o)));
+/** Innhold per enhet fra varenavnet: «24X250ML» = 6000 ml, «0,25L» = 250 ml, «5KG» = 5000 g. */
+function contentOf(name){
+  const n = String(name||'').toUpperCase().replace(/(\d),(\d)/g,'$1.$2');
+  const conv = (v, u) => { const ml = {ML:1, CL:10, DL:100, L:1000, LTR:1000}[u]; return ml ? {dim:'ml', amt:v*ml} : {dim:'g', amt:v*({G:1, GR:1, KG:1000}[u])}; };
+  let m = n.match(/(\d+)\s*[X×]\s*(\d+(?:\.\d+)?)\s*(ML|CL|DL|L|LTR|G|GR|KG)\b/);
+  if (m){ const c = conv(parseFloat(m[2]), m[3]); return {dim:c.dim, amt:c.amt*parseInt(m[1]), each:c.amt, n:parseInt(m[1])}; }
+  m = n.match(/(\d+(?:\.\d+)?)\s*(ML|CL|DL|L|LTR|G|GR|KG)\b/);
+  if (m){ const c = conv(parseFloat(m[1]), m[2]); return {dim:c.dim, amt:c.amt, each:c.amt, n:1}; }
+  return null;
+}
+const fmtAmt = (dim, a) => dim === 'ml' ? (a >= 1000 ? nf1.format(a/1000) + ' l' : nf0.format(a) + ' ml') : (a >= 1000 ? nf1.format(a/1000) + ' kg' : nf0.format(a) + ' g');
+/** Sammenlignbar pris: andre varens pris omregnet til samme mengde som denne varen. */
+function comparePrice(item, price, o){
+  const a = contentOf(item.name), b = contentOf(o.name);
+  if (a && b && a.dim === b.dim && a.amt > 0 && b.amt > 0 && (item.unit||'').toLowerCase() === (o.unit||'').toLowerCase()){
+    const eq = o.price / b.amt * a.amt; return {eq, d: price ? (eq - price) / price * 100 : null, note: a.amt !== b.amt ? `${fmtAmt(b.dim, b.amt)}${b.n > 1 ? ' (' + b.n + '×' + fmtAmt(b.dim, b.each) + ')' : ''} – tilsvarer ${kr(eq)} per ${fmtAmt(a.dim, a.amt)}` : ''};
+  }
+  const same = (o.unit||'').toLowerCase() === (item.unit||'').toLowerCase() && (o.pack||1) === (item.pack||1) && (!a || !b || a.amt === b.amt);
+  return same ? {eq:o.price, d: price ? (o.price - price) / price * 100 : null, note:''} : {eq:null, d:null, note:'annen enhet/pakning'};
+}
+/** Kort varsel om samme vare hos andre leverandører, med pris og forskjell. */
+function altNote(item, price){
+  const alts = altsFor(item); if (!alts.length) return '';
+  const p = price ?? item.price; const set = SET();
+  return alts.map(o => { const c = comparePrice(item, p, o);
+    return `<span class="altnote ${c.d != null && c.d < -2 ? 'cheaper' : ''}">Kjøpes også hos <b translate="no">${esc(set.suppliers[o.sup]?.name || o.sup)}</b> til ${kr(o.price)}/${esc(o.unit)}${c.note ? ' · ' + c.note : ''}${c.d != null && Math.abs(c.d) >= 0.5 ? ` (${c.d > 0 ? '+' : ''}${nf1.format(c.d)} %)` : ''}</span>`; }).join(' ');
+}
 /* ===== Fakturalesing med Claude og varer fra faktura ===== */
 const normNo = s => String(s||'').replace(/[^A-Za-z0-9]/g,'').replace(/^0+/,'').toUpperCase();
 const normName = s => String(s||'').toUpperCase().replace(/[^A-ZÆØÅ0-9]+/g,' ').trim();
@@ -1073,8 +1259,8 @@ function reviewItemsModal(sup, inv, onDone){
   if (!S.canManage){ toast(`Fakturaen har ${nNew.length} nye varer og ${nChg.length} prisendringer. Be en leder opprette dem under Varer.`); onDone && onDone(); return; }
   const set = SET();
   modal(`<h3>Varer fra fakturaen</h3><div class="small muted">${esc(set.suppliers[sup]?.name || sup)}${inv.invoiceNo?' · faktura '+esc(inv.invoiceNo):''}. ${nNew.length} nye varer, ${nChg.length} prisendringer${nSame.length?`, ${nSame.length} uendret`:''}. Sjekk og juster før du lagrer – lager, kategori og holdbarhet er forslag.</div>
-    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px"></td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td><select class="rv-stor">${STORES.map(s => `<option ${(r.l.storage||normStore(r.l.category))===s?'selected':''}>${s}</option>`).join('')}</select></td><td><input class="rv-cat" value="${esc(r.l.category||'Annet')}" style="width:110px"></td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
-    ${nChg.length ? `<h3 style="margin-top:6px">Nye priser</h3><div class="tblwrap"><table><thead><tr><th></th><th>Vare</th><th class="n">Nå</th><th class="n">På fakturaen</th><th class="n">Endring</th></tr></thead><tbody>${nChg.map(r => { const d = (r.price - r.ex.price) / (r.ex.price || 1) * 100; return `<tr data-rc="${r.i}"><td><input type="checkbox" class="rc-on" checked style="width:20px;height:20px"></td><td><div class="iname">${esc(r.ex.name)}</div><div class="isub">${esc(r.ex.no)} · ${esc(r.ex.unit)}${r.l.unit && normName(r.l.unit) !== normName(r.ex.unit) ? ` · <b style="color:var(--amber)">fakturert i ${esc(r.l.unit)}</b>` : ''}</div></td><td class="n">${kr(r.ex.price)}</td><td class="n"><b>${kr(r.price)}</b></td><td class="n" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':''}${nf1.format(d)} %</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px">${altNote({id:'_new', sup, name:r.l.description, unit:(r.l.unit||'stk').toLowerCase(), pack:1, gtin:r.l.gtin, price:r.price}, r.price) || ''}</td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td><select class="rv-stor">${STORES.map(s => `<option ${(r.l.storage||normStore(r.l.category))===s?'selected':''}>${s}</option>`).join('')}</select></td><td><input class="rv-cat" value="${esc(r.l.category||'Annet')}" style="width:110px"></td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
+    ${nChg.length ? `<h3 style="margin-top:6px">Nye priser</h3><div class="tblwrap"><table><thead><tr><th></th><th>Vare</th><th class="n">Nå</th><th class="n">På fakturaen</th><th class="n">Endring</th></tr></thead><tbody>${nChg.map(r => { const d = (r.price - r.ex.price) / (r.ex.price || 1) * 100; return `<tr data-rc="${r.i}"><td><input type="checkbox" class="rc-on" checked style="width:20px;height:20px"></td><td><div class="iname">${esc(r.ex.name)}</div>${altNote(r.ex, r.price)}<div class="isub">${esc(r.ex.no)} · ${esc(r.ex.unit)}${r.l.unit && normName(r.l.unit) !== normName(r.ex.unit) ? ` · <b style="color:var(--amber)">fakturert i ${esc(r.l.unit)}</b>` : ''}</div></td><td class="n">${kr(r.ex.price)}</td><td class="n"><b>${kr(r.price)}</b></td><td class="n" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':''}${nf1.format(d)} %</td></tr>`; }).join('')}</tbody></table></div>` : ''}
     <div class="row" style="justify-content:flex-end"><button class="btn" id="rvSkip">Hopp over</button><button class="btn primary" id="rvOk">Lagre varer og priser</button></div>`, m => {
     m.querySelector('#rvSkip').onclick = () => { closeModal(); onDone && onDone(); };
     m.querySelector('#rvOk').onclick = async () => {
@@ -1089,7 +1275,7 @@ function reviewItemsModal(sup, inv, onDone){
         const id = sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
         if (all.find(i => i.id === id && !cfg.ov[id]?.removed) && !cfg.ov[id]?.custom) return;
         const prev = cfg.ov[id] || {};
-        cfg.ov[id] = {...prev, id, custom:true, removed:false, sup, no, name, unit:g('.rv-unit')||'stk', price:num(g('.rv-price'))||0, stor:g('.rv-stor'), cat:g('.rv-cat')||'Annet', area:prev.area||'Kjøkken', shelf:num(g('.rv-shelf')), pack:num(g('.rv-pack'))||1, manual:prev.manual??null, active:prev.active??true, h100:prev.h100||0, b13:prev.b13||0, b6:prev.b6||0, ndel:prev.ndel||0, last:inv.invoiceDate||C.today, source:'faktura', priceHist:[{d:inv.invoiceDate||C.today, p:num(g('.rv-price'))||0, inv:inv.invoiceNo||''}]};
+        cfg.ov[id] = {...prev, id, custom:true, removed:false, sup, no, name, unit:g('.rv-unit')||'stk', price:num(g('.rv-price'))||0, stor:g('.rv-stor'), cat:g('.rv-cat')||'Annet', area:prev.area||'Kjøkken', shelf:num(g('.rv-shelf')), pack:num(g('.rv-pack'))||1, manual:prev.manual??null, active:prev.active??true, h100:prev.h100||0, b13:prev.b13||0, b6:prev.b6||0, ndel:prev.ndel||0, last:inv.invoiceDate||C.today, gtin: (rows.find(x => x.i === +tr.dataset.rv)?.l.gtin) || prev.gtin || '', source:'faktura', priceHist:[{d:inv.invoiceDate||C.today, p:num(g('.rv-price'))||0, inv:inv.invoiceNo||''}]};
         created++;
       });
       m.querySelectorAll('tr[data-rc]').forEach(tr => {
@@ -1123,7 +1309,7 @@ function itemsFromInvoiceModal(){
     <div class="row"><label class="btn primary" style="cursor:pointer">📎 Velg faktura (PDF, bilde eller EHF)<input type="file" id="ifFile" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.xml" class="hide"></label><span id="ifStatus" class="small muted"></span></div>
     <div id="ifRes"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary hide" id="ifOk">Gå videre til varene</button></div>`, m => {
-    let file = null, inv = null;
+    let file = null, inv = null, applySup = null;
     m.querySelector('#ifFile').onchange = async e => {
       const st = m.querySelector('#ifStatus'); st.textContent = 'Laster opp …';
       file = await uploadFile(e.target); if (!file){ st.textContent = ''; return; }
@@ -1132,14 +1318,18 @@ function itemsFromInvoiceModal(){
       st.textContent = file.name;
       m.querySelector('#ifRes').innerHTML = `<div class="note good">Fant ${inv.lines.length} linjer${inv.invoiceNo?' på faktura '+esc(inv.invoiceNo):''}${inv.invoiceDate?' datert '+fmtDL(inv.invoiceDate):''}${inv.amount!=null?' · '+kr(inv.amount)+' inkl. mva':''}.</div>
         ${inv.warnings?.length ? `<div class="note warn small">${inv.warnings.map(esc).join('<br>')}</div>` : ''}
-        ${supplierPicker(inv, 'ifSup')}
+        <label class="f">Leverandør<select id="ifSup"><option value="">– velg –</option>${Object.keys(SET().suppliers).map(c => `<option value="${esc(c)}" ${c===matchSupplier(SET(), inv)?'selected':''}>${esc(c)} – ${esc(SET().suppliers[c].name)}</option>`).join('')}</select></label>
+        <div class="supcheck">${supplierCheckHtml(inv, matchSupplier(SET(), inv))}</div>
         <label class="row small" style="gap:8px"><input type="checkbox" id="ifReg" checked style="width:20px;height:20px"> Registrer også fakturaen for kontroll mot bestilling og varemottak</label>`;
+      applySup = bindSupplierCheck(m.querySelector('#ifRes .supcheck'), inv, c => { const sel = m.querySelector('#ifSup'); sel.insertAdjacentHTML('beforeend', `<option value="${esc(c)}">${esc(c)} – ${esc(SET().suppliers[c].name)}</option>`); sel.value = c; }, () => m.querySelector('#ifSup').focus());
       m.querySelector('#ifOk').classList.remove('hide');
     };
     m.querySelector('#ifOk').onclick = async () => {
       const b = m.querySelector('#ifOk'); b.disabled = true;
       try {
-        const sup = await resolveSupplier(m.querySelector('#ifSup').value, inv);
+        const sup = m.querySelector('#ifSup').value;
+        if (!sup){ b.disabled = false; m.querySelector('#ifRes').insertAdjacentHTML('beforeend', '<div class="note bad small">Velg leverandør, eller opprett den nye først.</div>'); return; }
+        if (applySup) await applySup(sup);
         let invId = null;
         if (m.querySelector('#ifReg').checked){
           const r = await api('POST', '/api/invoices', {supplier:sup, invoiceNo:inv.invoiceNo, kid:inv.kid, invoiceDate:inv.invoiceDate||C.today, dueDate:inv.dueDate||null, orderId:null, amountExVat:inv.amountExVat, vat:inv.vat, amount:inv.amount, fileId:file.id, lines:inv.lines.map(l => ({itemNo:l.itemNo, description:l.description, qty:l.qty??0, unitPrice:l.unitPrice}))});
