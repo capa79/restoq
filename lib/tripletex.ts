@@ -40,11 +40,11 @@ export function isTripletexJwt(token: string): boolean {
 }
 
 async function createSessionFromJwt(refreshToken: string): Promise<{ token: string; expires: string }> {
-  // Øktnøkkelen lever i 2 døgn; vi lagrer utløp som i morgen, så sessionFor() fornyer i god tid.
+  // Tripletex tillater maks 28800 s (8 t) for økter fra API-token. sessionFor() cacher økten i minnet i 7 t.
   const res = await fetch(`${tripletexBase()}/token/session/:createFromRefreshToken`, {
     method: "POST",
     headers: { "Content-Type": "application/json", Accept: "application/json" },
-    body: JSON.stringify({ refreshToken, ttlSeconds: 2 * 86400 }),
+    body: JSON.stringify({ refreshToken, ttlSeconds: 28800 }),
     signal: AbortSignal.timeout(20_000),
   });
   if (!res.ok) {
@@ -60,7 +60,8 @@ async function createSessionFromJwt(refreshToken: string): Promise<{ token: stri
   const j = (await res.json()) as { token?: string; value?: { token?: string } };
   const token = j.token ?? j.value?.token;
   if (!token) throw new TripletexError("Tripletex sendte ingen øktnøkkel.");
-  return { token, expires: isoDate(new Date(Date.now() + 864e5)) };
+  // DATE-kolonnen kan ikke holde 8 t; lagres som i dag, så DB-cachen aldri gjenbrukes for JWT.
+  return { token, expires: isoDate(new Date()) };
 }
 
 async function createSession(employeeToken: string): Promise<{ token: string; expires: string }> {
@@ -80,6 +81,7 @@ async function createSession(employeeToken: string): Promise<{ token: string; ex
 export async function connectTripletex(orgId: number, employeeToken: string) {
   if (!secretKeyOk()) throw new TripletexError("Tripletex-koblingen er ikke satt opp på serveren (SECRET_KEY mangler).");
   const s = await createSession(employeeToken.trim());
+  if (isTripletexJwt(employeeToken)) jwtSessions.set(orgId, { token: s.token, until: Date.now() + 7 * 3600e3 });
   const who = await rawCall(s.token, "GET", "/token/session/>whoAmI");
   const p = await db();
   const info = { tokenType: isTripletexJwt(employeeToken) ? "jwt" : "employee", companyId: who?.value?.company?.id ?? who?.value?.companyId ?? null, employee: who?.value?.employee?.id ?? null, connectedAt: new Date().toISOString() };
@@ -102,14 +104,24 @@ export async function disconnectTripletex(orgId: number) {
   await p.query("DELETE FROM integrations WHERE org_id = $1 AND provider = 'tripletex'", [orgId]);
 }
 
+const jwtSessions = new Map<number, { token: string; until: number }>();
+
 async function sessionFor(orgId: number): Promise<string> {
   if (!secretKeyOk()) throw new TripletexError("Tripletex-koblingen er ikke satt opp på serveren (SECRET_KEY).");
   const p = await db();
   const r = (await p.query("SELECT secret, session_token, session_expires FROM integrations WHERE org_id = $1 AND provider = 'tripletex'", [orgId])).rows[0];
   if (!r) throw new TripletexError("Regnskap er ikke koblet til. Leder kobler til under Innstillinger → Regnskap.");
+  const secret = decrypt(r.secret);
+  if (isTripletexJwt(secret)) {
+    const c = jwtSessions.get(orgId);
+    if (c && c.until > Date.now()) return c.token;
+    const s = await createSession(secret);
+    jwtSessions.set(orgId, { token: s.token, until: Date.now() + 7 * 3600e3 });
+    return s.token;
+  }
   const today = isoDate(new Date());
   if (r.session_token && r.session_expires && isoDate(new Date(r.session_expires)) > today) return decrypt(r.session_token);
-  const s = await createSession(decrypt(r.secret));
+  const s = await createSession(secret);
   await p.query("UPDATE integrations SET session_token = $2, session_expires = $3 WHERE org_id = $1 AND provider = 'tripletex'", [orgId, encrypt(s.token), s.expires]);
   return s.token;
 }
