@@ -707,19 +707,20 @@ function vVarer(){
   if (UI.vSup) rows = rows.filter(r => r.sup === UI.vSup);
   if (UI.vStore) rows = rows.filter(r => r.stor === UI.vStore);
   if (UI.vGroup) rows = rows.filter(r => catOf(r).group === UI.vGroup);
-  if (UI.vStatus === 'svinn') rows = rows.filter(r => r.wasteRisk); else if (UI.vStatus) rows = rows.filter(r => r.status === UI.vStatus);
+  const noCat = r => !catOf(r).cat || !STORES.includes(r.stor);
+  if (UI.vStatus === 'svinn') rows = rows.filter(r => r.wasteRisk); else if (UI.vStatus === 'nocat') rows = rows.filter(noCat); else if (UI.vStatus) rows = rows.filter(r => r.status === UI.vStatus);
   const key = UI.vSort, dir = UI.vDir;
   const get = r => key==='cover' ? (r.cover ?? 1e9) : key==='name' ? r.name : r[key];
   rows = [...rows].sort((a,b) => { const x = get(a), y = get(b); return (typeof x === 'string' ? x.localeCompare(y,'nb') : x - y) * dir; });
   const th = (k,l,n) => `<th class="sort ${n?'n':''}" data-sort="${k}">${l}${UI.vSort===k?(UI.vDir>0?' ▲':' ▼'):''}</th>`;
   let h = `<div class="row between"><div><h2>Varer og beholdning</h2><div class="muted">${rows.length} av ${C.items.length} varer · trykk på en vare for detaljer og innstillinger</div></div><div class="row"><a class="btn" href="/restoq-varemal.xlsx" download>Last ned Excel-mal</a><button class="btn primary" id="vNew" ${roM()}>+ Legg inn varer</button></div></div>`;
   h += `<div class="card grid" style="gap:10px"><input type="search" id="vSearch" placeholder="Søk navn, varenummer eller kategori" value="${esc(UI.vSearch)}">
-    <div class="row"><div class="chips"><button class="chip ${!UI.vStatus?'on':''}" data-vs="">Alle</button>${['bestill','snart','ok','tell','behov'].map(s=>`<button class="chip ${UI.vStatus===s?'on':''}" data-vs="${s}">${STATUS[s][0]}</button>`).join('')}<button class="chip ${UI.vStatus==='svinn'?'on':''}" data-vs="svinn">Svinnrisiko</button></div>
+    <div class="row"><div class="chips"><button class="chip ${!UI.vStatus?'on':''}" data-vs="">Alle</button>${['bestill','snart','ok','tell','behov'].map(s=>`<button class="chip ${UI.vStatus===s?'on':''}" data-vs="${s}">${STATUS[s][0]}</button>`).join('')}<button class="chip ${UI.vStatus==='svinn'?'on':''}" data-vs="svinn">Svinnrisiko</button>${C.items.some(noCat) ? `<button class="chip need ${UI.vStatus==='nocat'?'on':''}" data-vs="nocat">Mangler kategori/lager (${C.items.filter(noCat).length})</button>` : ''}</div>
     <select id="vSup" style="width:auto"><option value="">Alle leverandører</option>${Object.keys(SET().suppliers).map(c=>`<option ${UI.vSup===c?'selected':''}>${c}</option>`).join('')}</select>
     <select id="vGroup" style="width:auto"><option value="">Alle kategorier</option>${CATS().map(g => `<option ${UI.vGroup===g.name?'selected':''}>${esc(g.name)}</option>`).join('')}</select>${S.canManage || !MODE_API ? '<button class="btn sm" id="vCats" title="Hovedkategorier og underkategorier for innkjøp">Kategorier</button>' : ''}
     <select id="vStore" style="width:auto"><option value="">Alle lager</option>${STORES.map(s=>`<option ${UI.vStore===s?'selected':''}>${s}</option>`).join('')}</select></div></div>`;
   h += `<div class="card flush"><div class="tblwrap" style="max-height:calc(100vh - 330px)"><table><thead><tr>${th('name','Vare')}<th>Status</th>${th('stockNow','Har nå',1)}${th('open','Åpne ordre',1)}${th('usageWeek','Bruk/uke',1)}${th('cover','Holder')}<th>Tom ca.</th>${th('sugg','Forslag',1)}${th('value','Verdi',1)}</tr></thead><tbody>
-    ${rows.map(r => `<tr class="click" data-item="${esc(r.id)}"><td><div class="iname">${esc(r.name)}</div><div class="isub">${r.sup} ${esc(r.no)} · ${esc(catLabel(catOf(r).group, catOf(r).cat))} · ${esc(r.stor)} · ${esc(r.unit)}${r.wasteRisk?' · <span style="color:var(--amber);font-weight:600">bruk først</span>':''}${altsFor(r).length?` · <span class="altbadge" title="Kjøpes også hos andre leverandører">${altsFor(r).length+1} leverandører</span>`:''}</div></td><td>${pill(r.status)}</td><td class="n">${r.countDate?q(r.stockNow):'–'}</td><td class="n">${r.open?q(r.open):''}</td><td class="n">${q(r.usageWeek)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap">${r.countDate?coverBar(r):''}<span class="tab">${r.countDate?coverTxt(r):''}</span></div></td><td>${r.countDate&&r.runsOut?fmtD(r.runsOut):''}</td><td class="n">${r.sugg?'<b>'+q(r.sugg)+'</b>':''}</td><td class="n">${r.countDate?kr(r.value):''}</td></tr>`).join('') || '<tr><td colspan="9"><div class="empty">Ingen varer passer filteret.</div></td></tr>'}
+    ${rows.map(r => `<tr class="click" data-item="${esc(r.id)}"><td><div class="iname">${esc(r.name)}</div><div class="isub">${r.sup} ${esc(r.no)} · ${catOf(r).cat ? esc(catLabel(catOf(r).group, catOf(r).cat)) : '<span class="need">velg kategori</span>'} · ${STORES.includes(r.stor) ? esc(r.stor) : '<span class="need">velg lager</span>'} · ${esc(r.unit)}${r.wasteRisk?' · <span style="color:var(--amber);font-weight:600">bruk først</span>':''}${altsFor(r).length?` · <span class="altbadge" title="Kjøpes også hos andre leverandører">${altsFor(r).length+1} leverandører</span>`:''}</div></td><td>${pill(r.status)}</td><td class="n">${r.countDate?q(r.stockNow):'–'}</td><td class="n">${r.open?q(r.open):''}</td><td class="n">${q(r.usageWeek)}</td><td><div class="row" style="gap:8px;flex-wrap:nowrap">${r.countDate?coverBar(r):''}<span class="tab">${r.countDate?coverTxt(r):''}</span></div></td><td>${r.countDate&&r.runsOut?fmtD(r.runsOut):''}</td><td class="n">${r.sugg?'<b>'+q(r.sugg)+'</b>':''}</td><td class="n">${r.countDate?kr(r.value):''}</td></tr>`).join('') || '<tr><td colspan="9"><div class="empty">Ingen varer passer filteret.</div></td></tr>'}
   </tbody></table></div></div>`;
   $('#view').innerHTML = h;
   $('#vSearch').oninput = e => { UI.vSearch = e.target.value; render(); };
@@ -755,7 +756,7 @@ function itemDrawer(id){
     <div class="card grid" style="gap:12px"><h3>Innstillinger for varen</h3>
       <div class="grid g2"><label class="f">Pakningsstørrelse (minste bestilling)<input type="text" inputmode="decimal" id="iPack" value="${String(r.pack).replace('.',',')}"></label><label class="f">Holdbarhet (dager)<input type="text" inputmode="numeric" id="iShelf" value="${r.shelf??''}"></label></div>
       <label class="f">Manuelt forbruk per uke (${esc(r.unit)}) – tomt = automatisk<input type="text" inputmode="decimal" id="iMan" value="${r.manual!=null&&r.manual!==''?String(r.manual).replace('.',','):''}" placeholder="Bruk ved ny rett, event o.l."></label>
-      <div class="grid g2"><label class="f">Kategori<select id="iCat">${catOptions(catOf(r).group, catOf(r).cat)}</select></label><label class="f">Lager<select id="iStor">${STORES.map(s=>`<option ${r.stor===s?'selected':''}>${s}</option>`).join('')}</select></label></div>
+      <div class="grid g2"><label class="f">Kategori<select id="iCat" class="sug">${catOptions(catOf(r).group, catOf(r).cat)}</select></label><label class="f">Lager<select id="iStor" class="sug">${storOptions(r.stor)}</select></label></div>
       <label class="row" style="gap:10px;font-weight:600"><input type="checkbox" id="iAct" ${r.active?'checked':''} style="width:22px;height:22px"> Aktiv i planlegging (får bestillingsforslag)</label>
       <div class="row" style="justify-content:flex-end">${r.custom?`<button class="btn danger" id="iDel" ${roM()}>Fjern vare</button>`:''}<button class="btn primary" id="iSave" ${roM()}>Lagre endringer</button></div></div>`;
   drawer(html, d => {
@@ -791,11 +792,11 @@ function newItemModal(pre = {}, onAdded){
     <div class="grid g2"><label class="f">Leverandør<select id="nSup">${Object.keys(set.suppliers).map(c=>`<option translate="no" value="${esc(c)}">${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('') || '<option value="">Legg til leverandør først</option>'}</select></label><label class="f">Varenummer (valgfritt)<input type="text" id="nNo"></label></div>
     <label class="f">Varenavn (som på fakturaen)<input type="text" id="nName" value="${esc(pre.name || '')}"></label>
     <div class="grid g2"><label class="f">Enhet<input type="text" id="nUnit" value="stk"></label><label class="f">Pris per enhet eks. mva<input type="text" inputmode="decimal" id="nPrice"></label></div>
-    <div class="grid g2"><label class="f">Lager<select id="nStor">${STORES.map(s=>`<option>${s}</option>`).join('')}</select></label><label class="f">Kategori<select id="nCat">${catOptions('', '')}</select></label></div>
+    <div class="grid g2"><label class="f">Lager<select id="nStor" class="sug">${storOptions('')}</select></label><label class="f">Kategori<select id="nCat" class="sug">${catOptions('', '')}</select></label></div>
     <div class="grid g2"><label class="f">Forbruk per uke<input type="text" inputmode="decimal" id="nMan"></label><label class="f">Holdbarhet (dager)<input type="text" inputmode="numeric" id="nShelf" value="14"></label></div>
     <label class="f">Pakningsstørrelse<input type="text" inputmode="decimal" id="nPack" value="1"></label>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="nOk">Legg til</button></div>`, m => {
-    bindCatStor(m, '#nCat', '#nStor');
+    bindSuggest(m, '#nName', '#nCat', '#nStor');
     m.querySelector('#nOk').onclick = async () => {
       const g = s => m.querySelector(s).value.trim(); const sup = g('#nSup'), no = g('#nNo'), name = g('#nName');
       if (!sup){ toast('Legg inn en leverandør først (Innstillinger → Leverandører).'); return; }
@@ -921,7 +922,7 @@ function importItemsModal(){
       const head = rows[0].map(h => h.trim().toLowerCase()); const idx = {}; IMPORT_COLS.forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0) idx[k] = i; });
       if (idx.sup == null || idx.no == null || idx.name == null){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ikke kolonnene Leverandør, Varenr og Navn i første rad.</div>'; return; }
       const g = (r,k) => idx[k] != null ? (r[idx[k]]||'').trim() : '';
-      parsed = rows.slice(1).map(r => ({sup:g(r,'sup').toUpperCase(), no:g(r,'no'), name:g(r,'name'), unit:g(r,'unit')||'stk', stor:normStore(g(r,'stor')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack:num(g(r,'pack'))||1, shelf:num(g(r,'shelf')), manual:num(g(r,'manual'))})).filter(x => x.sup && x.name && !/^EKSEMPEL\b/i.test(x.name));
+      parsed = rows.slice(1).map(r => ({sup:g(r,'sup').toUpperCase(), no:g(r,'no'), name:g(r,'name'), unit:g(r,'unit')||'stk', ...(c => ({...c, stor: storStrict(g(r,'stor')) || suggestStor(g(r,'name') + ' ' + g(r,'cat'), c, g(r,'cat'))}))(wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor'))), pack:num(g(r,'pack'))||1, shelf:num(g(r,'shelf')), manual:num(g(r,'manual'))})).filter(x => x.sup && x.name && !/^EKSEMPEL\b/i.test(x.name));
       const sups = [...new Set(parsed.map(x => x.sup))]; const missing = sups.filter(s => !SET().suppliers[s]);
       m.querySelector('#impRes').innerHTML = `<div class="note good">${parsed.length} varer klare fra ${sups.length} leverandør${sups.length>1?'er':''}.${missing.length ? ' Nye leverandører opprettes: '+esc(missing.join(', '))+' (sjekk leveringsdager under Innstillinger etterpå).' : ''}</div>`;
       m.querySelector('#impOk').classList.toggle('hide', !parsed.length); };
@@ -936,14 +937,14 @@ function importItemsModal(){
     };
   });
 }
-let WZ_EDITS = {};
+let WZ_EDITS = {}; let WZ_CHG = {};
 /* ===== Kom i gang-veiviser ===== */
 const WZ_COLS = [...IMPORT_COLS, ['qty',['beholdning (antall)','antall','beholdning','på lager','telling','talt','lagerbeholdning','qty','quantity','stock','antall på lager']], ['exp',['utløp','utløpsdato','best før','holdbar til','expiry']]];
 const WZ_FIELDS = [['', '– Ikke bruk –'], ['name','Varenavn (må velges)'], ['no','Varenummer hos leverandøren'], ['sup','Leverandør (navn eller kode)'], ['unit','Enhet (stk, kg, l, kartong …)'], ['qty','Antall på lager nå – blir første telling'], ['bought','Kjøpt antall i perioden – gir forbruk per uke'], ['date','Dato (levering eller faktura)'], ['stor','Lager (kjøl, frys, tørr)'], ['cat','Kategori'], ['pack','Pakningsstørrelse'], ['shelf','Holdbarhet (dager)'], ['manual','Forbruk per uke'], ['exp','Utløpsdato']];
 /** Hjelpetekst som vises under valget */
 const WZ_HELP = {name:'Navnet slik det står på fakturaen.', qty:'Det dere har på lager i dag. Brukes som første varetelling i steg 3.', bought:'Hvor mye som er kjøpt inn i perioden lista gjelder. Restoq deler på antall uker og får forbruk per uke.', date:'Brukes til å finne hvor lang perioden er.'};
 let WZ = null;
-function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: '', manual: []}; }
+function wzReset(){ WZ_EDITS = {}; WZ_CHG = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: '', manual: []}; }
 async function readSheetFile(f){
   if (/\.(xlsx|xlsm|xls|ods|numbers)$/i.test(f.name) || /spreadsheet|excel/i.test(f.type)){
     const fd = new FormData(); fd.append('file', f);
@@ -1016,8 +1017,8 @@ function wzSupFor(val){
 /** Kategori fra lista: «Mat › Fryst», «Mat/Fryst», «Fryst» eller fritekst. */
 function wzCatFrom(cat, name, stor){
   const parts = String(cat || '').split(/\s*[›>\/]\s*/).filter(Boolean);
-  if (parts.length === 2){ const g = CATS().find(x => x.name.toLowerCase() === parts[0].toLowerCase()); const s = g && g.subs.find(x => x.name.toLowerCase() === parts[1].toLowerCase()); if (s) return {group: g.name, cat: s.name}; }
-  return guessCat((cat || '') + ' ' + (name || ''), normStore(stor || cat));
+  if (parts.length === 2){ const g = CATS().find(x => x.name.toLowerCase() === parts[0].toLowerCase()); const x = g && g.subs.find(y => y.name.toLowerCase() === parts[1].toLowerCase()); if (x) return {group: g.name, cat: x.name}; }
+  const c = suggestCat((cat || '') + ' ' + (name || '')); return c || {group: '', cat: ''};
 }
 function wzSheetRows(){
   const s = WZ.sheet; if (!s) return [];
@@ -1025,14 +1026,16 @@ function wzSheetRows(){
   const g = (r, k) => m[k] != null && m[k] !== '' ? String(r[m[k]] ?? '').trim() : '';
   const weeks = WZ.weeks > 0 ? WZ.weeks : null;
   return rows.map(r => { const qty = num(g(r,'qty')), bought = num(g(r,'bought'));
-    return {src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: 0, bought, srcDate: /^\d{4}-\d{2}-\d{2}/.test(g(r,'date')) ? g(r,'date').slice(0,10) : null, stor: normStore(g(r,'stor') || g(r,'cat')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')) ?? (bought != null && weeks ? Math.round(bought / weeks * 10) / 10 : null), qty, exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null}; }).filter(x => x.name && !/^EKSEMPEL\b/i.test(x.name) && !/^(sum|totalt?|grand total|totalsum)\b/i.test(x.name));
+    return {src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: 0, bought, srcDate: /^\d{4}-\d{2}-\d{2}/.test(g(r,'date')) ? g(r,'date').slice(0,10) : null, ...(c => ({...c, stor: storStrict(g(r,'stor')) || suggestStor(g(r,'name') + ' ' + g(r,'cat'), c, g(r,'cat'))}))(wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor'))), pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')) ?? (bought != null && weeks ? Math.round(bought / weeks * 10) / 10 : null), qty, exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null}; }).filter(x => x.name && !/^EKSEMPEL\b/i.test(x.name) && !/^(sum|totalt?|grand total|totalsum)\b/i.test(x.name));
 }
 /** Slår sammen kandidater fra liste og fakturaer, og markerer varer som finnes. */
 function wzBuildRows(){
-  const items = getItems(); const out = []; const seen = new Map();
+  const items = getItems(); const out = []; const seen = new Map(); WZ.charges = [];
   const byName = new Map();
   const add = x => {
     const supCode = x.sup;
+    // Frakt, gebyrer, pant og avgifter fra fakturaene: egne linjer på leverandøren, ikke varer
+    if (x.src === 'faktura' && FEE_RE.test(x.name || '')){ const kind = chargeKind(x.name); const k = [supCode, chargeKey(kind, x.name), x.srcName || '', WZ.charges.length].join('|'); WZ.charges.push({k, sup: supCode, name: x.name, no: x.no, kind, amount: x.amount ?? x.price, date: x.srcDate, src: x.srcName}); return; }
     let key = supCode + '|' + (x.no ? normNo(x.no) : 'N:' + normName(x.name));
     // Samme vare i lista (uten varenr.) og på fakturaen (med varenr.), eller omvendt: slå sammen på navn
     const nk = supCode + '|' + normName(x.name);
@@ -1045,7 +1048,7 @@ function wzBuildRows(){
   };
   wzSheetRows().forEach(add);
   (WZ.manual || []).forEach(add);
-  WZ.invoices.filter(v => v.inv && !v.dup).forEach(v => { const sup = v.supCode; v.inv.lines.forEach(l => add({src:'faktura', srcDate: v.inv.invoiceDate || '', srcName: v.inv.invoiceNo, sup, no: l.itemNo || '', name: (l.description || '').toUpperCase(), unit: (l.unit || 'stk').toLowerCase(), price: l.unitPrice ?? (l.qty ? (l.lineTotal || 0) / l.qty : 0), stor: l.storage || normStore(l.category), ...guessCat((l.category || '') + ' ' + (l.description || ''), l.storage), pack: 1, shelf: l.shelfDays ?? null, gtin: l.gtin || '', qty: null})); });
+  WZ.invoices.filter(v => v.inv && !v.dup).forEach(v => { const sup = v.supCode; v.inv.lines.forEach(l => add({src:'faktura', srcDate: v.inv.invoiceDate || '', srcName: v.inv.invoiceNo, sup, amount: chargeAmount(l), no: l.itemNo || '', name: (l.description || '').toUpperCase(), unit: (l.unit || 'stk').toLowerCase(), price: l.unitPrice ?? (l.qty ? (l.lineTotal || 0) / l.qty : 0), ...(c => ({...c, stor: suggestStor((l.description || '') + ' ' + (l.category || ''), c, l.storage)}))(suggestCat((l.category || '') + ' ' + (l.description || '')) || {group: '', cat: ''}), pack: 1, shelf: l.shelfDays ?? null, gtin: l.gtin || '', qty: null})); });
   WZ.rows = out;
 }
 /** Samme faktura: samme fil (navn + størrelse) eller samme fakturanummer hos samme leverandør. */
@@ -1063,13 +1066,11 @@ function wzAddItemModal(){
       <label class="f">Varenummer hos leverandøren (valgfritt)<input type="text" id="waNo" placeholder="Tomt = RE-nummer fra Restoq"></label></div>
     <label class="f">Varenavn<input type="text" id="waName" placeholder="f.eks. SMØR USALTET 500G"></label>
     <div class="grid g2"><label class="f">Enhet<input type="text" id="waUnit" value="stk"></label><label class="f">Antall på lager nå (valgfritt)<input type="text" inputmode="decimal" id="waQty" placeholder="Blir første telling"></label></div>
-    <div class="grid g2"><label class="f">Kategori<select id="waCat">${catOptions('', '')}</select></label><label class="f">Lager<select id="waStor">${STORES.map(x => `<option>${x}</option>`).join('')}</select></label></div>
+    <div class="grid g2"><label class="f">Kategori<select id="waCat" class="sug">${catOptions('', '')}</select></label><label class="f">Lager<select id="waStor" class="sug">${storOptions('')}</select></label></div>
     <div class="small muted">Har varen ikke eget nummer hos leverandøren, lager Restoq et unikt nummer automatisk (RE-000001, RE-000002 …).</div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn" id="waMore" ${sups.length ? '' : 'disabled'}>Legg til og ny</button><button class="btn primary" id="waOk" ${sups.length ? '' : 'disabled'}>Legg til</button></div>`, m => {
-    bindCatStor(m, '#waCat', '#waStor');
     const nameEl = m.querySelector('#waName'); setTimeout(() => nameEl.focus(), 0);
-    m.querySelector('#waName').oninput = () => { const g = guessCat(nameEl.value, ''); const c = m.querySelector('#waCat'); if (!c.dataset.touched && g.group) { c.value = g.group + '|' + g.cat; c.dispatchEvent(new Event('change')); } };
-    m.querySelector('#waCat').addEventListener('change', e => { if (e.isTrusted) e.target.dataset.touched = '1'; });
+    bindSuggest(m, '#waName', '#waCat', '#waStor');
     const save = again => {
       const g = sel => m.querySelector(sel).value.trim();
       const name = g('#waName').toUpperCase(); if (!name){ toast('Skriv inn varenavn.'); return; }
@@ -1078,7 +1079,7 @@ function wzAddItemModal(){
       WZ.manual = WZ.manual || [];
       WZ.manual.push({src:'manuell', sup, no, name, unit: (g('#waUnit') || 'stk').toLowerCase(), price: 0, stor: g('#waStor'), ...splitCat(g('#waCat')), pack: 1, shelf: null, manual: null, qty: num(g('#waQty')), exp: null});
       toast(`Lagt til: ${name}`);
-      if (again){ ['#waNo', '#waName', '#waQty'].forEach(x => m.querySelector(x).value = ''); nameEl.focus(); render(); return; }
+      if (again){ ['#waNo', '#waName', '#waQty'].forEach(x => m.querySelector(x).value = ''); ['#waCat', '#waStor'].forEach(x => { const el = m.querySelector(x); el.value = ''; delete el.dataset.touched; }); nameEl.focus(); render(); return; }
       closeModal(); render();
     };
     m.querySelector('#waOk').onclick = () => save(false);
@@ -1175,9 +1176,14 @@ function vKomigang(){
     const RV = WZ.supF ? R.filter(r => r.sup === WZ.supF) : R;
     if (R.length){
       const sups = [...new Set(R.map(r => r.sup))].sort((a, b) => wzSupName(a).localeCompare(wzSupName(b), 'nb'));
-      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.${R.some(r => r.on && !r.ex && !r.price) ? ` <b>${R.filter(r => r.on && !r.ex && !r.price).length} valgte varer har ingen pris ennå</b> – prisen legges inn fra leverandørfakturaene (last dem opp over, eller under Faktura senere).` : ''}</div></div><div class="row"><button class="btn sm primary" data-wzadd>+ Legg til artikkel</button><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
+      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Gebyrer og frakt vises for seg under.${R.some(r => r.on && !r.ex && !r.price) ? ` <b>${R.filter(r => r.on && !r.ex && !r.price).length} valgte varer har ingen pris ennå</b> – prisen legges inn fra leverandørfakturaene (last dem opp over, eller under Faktura senere).` : ''}</div></div><div class="row"><button class="btn sm primary" data-wzadd>+ Legg til artikkel</button><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
         ${sups.length > 1 ? `<div class="chips" style="padding:4px 16px 10px"><button class="chip ${!WZ.supF ? 'on' : ''}" data-wzsf="">Alle leverandører (${R.length})</button>${sups.map(c => `<button class="chip ${WZ.supF === c ? 'on' : ''}" data-wzsf="${esc(c)}"><span translate="no">${esc(c ? wzSupName(c) : 'Uten leverandør')}</span> (${R.filter(r => r.sup === c).length}${R.some(r => r.sup === c && r.on) ? ` · ${R.filter(r => r.sup === c && r.on).length} valgt` : ''})</button>`).join('')}</div>` : ''}
-        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : r.src === 'manuell' ? 'Lagt til' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td class="n small">${r.price ? `<span title="Fra faktura ${esc(r.srcName || '')}">${kr2(r.price)}</span>` : '<span class="muted" title="Pris legges inn fra leverandørfakturaen">fra faktura</span>'}</td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : r.src === 'manuell' ? 'Lagt til' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td class="n small">${r.price ? `<span title="Fra faktura ${esc(r.srcName || '')}">${kr2(r.price)}</span>` : '<span class="muted" title="Pris legges inn fra leverandørfakturaen">fra faktura</span>'}</td><td><select class="wz-stor sug">${storOptions(r.stor)}</select></td><td><select class="wz-cat sug">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+    }
+    if ((WZ.charges || []).length){
+      const CH = WZ.charges.filter(c => !WZ.supF || c.sup === WZ.supF);
+      h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Gebyrer og frakt</h3><div class="small muted">Linjer fra fakturaene som frakt, gebyrer, pant og avgifter. De legges på leverandøren (vises under Leverandører) og føres ikke på lager eller i bestand.</div></div>
+        <div class="tblwrap"><table class="wzinvtbl"><thead><tr><th></th><th>Leverandør</th><th>Type</th><th>Beskrivelse</th><th class="n">Beløp</th><th>Faktura</th></tr></thead><tbody>${CH.map(c => { const e = WZ_CHG[c.k] || {}; const on = e.on ?? true; return `<tr data-wzch="${esc(c.k)}" class="${on ? '' : 'off'}"><td><input type="checkbox" class="wzch-on" ${on ? 'checked' : ''} style="width:20px;height:20px"></td><td class="small" translate="no">${esc(c.sup ? wzSupName(c.sup) : '–')}</td><td><select class="wzch-kind">${CHARGE_KINDS.map(k => `<option ${(e.kind || c.kind) === k ? 'selected' : ''}>${k}</option>`).join('')}</select></td><td translate="no">${esc(c.name)}</td><td class="n">${c.amount != null ? kr2(c.amount) : '–'}</td><td class="small" translate="no">${esc(c.src || '')}</td></tr>`; }).join('')}</tbody></table></div></div>`;
     }
     if (!R.length) h += `<div class="card row between"><div><h3>Artikler</h3><div class="small muted">Ingen artikler ennå. Last opp en vareliste eller fakturaer over, eller legg til artikler én og én.</div></div><button class="btn primary" data-wzadd>+ Legg til artikkel</button></div>`;
     h += `<div class="row between"><button class="btn" id="wzBack">Tilbake</button><div class="row"><span class="small muted">${R.length ? '' : 'Du kan også hoppe over og legge inn varer senere.'}</span><button class="btn primary lg" id="wzNext" ${WZ.invoices.some(v => v.busy) ? 'disabled' : ''}>${R.length ? 'Neste: beholdning' : 'Hopp over'}</button></div></div>`;
@@ -1197,7 +1203,7 @@ function vKomigang(){
   }
   if (WZ.step === 4){
     const r = WZ.result || {};
-    h += `<div class="card grid" style="gap:10px"><h3>✓ Ferdig</h3><ul class="wtips">${[r.sups ? `${r.sups} nye leverandører` : '', r.items ? `${r.items} nye varer` : '', r.prices ? `${r.prices} varer fikk ny pris` : '', r.counted ? `Første telling er lagt inn med ${r.counted} varer` : 'Beholdning er ikke lagt inn', r.invs ? `${r.invs} fakturaer registrert for kontroll` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>
+    h += `<div class="card grid" style="gap:10px"><h3>✓ Ferdig</h3><ul class="wtips">${[r.sups ? `${r.sups} nye leverandører` : '', r.items ? `${r.items} nye varer` : '', r.prices ? `${r.prices} varer fikk ny pris` : '', r.charges ? `${r.charges} linjer med gebyrer og frakt er lagt på leverandørene` : '', r.counted ? `Første telling er lagt inn med ${r.counted} varer` : 'Beholdning er ikke lagt inn', r.invs ? `${r.invs} fakturaer registrert for kontroll` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>
       <h3 style="margin-top:8px">Neste steg</h3><div class="row">${r.counted ? '' : '<button class="btn primary" data-go="telling">Tell varelageret</button>'}<button class="btn" data-go="oppsett">Bestillingsfrekvens, forventet salg og ansatte</button><button class="btn" data-go="leverandorer">Leverandører</button><button class="btn" data-go="oversikt">Til oversikten</button></div></div>`;
   }
   $('#view').innerHTML = h;
@@ -1224,6 +1230,7 @@ function vKomigang(){
     document.querySelectorAll('[data-wzsup]').forEach(sel => sel.onchange = () => { wzReadTable(); const v = WZ.invoices[+sel.dataset.wzsup]; if (sel.value === '__new'){ const n = WZ.newSups.find(n => normName(n.sup.name) === normName(v.inv.supplierName)); v.supCode = n ? n.code : ''; } else v.supCode = sel.value; render(); });
     document.querySelectorAll('tr[data-wzr] .wz-on').forEach(cb => cb.onchange = () => { const r = WZ.rows[+cb.closest('tr').dataset.wzr]; r.on = cb.checked; cb.closest('tr').classList.toggle('off', !cb.checked); });
     document.querySelectorAll('[data-wzadd]').forEach(b => b.onclick = () => { wzReadTable(); wzAddItemModal(); });
+    document.querySelectorAll('tr[data-wzch]').forEach(tr => { const k = tr.dataset.wzch; const upd = () => { WZ_CHG[k] = {on: tr.querySelector('.wzch-on').checked, kind: tr.querySelector('.wzch-kind').value}; tr.classList.toggle('off', !WZ_CHG[k].on); }; tr.querySelector('.wzch-on').onchange = upd; tr.querySelector('.wzch-kind').onchange = upd; });
     const inF = r => !WZ.supF || r.sup === WZ.supF;
     const all = $('#wzAll'); if (all) all.onclick = () => { wzReadTable(); WZ.rows.forEach(r => { if (inF(r) && !r.ex && !r.fee && r.sup) r.on = true; }); wzKeep(); render(); };
     const none = $('#wzNone'); if (none) none.onclick = () => { wzReadTable(); WZ.rows.forEach(r => { if (inF(r)) r.on = false; }); wzKeep(); render(); };
@@ -1265,7 +1272,7 @@ async function wzRun(){
       const no = itemNoFor(r.sup, r.no, r.name, cfg, nextRe);
       const id = r.sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
       const prev = cfg.ov[id] || {};
-      cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:r.sup, no, name:r.name, unit:r.unit || 'stk', price: Math.round((r.price || 0)*100)/100, stor:r.stor, group: r.group || '', cat:r.cat || 'Annet', area: prev.area || 'Kjøkken', pack: r.pack || 1, shelf: r.shelf ?? null, manual: r.manual ?? prev.manual ?? null, active: catStocked(r.group), h100:0, b13:0, b6:0, ndel:0, last: r.srcDate || null, gtin: r.gtin || '', source: r.src === 'liste' ? 'import' : 'faktura', priceHist: r.price ? [{d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}] : []};
+      cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:r.sup, no, name:r.name, unit:r.unit || 'stk', price: Math.round((r.price || 0)*100)/100, stor:r.stor, group: r.group || '', cat:r.cat || '', area: prev.area || 'Kjøkken', pack: r.pack || 1, shelf: r.shelf ?? null, manual: r.manual ?? prev.manual ?? null, active: catStocked(r.group), h100:0, b13:0, b6:0, ndel:0, last: r.srcDate || null, gtin: r.gtin || '', source: r.src === 'liste' ? 'import' : 'faktura', priceHist: r.price ? [{d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}] : []};
       idFor[r.id] = id; items++;
     });
     if (items || prices) await saveItemCfg(cfg);
@@ -1278,9 +1285,14 @@ async function wzRun(){
     if (WZ.regInvoices) for (const v of WZ.invoices.filter(v => v.inv && !v.dup && v.supCode && SET().suppliers[v.supCode])){
       try { await api('POST', '/api/invoices', {supplier:v.supCode, invoiceNo:v.inv.invoiceNo, kid:v.inv.kid, invoiceDate:v.inv.invoiceDate || C.today, dueDate:v.inv.dueDate || null, orderId:null, amountExVat:v.inv.amountExVat, vat:v.inv.vat, amount:v.inv.amount, fileId:v.fileId, lines:v.inv.lines.map(l => ({itemNo:l.itemNo, description:l.description, qty:l.qty ?? 0, unitPrice:l.unitPrice}))}); invs++; } catch(e){ toast(`${v.name}: ${e.message || 'kunne ikke registreres'}`); }
     }
-    const s2 = JSON.parse(JSON.stringify(SET())); s2.onboarded = C.today; await saveSettings(s2);
+    const s2 = JSON.parse(JSON.stringify(SET())); s2.onboarded = C.today;
+    // gebyrer og frakt legges på leverandørene
+    let charges = 0; const bySup = {};
+    (WZ.charges || []).forEach(c => { const e = WZ_CHG[c.k] || {}; if ((e.on ?? true) && c.sup && s2.suppliers[c.sup]){ (bySup[c.sup] = bySup[c.sup] || []).push({...c, kind: e.kind || c.kind}); charges++; } });
+    Object.keys(bySup).forEach(code => mergeCharges(s2.suppliers[code], bySup[code]));
+    await saveSettings(s2);
     if (MODE_API) await apiLoad(true);
-    WZ.result = {sups, items, prices, counted, invs}; WZ.step = 4; WZ_EDITS = {}; render();
+    WZ.result = {sups, items, prices, counted, invs, charges}; WZ.step = 4; WZ_EDITS = {}; render();
   } catch(e){ b.disabled = false; b.textContent = 'Legg inn'; toast(e.message || 'Noe gikk galt.'); }
 }
 
@@ -1458,7 +1470,7 @@ function invoiceDrawer(id){
     <div class="row">${invPill(inv.status)}${inv.fileId?`<a class="btn sm" href="/api/files/${esc(inv.fileId)}" target="_blank" rel="noopener">📎 Åpne faktura</a>`:''}${t.supplierInvoiceId?'<span class="pill p-behov">I regnskap</span>':''}</div>
     <div class="card"><dl class="kv"><dt>Fakturadato</dt><dd>${fmtDL(inv.invoiceDate)}</dd><dt>Forfall</dt><dd>${inv.dueDate?fmtDL(inv.dueDate):'–'}</dd><dt>Beløp eks. mva</dt><dd>${inv.amountExVat!=null?kr(inv.amountExVat):'–'}</dd><dt>Å betale</dt><dd>${inv.amount!=null?kr(inv.amount):'–'}</dd>${inv.kid?`<dt>KID</dt><dd>${esc(inv.kid)}</dd>`:''}<dt>Bestilling</dt><dd>${o?`${fmtDL(o.orderDate)} → levert ${fmtDL(o.deliveryDate)} (${o.status})`:'Ikke funnet'}</dd>${m.expectedExVat!=null?`<dt>Forventet ut fra mottak</dt><dd>${kr(m.expectedExVat)} eks. mva</dd>`:''}</dl></div>
     ${m.issues && m.issues.length ? `<div class="note bad"><div><b>Avvik</b><ul style="margin:6px 0 0;padding-left:18px">${m.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>` : m.orderId ? '<div class="note good">Fakturaen stemmer med bestilling og varemottak.</div>' : ''}
-    ${m.lines && m.lines.length ? `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Vare</th><th class="n">Bestilt</th><th class="n">Mottatt</th><th class="n">Fakturert</th><th class="n">Pris</th></tr></thead><tbody>${m.lines.map(l => `<tr style="${l.flags.length?'background:var(--red-bg)':''}"><td><div class="iname">${esc(l.name)}</div><div class="isub">${esc(l.itemNo)}${l.flags.length?' · <b style="color:var(--red)">'+esc(l.flags.join(' · '))+'</b>':''}</div></td><td class="n">${q(l.ordered)}</td><td class="n">${q(l.received)}</td><td class="n">${q(l.invoiced)}</td><td class="n">${l.invoicedPrice!=null?nf1.format(l.invoicedPrice):'–'}${l.agreedPrice!=null&&l.invoicedPrice!=null&&Math.abs(l.invoicedPrice-l.agreedPrice)>0.005?`<div class="isub">avtalt ${nf1.format(l.agreedPrice)}</div>`:''}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
+    ${m.lines && m.lines.length ? `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Vare</th><th class="n">Bestilt</th><th class="n">Mottatt</th><th class="n">Fakturert</th><th class="n">Pris</th></tr></thead><tbody>${m.lines.map(l => `<tr style="${l.flags.length?'background:var(--red-bg)':''}"><td><div class="iname">${esc(l.name)}</div><div class="isub">${l.charge ? '<span class="chgtag">Gebyr / frakt</span> ' : ''}${esc(l.itemNo)}${l.flags.length?' · <b style="color:var(--red)">'+esc(l.flags.join(' · '))+'</b>':''}${l.charge && l.flags.some(f => /Nytt gebyr/.test(f)) && S.canManage ? ` <button class="linkbtn small" data-addcharge="${esc(l.name)}" data-amt="${l.amount ?? ''}">Legg til på leverandøren</button>` : ''}</div></td><td class="n">${q(l.ordered)}</td><td class="n">${q(l.received)}</td><td class="n">${q(l.invoiced)}</td><td class="n">${l.invoicedPrice!=null?nf1.format(l.invoicedPrice):'–'}${l.agreedPrice!=null&&l.invoicedPrice!=null&&Math.abs(l.invoicedPrice-l.agreedPrice)>0.005?`<div class="isub">avtalt ${nf1.format(l.agreedPrice)}</div>`:''}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
     <div class="card grid" style="gap:10px"><h3>Koble til bestilling</h3><div class="row" style="flex-wrap:nowrap"><select id="dvOrder">${orderOptions(inv.supplier, inv.orderId)}</select><button class="btn" id="dvMatch" ${ro()}>Kontroller på nytt</button></div></div>
     <div class="card grid" style="gap:10px"><h3>Behandling</h3>
       <label class="f">Kommentar${inv.status==='avvik'?' (påkrevd for å godkjenne med avvik)':''}<input type="text" id="dvNote" placeholder="f.eks. kreditnota avtalt for manglende vare"></label>
@@ -1475,6 +1487,7 @@ function invoiceDrawer(id){
   drawer(html, d => {
     const isl = d.querySelector('.invsup'); if (isl) isl.onclick = e => { e.preventDefault(); closeLayer(); supplierEditModal(inv.supplier); };
     d.querySelector('#dvMatch').onclick = async () => { try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: d.querySelector('#dvOrder').value || null}); await apiLoad(true); invoiceDrawer(id); } catch(e){ toast(e.message || 'Feil.'); } };
+    d.querySelectorAll('[data-addcharge]').forEach(b => b.onclick = async () => { b.disabled = true; try { const set2 = JSON.parse(JSON.stringify(SET())); if (!set2.suppliers[inv.supplier]) return; mergeCharges(set2.suppliers[inv.supplier], [{kind: chargeKind(b.dataset.addcharge), name: b.dataset.addcharge, amount: num(b.dataset.amt), date: inv.invoiceDate || C.today, src: inv.invoiceNo || ''}]); await saveSettings(set2); await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: inv.orderId || null}); await apiLoad(true); invoiceDrawer(id); toast('Gebyret er lagt til på leverandøren.'); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); b.disabled = false; } });
     d.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
       const act = b.dataset.act; const note = d.querySelector('#dvNote').value;
       const go2 = async () => { b.disabled = true; try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/${act}`, {note}); await apiLoad(true); if (act === 'delete') closeLayer(); else invoiceDrawer(id); toast({approve:'Fakturaen er godkjent.', send:'Fakturaen er sendt til bilagsmottaket i regnskapet.', pay:'Fakturaen er lagt til betaling i regnskapet.', reject:'Fakturaen er avvist.', reopen:'Fakturaen er åpnet igjen.', delete:'Fakturaen er slettet.'}[act]); } catch(e){ toast(e.message || 'Noe gikk galt.'); b.disabled = false; } };
@@ -1531,13 +1544,14 @@ function catsMigrated(c){
 }
 let _catsSrc = null, _catsOut = null;
 const CATS = () => { const c = SET().categories; if (!(Array.isArray(c) && c.length)) return CAT_DEFAULT; if (c !== _catsSrc){ _catsSrc = c; _catsOut = catsMigrated(c); } return _catsOut; };
-const catLabel = (g, c) => g && c && g !== c ? `${g} › ${c}` : (c || g || 'Annet');
+const catLabel = (g, c) => g && c && g !== c ? `${g} › ${c}` : (c || g || 'Uten kategori');
 const catOf = it => {
   // Varer lagret som Mat › Grønt (før egen hovedkategori) vises som Frukt og grønnsaker › Grønnsaker
   if ((it.group === FG || ((!it.group || it.group === 'Mat') && it.cat === 'Grønt')) && FG_OLD.concat(FG).includes(it.cat || 'Grønt') && !CATS().some(g => g.name === FG)) return {group: 'Mat', cat: FG};
   // Mat › Fryst er fjernet (frys styres av lagertypen): ny kategori ut fra varenavnet
   if (it.cat === 'Fryst' && (!it.group || it.group === 'Mat') && !CATS().some(g => g.subs.some(x => x.name === 'Fryst'))){ const g = guessCat(it.name || '', ''); return g.group === 'Mat' ? g : {group: 'Mat', cat: 'Ferskt'}; }
-  return {group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat || 'Annet'};
+  if (!it.cat) return {group: '', cat: ''};
+  return {group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat};
 };
 const catStocked = g => (CATS().find(x => x.name === g) || {stocked:true}).stocked !== false;
 const subStor = (g, c) => ((CATS().find(x => x.name === g) || {subs:[]}).subs.find(s => s.name === c) || {}).stor || '';
@@ -1545,9 +1559,9 @@ const subStor = (g, c) => ((CATS().find(x => x.name === g) || {subs:[]}).subs.fi
 function catOptions(group, cat){
   const cur = catOf({group, cat}); let found = false;
   const html = CATS().map(g => `<optgroup label="${esc(g.name)}">${g.subs.map(s => { const on = g.name === cur.group && s.name === cur.cat; if (on) found = true; return `<option value="${esc(g.name + '|' + s.name)}" ${on ? 'selected' : ''}>${esc(s.name)}</option>`; }).join('')}</optgroup>`).join('');
-  return (found || !cat ? '' : `<option value="${esc((group || '') + '|' + cat)}" selected>${esc(catLabel(group, cat))}</option>`) + html;
+  return (!cat ? '<option value="" selected>– velg kategori –</option>' : found ? '' : `<option value="${esc((group || '') + '|' + cat)}" selected>${esc(catLabel(group, cat))}</option>`) + html;
 }
-const splitCat = v => { const [group, cat] = String(v || '').split('|'); return {group: group || '', cat: cat || group || 'Annet'}; };
+const splitCat = v => { if (!v) return {group: '', cat: ''}; const [group, cat] = String(v).split('|'); return {group: group || '', cat: cat || group || ''}; };
 const CAT_WORDS = [
   [/meieri|ost\b|melk|fløte|smør|yoghurt|rømme|egg/i, 'Mat', 'Meieri'], [/kjøtt|kylling|svin|storfe|lam|bacon|pølse|fisk|laks|reke|sjømat|torsk/i, 'Mat', 'Kjøtt og fisk'],
   [/grønt|grønnsak|frukt|eple|appelsin|sitron|lime|banan|drue|bær|mango|ananas|pære|melon|kiwi|salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|potet|gulrot|rotgrønnsak|kålrot|rødbet|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|asparges|purre/i, 'Mat', FG], 
@@ -1568,8 +1582,35 @@ function guessCat(text, stor){
   if (byStor){ const gg = cats.find(x => x.name === byStor[0]); if (gg && gg.subs.some(s => s.name === byStor[1])) return {group: byStor[0], cat: byStor[1]}; }
   const last = cats[cats.length - 1]; return {group: last.name, cat: last.subs[0]?.name || last.name};
 }
+/* ---- Forslag til kategori og lagertype. Finner Restoq ikke noe sikkert, foreslås ingenting (feltet merkes oransje). ---- */
+const FROZEN_RE = /fryst|frossen|frosne|frozen|\bfrys\b|iskrem|sorbet|\bis\b(?!\s*te)|pommes|frites/i;
+const storStrict = v => { const t = String(v || '').toLowerCase(); if (!t.trim()) return ''; if (/frys|frozen/.test(t)) return 'Frys'; if (/kjøl|kjol|fersk|chill/.test(t)) return 'Kjøl'; if (/rom|ambient/.test(t)) return 'Romtemp.'; if (/tørr|torr|dry/.test(t)) return 'Tørr'; return ''; };
+function suggestCat(text){
+  const t = String(text || ''); if (!t.trim()) return null; const cats = CATS();
+  for (const g of cats) for (const x of g.subs) if (x.name.length > 2 && x.name !== 'Annet' && new RegExp('\\b' + x.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(t)) return {group: g.name, cat: x.name};
+  for (const [re, g, c] of CAT_WORDS) if (re.test(t)){ const gg = cats.find(x => x.name === g); if (gg && gg.subs.some(x => x.name === c)) return {group: g, cat: c}; }
+  return null;
+}
+function suggestStor(text, cat, hint){
+  if (FROZEN_RE.test(String(text || ''))) return 'Frys';
+  const h = storStrict(hint); if (h) return h;
+  if (cat && cat.cat){ const st = subStor(cat.group, cat.cat); if (st) return st; }
+  if (/\b(fersk|kjølt)\b/i.test(String(text || ''))) return 'Kjøl';
+  return '';
+}
+/** Kategori og lagertype fra varenavn (og evt. Claudes forslag fra fakturaen). Tomme felt = ikke tydet. */
+function suggestCS(text, storHint){ const c = suggestCat(text); return {group: c ? c.group : '', cat: c ? c.cat : '', stor: suggestStor(text, c, storHint)}; }
+/** Foreslå kategori og lagertype mens varenavnet skrives – til brukeren selv har valgt. */
+function bindSuggest(scope, nameSel, catSel, storSel){
+  const n = scope.querySelector(nameSel), c = scope.querySelector(catSel), st = scope.querySelector(storSel); if (!n) return;
+  [c, st].forEach(el => el && el.addEventListener('change', e => { if (e.isTrusted) el.dataset.touched = '1'; }));
+  const run = () => { const cs = suggestCS(n.value, ''); if (c && !c.dataset.touched) c.value = cs.cat ? cs.group + '|' + cs.cat : ''; if (st && !st.dataset.touched) st.value = cs.stor; };
+  n.addEventListener('input', run); if (n.value) run();
+}
+const storOptions = cur => (STORES.includes(cur) ? '' : '<option value="" selected>– velg lager –</option>') + STORES.map(x => `<option ${cur === x ? 'selected' : ''}>${x}</option>`).join('');
 /** Når underkategori velges, settes lagertype i samme rad/skjema. */
-function bindCatStor(scope, catSel, storSel){ scope.querySelectorAll(catSel).forEach(sel => sel.addEventListener('change', () => { const {group, cat} = splitCat(sel.value); const st = subStor(group, cat); const box = sel.closest('tr') || scope; const ss = box.querySelector(storSel); if (st && ss) ss.value = st; })); }
+/** Kategori og lagertype er uavhengige: å bytte kategori endrer ikke lagertypen. (Beholdt for kompatibilitet.) */
+function bindCatStor(scope, catSel, storSel){}
 function categoriesModal(onSaved){
   let cats = JSON.parse(JSON.stringify(CATS()));
   const draw = m => {
@@ -1581,7 +1622,7 @@ function categoriesModal(onSaved){
     m.querySelectorAll('.ct-sdel').forEach(b => b.onclick = () => { read(); cats[+b.closest('.catcard').dataset.g].subs.splice(+b.closest('.ct-sub').dataset.s, 1); draw(m); });
     m.querySelectorAll('.ct-sadd').forEach(b => b.onclick = () => { read(); cats[+b.closest('.catcard').dataset.g].subs.push({name:'', stor:''}); draw(m); });
   };
-  modal(`<h3>Kategorier for innkjøp</h3><div class="small muted">Hovedkategorier (f.eks. mat, drikke, inventar, driftsmateriell) med underkategorier (f.eks. ferskt, meieri, tørrvarer). Underkategorien kan ha en lagertype som settes automatisk på varen. Kategorier som ikke «telles og bestilles» (f.eks. inventar) får ikke bestillingsforslag.</div>${S.canManage ? '' : '<div class="note warn small">Bare administrator kan endre kategoriene.</div>'}
+  modal(`<h3>Kategorier for innkjøp</h3><div class="small muted">Hovedkategorier (f.eks. mat, drikke, inventar, driftsmateriell) med underkategorier (f.eks. ferskt, meieri, tørrvarer). Underkategorien kan ha en lagertype som brukes som forslag for nye varer. Å bytte kategori på en vare endrer ikke lagertypen. Kategorier som ikke «telles og bestilles» (f.eks. inventar) får ikke bestillingsforslag.</div>${S.canManage ? '' : '<div class="note warn small">Bare administrator kan endre kategoriene.</div>'}
     <div id="ctList" class="grid" style="gap:10px"></div>
     <div class="row between"><div class="row"><button class="btn sm" id="ctAdd">+ Hovedkategori</button><button class="btn sm" id="ctDef">Tilbakestill til standard</button></div><div class="row"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="ctOk" ${roM()}>Lagre kategorier</button></div></div>`, m => {
     draw(m);
@@ -1606,6 +1647,7 @@ const supFromInvoice = inv => ({name: inv.supplierName || '', orgnr: inv.supplie
 function supplierForm(s, opts = {}){
   s = {wd:[], interval:7, lead:1, safety:2, notes:'', contacts:[], ...s};
   const isNew = !opts.code;
+  const chargeRow = (c, i) => `<div class="grid sf-charge" data-ci="${i ?? ''}" style="grid-template-columns:130px 1fr 130px auto;gap:6px;align-items:center"><select class="sf-chk">${CHARGE_KINDS.map(k => `<option ${c.kind === k ? 'selected' : ''}>${k}</option>`).join('')}</select><input class="sf-chn" placeholder="Beskrivelse, f.eks. Frakt under 3000 kr" value="${esc(c.name||'')}"><input class="sf-cha" inputmode="decimal" placeholder="Beløp kr" value="${c.last != null ? String(c.last).replace('.', ',') : ''}"><button type="button" class="btn sm danger sf-chdel" aria-label="Fjern linje">×</button></div>${c.lastDate ? `<div class="small muted" style="margin-top:-4px">Sist ${fmtD(c.lastDate)}${c.n > 1 ? ` · ${c.n} ganger, ${kr(c.total)} totalt` : ''}${c.src ? ` · faktura <span translate="no">${esc(c.src)}</span>` : ''}</div>` : ''}`;
   const contactRow = c => `<div class="grid g4 sf-contact"><input class="sf-cn" placeholder="Navn" value="${esc(c.name||'')}"><input class="sf-cr" placeholder="Rolle, f.eks. selger" value="${esc(c.role||'')}"><input class="sf-cp" placeholder="Telefon" inputmode="tel" value="${esc(c.phone||'')}"><div class="row" style="flex-wrap:nowrap;gap:6px"><input class="sf-ce" placeholder="E-post" inputmode="email" value="${esc(c.email||'')}"><button type="button" class="btn sm danger sf-cdel" aria-label="Fjern kontaktperson">×</button></div></div>`;
   const html = `<div class="supform grid" style="gap:12px">
     <div class="grid g3">${isNew ? `<label class="f">Kode (2–4 tegn)<input class="sf-code" maxlength="4" value="${esc(opts.suggestCode||'')}" placeholder="f.eks. ASKO"></label>` : ''}<label class="f" style="${isNew?'':'grid-column:span 2'}">Navn<input class="sf-name" value="${esc(s.name||'')}"></label><label class="f">Org.nr.<input class="sf-orgnr" inputmode="numeric" value="${esc(fmtOrg(s.orgnr))}"><span class="small sf-orgchk"></span></label></div>
@@ -1613,6 +1655,7 @@ function supplierForm(s, opts = {}){
     <div class="grid g3"><label class="f">Kontonummer<input class="sf-bank" inputmode="numeric" value="${esc(fmtKonto(s.bank))}" placeholder="1234.56.78901"><span class="small sf-bankchk"></span></label><label class="f">IBAN (utenlandsk)<input class="sf-iban" value="${esc(s.iban||'')}"></label><label class="f">BIC/SWIFT<input class="sf-bic" value="${esc(s.bic||'')}"></label></div>
     <div class="grid g4"><label class="f">E-post (bestilling)<input class="sf-email" inputmode="email" value="${esc(s.email||'')}"></label><label class="f">Telefon<input class="sf-phone" inputmode="tel" value="${esc(s.phone||'')}"></label><label class="f">Nettside<input class="sf-web" value="${esc(s.web||'')}"></label><label class="f">Vårt kundenummer<input class="sf-cust" value="${esc(s.customerNo||'')}"></label></div>
     <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Kontaktpersoner<div class="sf-contacts grid" style="gap:8px">${(s.contacts||[]).map(contactRow).join('')}</div><div><button type="button" class="btn sm sf-cadd">+ Kontaktperson</button></div></div>
+    <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Gebyrer og frakt <span class="small" style="font-weight:400">Legges på leverandøren og føres ikke på lager.</span><div class="sf-charges grid" style="gap:8px">${(s.charges||[]).map((c, i) => chargeRow(c, i)).join('')}</div><div><button type="button" class="btn sm sf-chadd">+ Gebyr eller frakt</button></div></div>
     <details ${isNew?'open':''}><summary style="cursor:pointer;font-weight:600">Levering og bestilling</summary>
       <div class="grid" style="gap:12px;margin-top:10px"><div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Leveringsdager<div class="chips sf-wd">${[1,2,3,4,5,6,0].map(d=>`<button type="button" class="chip ${(s.wd||[]).includes(d)?'on':''}" data-d="${d}">${WD[d]}</button>`).join('')}</div></div>
       <div class="grid g3"><label class="f">Ledetid (dager)<input class="sf-lead" inputmode="decimal" value="${String(s.lead??1).replace('.',',')}"></label><label class="f">Sikkerhetsdager<input class="sf-safety" inputmode="decimal" value="${String(s.safety??2).replace('.',',')}"></label><label class="f">Minste ordre / gebyr (notat)<input class="sf-notes" value="${esc(s.notes||'')}"></label></div></div></details>
@@ -1624,12 +1667,15 @@ function supplierForm(s, opts = {}){
     f('.sf-orgnr').oninput = oc; f('.sf-bank').oninput = bc; oc(); bc();
     const bindDel = () => m.querySelectorAll('.sf-cdel').forEach(b => b.onclick = () => b.closest('.sf-contact').remove());
     f('.sf-cadd').onclick = () => { f('.sf-contacts').insertAdjacentHTML('beforeend', contactRow({})); bindDel(); }; bindDel();
+    const bindChDel = () => m.querySelectorAll('.sf-chdel').forEach(b => b.onclick = () => { const r = b.closest('.sf-charge'); if (r.nextElementSibling && r.nextElementSibling.classList.contains('muted')) r.nextElementSibling.remove(); r.remove(); });
+    f('.sf-chadd').onclick = () => { f('.sf-charges').insertAdjacentHTML('beforeend', chargeRow({kind:'Frakt'})); bindChDel(); }; bindChDel();
     const wd = new Set(s.wd || []); m.querySelectorAll('.sf-wd .chip').forEach(b => b.onclick = () => { const d = +b.dataset.d; wd.has(d) ? wd.delete(d) : wd.add(d); b.classList.toggle('on'); });
     return () => {
       const g = c => (f(c)?.value || '').trim();
       const days = [...wd].sort((a,b)=>((a+6)%7)-((b+6)%7));
       const out = {...s, name: g('.sf-name'), orgnr: g('.sf-orgnr').replace(/\D/g,''), address: g('.sf-address'), zip: g('.sf-zip'), city: g('.sf-city'), bank: g('.sf-bank').replace(/\D/g,''), iban: g('.sf-iban').replace(/\s/g,'').toUpperCase(), bic: g('.sf-bic').toUpperCase(), email: g('.sf-email'), phone: g('.sf-phone'), web: g('.sf-web'), customerNo: g('.sf-cust'),
         contacts: [...m.querySelectorAll('.sf-contact')].map(r => ({name: r.querySelector('.sf-cn').value.trim(), role: r.querySelector('.sf-cr').value.trim(), phone: r.querySelector('.sf-cp').value.trim(), email: r.querySelector('.sf-ce').value.trim()})).filter(c => c.name || c.phone || c.email),
+        charges: [...m.querySelectorAll('.sf-charge')].map(r => { const old = r.dataset.ci !== '' ? (s.charges || [])[+r.dataset.ci] || {} : {}; const kind = r.querySelector('.sf-chk').value, name = r.querySelector('.sf-chn').value.trim(); return {...old, kind, name, key: chargeKey(kind, name), last: num(r.querySelector('.sf-cha').value)}; }).filter(c => c.name || c.last != null),
         wd: days, days: days.length ? days.map(d => WDL[d]).join(', ') : (s.days || 'Etter avtale'), interval: days.length ? Math.round(7 / days.length * 10) / 10 : (s.interval || 7), lead: num(g('.sf-lead')) ?? 1, safety: num(g('.sf-safety')) ?? 2, notes: g('.sf-notes'), fees: s.fees || ''};
       const code = isNew ? g('.sf-code').toUpperCase().replace(/[^A-ZÆØÅ0-9]/g,'') : opts.code;
       const errs = [];
@@ -1670,6 +1716,7 @@ function vLeverandorer(){
   h += codes.length ? `<div class="grid g2">${codes.map(c => { const s = set.suppliers[c]; const warn = [!s.orgnr && 'mangler org.nr.', s.orgnr && !orgnrOk(s.orgnr) && 'ugyldig org.nr.', !s.bank && !s.iban && 'mangler kontonummer', s.bank && !kontoOk(s.bank) && 'ugyldig kontonummer'].filter(Boolean); const li = lastInv[c];
     return `<div class="card grid" style="gap:8px"><div class="row between"><div><h3 translate="no">${esc(s.name)}</h3><div class="small muted">${esc(c)}${s.orgnr?' · org.nr. '+esc(fmtOrg(s.orgnr)):''}</div></div><button class="btn sm" data-supedit="${esc(c)}">${S.canManage?'Rediger':'Vis'}</button></div>
       <dl class="kv">${s.address||s.city?`<dt>Adresse</dt><dd translate="no">${esc([s.address, [s.zip, s.city].filter(Boolean).join(' ')].filter(Boolean).join(', '))}</dd>`:''}${s.bank||s.iban?`<dt>Konto</dt><dd>${esc(s.bank?fmtKonto(s.bank):s.iban)}${s.bankChanged?` <span class="pill p-tell">endret ${fmtD(s.bankChanged.at)}</span>`:''}</dd>`:''}${s.email||s.phone?`<dt>Bestilling</dt><dd translate="no">${[s.email&&`<a href="mailto:${esc(s.email)}">${esc(s.email)}</a>`, s.phone&&`<a href="tel:${esc(s.phone)}">${esc(s.phone)}</a>`].filter(Boolean).join(' · ')}</dd>`:''}${(s.contacts||[]).length?`<dt>Kontakt</dt><dd translate="no">${s.contacts.map(k => `${esc(k.name)}${k.role?' ('+esc(k.role)+')':''}${k.phone?' · <a href="tel:'+esc(k.phone)+'">'+esc(k.phone)+'</a>':''}${k.email?' · <a href="mailto:'+esc(k.email)+'">'+esc(k.email)+'</a>':''}`).join('<br>')}</dd>`:''}<dt>Levering</dt><dd>${esc(s.days||'Etter avtale')} · ledetid ${q(s.lead??1)} d</dd>${s.customerNo?`<dt>Kundenr.</dt><dd>${esc(s.customerNo)}</dd>`:''}</dl>
+      ${(s.charges||[]).length ? `<div class="small"><b>Gebyrer og frakt:</b> ${s.charges.map(ch => `<span class="chgtag">${esc(ch.kind)}: <span translate="no">${esc(ch.name)}</span>${ch.last != null ? ' ' + kr2(ch.last) : ''}</span>`).join(' ')}</div>` : ''}
       <div class="row small"><a href="#varer" data-supitems="${esc(c)}">${nItems[c]||0} varer</a><span class="muted">·</span><span class="muted">${li?'siste faktura '+fmtDL(li.invoiceDate):'ingen fakturaer'}</span>${warn.map(w => `<span class="pill p-tell">${esc(w)}</span>`).join('')}</div></div>`; }).join('')}</div>` : '<div class="card"><div class="empty">Ingen leverandører ennå. Opprett en, eller last opp en faktura under Varer → Legg inn varer.</div></div>';
   $('#view').innerHTML = h;
   $('#supNew').onclick = () => supplierEditModal(null, {});
@@ -1771,7 +1818,23 @@ function altNote(item, price){
 /* ===== Fakturalesing med Claude og varer fra faktura ===== */
 const normNo = s => String(s||'').replace(/[^A-Za-z0-9]/g,'').replace(/^0+/,'').toUpperCase();
 const normName = s => String(s||'').toUpperCase().replace(/[^A-ZÆØÅ0-9]+/g,' ').trim();
-const FEE_RE = /frakt|gebyr|pant|levering|transport|rabatt|miljøavgift|emballasjeavgift|småordre|drivstoff/i;
+const FEE_RE = /frakt|gebyr|pant|levering|transport|rabatt|miljøavgift|emballasjeavgift|småordre|drivstoff|porto|ekspedisjon/i;
+/* ---- Gebyrer og frakt: egne linjer på leverandøren, ikke varer på lager ---- */
+const CHARGE_KINDS = ['Frakt', 'Gebyr', 'Pant', 'Avgift', 'Rabatt', 'Annet'];
+const chargeKind = t => { t = String(t || '').toLowerCase(); if (/frakt|transport|levering|drivstoff|porto/.test(t)) return 'Frakt'; if (/gebyr|småordre|ekspedisjon/.test(t)) return 'Gebyr'; if (/pant/.test(t)) return 'Pant'; if (/avgift/.test(t)) return 'Avgift'; if (/rabatt/.test(t)) return 'Rabatt'; return 'Annet'; };
+const chargeKey = (kind, name) => kind + ':' + normName(name).replace(/[0-9.,%]+/g, ' ').replace(/\s+/g, ' ').trim();
+/** Slå sammen gebyr-/fraktlinjer inn i leverandøren. lines: [{kind, name, no, amount, date, src}] */
+function mergeCharges(sup, lines){
+  sup.charges = sup.charges || [];
+  lines.forEach(l => {
+    const key = chargeKey(l.kind, l.name); let c = sup.charges.find(x => x.key === key);
+    if (!c){ c = {key, kind: l.kind, name: l.name, no: l.no || '', last: null, lastDate: '', n: 0, total: 0}; sup.charges.push(c); }
+    if (l.amount != null && (!c.lastDate || (l.date || '') >= c.lastDate)){ c.last = Math.round(l.amount * 100) / 100; c.lastDate = l.date || c.lastDate; c.src = l.src || c.src; }
+    c.n = (c.n || 0) + 1; c.total = Math.round(((c.total || 0) + (l.amount || 0)) * 100) / 100; if (l.no && !c.no) c.no = l.no;
+  });
+  return sup;
+}
+const chargeAmount = l => l.lineTotal ?? (l.unitPrice != null ? l.unitPrice * (l.qty ?? 1) : null);
 function matchSupplier(set, inv){
   const org = String(inv.supplierOrgNo||'').replace(/\D/g,'');
   const codes = Object.keys(set.suppliers);
@@ -1808,16 +1871,18 @@ function reviewItemsModal(sup, inv, onDone){
     const ex = items.find(it => l.itemNo && normNo(it.no) === normNo(l.itemNo)) || items.find(it => normName(it.name) === normName(l.description));
     const price = l.unitPrice ?? (l.qty ? (l.lineTotal ?? 0) / l.qty : null);
     const changed = ex && price != null && price > 0 && Math.abs(price - (ex.price || 0)) > Math.max(0.01, (ex.price || 0) * 0.005);
-    return {i, l, ex, price, changed, fee: FEE_RE.test(l.description || '') || (l.qty ?? 0) < 0};
+    const chg = FEE_RE.test(l.description || '');
+    return {i, l, ex, price, changed: changed && !chg, chg, fee: chg || (l.qty ?? 0) < 0};
   });
-  const nNew = rows.filter(r => !r.ex), nChg = rows.filter(r => r.changed), nSame = rows.filter(r => r.ex && !r.changed);
-  if (!nNew.length && !nChg.length){ toast(`Alle ${rows.length} varene finnes allerede med riktig pris.`); onDone && onDone(); return; }
+  const nNew = rows.filter(r => !r.ex && !r.chg), nChg = rows.filter(r => r.changed), nSame = rows.filter(r => r.ex && !r.changed && !r.chg), nFee = rows.filter(r => r.chg);
+  if (!nNew.length && !nChg.length && !nFee.length){ toast(`Alle ${rows.length} varene finnes allerede med riktig pris.`); onDone && onDone(); return; }
   if (!S.canManage){ toast(`Fakturaen har ${nNew.length} nye varer og ${nChg.length} prisendringer. Be en leder opprette dem under Varer.`); onDone && onDone(); return; }
   const set = SET();
   modal(`<h3>Varer fra fakturaen</h3><div class="small muted">${esc(set.suppliers[sup]?.name || sup)}${inv.invoiceNo?' · faktura '+esc(inv.invoiceNo):''}. ${nNew.length} nye varer, ${nChg.length} prisendringer${nSame.length?`, ${nSame.length} uendret`:''}. Sjekk og juster før du lagrer – lager, kategori og holdbarhet er forslag.</div>
-    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px">${altNote({id:'_new', sup, name:r.l.description, unit:(r.l.unit||'stk').toLowerCase(), pack:1, gtin:r.l.gtin, price:r.price}, r.price) || ''}</td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td><select class="rv-stor">${STORES.map(s => `<option ${(r.l.storage||normStore(r.l.category))===s?'selected':''}>${s}</option>`).join('')}</select></td><td><select class="rv-cat">${(() => { const gc = guessCat((r.l.category||'') + ' ' + (r.l.description||''), r.l.storage); return catOptions(gc.group, gc.cat); })()}</select></td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
+    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px">${altNote({id:'_new', sup, name:r.l.description, unit:(r.l.unit||'stk').toLowerCase(), pack:1, gtin:r.l.gtin, price:r.price}, r.price) || ''}</td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td>${(() => { const cs = suggestCS((r.l.description||'') + ' ' + (r.l.category||''), r.l.storage); return `<select class="rv-stor sug">${storOptions(cs.stor)}</select></td><td><select class="rv-cat sug">${catOptions(cs.group, cs.cat)}</select>`; })()}</td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
     ${nChg.length ? `<h3 style="margin-top:6px">Nye priser</h3><div class="tblwrap"><table><thead><tr><th></th><th>Vare</th><th class="n">Nå</th><th class="n">På fakturaen</th><th class="n">Endring</th></tr></thead><tbody>${nChg.map(r => { const d = (r.price - r.ex.price) / (r.ex.price || 1) * 100; return `<tr data-rc="${r.i}"><td><input type="checkbox" class="rc-on" checked style="width:20px;height:20px"></td><td><div class="iname">${esc(r.ex.name)}</div>${altNote(r.ex, r.price)}<div class="isub">${esc(r.ex.no)} · ${esc(r.ex.unit)}${r.l.unit && normName(r.l.unit) !== normName(r.ex.unit) ? ` · <b style="color:var(--amber)">fakturert i ${esc(r.l.unit)}</b>` : ''}</div></td><td class="n">${kr(r.ex.price)}</td><td class="n"><b>${kr(r.price)}</b></td><td class="n" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':''}${nf1.format(d)} %</td></tr>`; }).join('')}</tbody></table></div>` : ''}
-    <div class="row" style="justify-content:flex-end"><button class="btn" id="rvSkip">Hopp over</button><button class="btn primary" id="rvOk">Lagre varer og priser</button></div>`, m => {
+    ${nFee.length ? `<h3 style="margin-top:6px">Gebyrer og frakt</h3><div class="small muted">Legges på leverandøren og føres ikke på lager.</div><div class="tblwrap"><table><thead><tr><th></th><th>Type</th><th>Beskrivelse</th><th class="n">Beløp</th></tr></thead><tbody>${nFee.map(r => `<tr data-rf="${r.i}"><td><input type="checkbox" class="rf-on" checked style="width:20px;height:20px"></td><td><select class="rf-kind">${CHARGE_KINDS.map(k => `<option ${chargeKind(r.l.description) === k ? 'selected' : ''}>${k}</option>`).join('')}</select></td><td translate="no">${esc(r.l.description || '')}</td><td class="n">${chargeAmount(r.l) != null ? kr2(chargeAmount(r.l)) : '–'}</td></tr>`).join('')}</tbody></table></div>` : ''}
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="rvSkip">Hopp over</button><button class="btn primary" id="rvOk">Lagre</button></div>`, m => {
     bindCatStor(m, '.rv-cat', '.rv-stor');
     m.querySelector('#rvSkip').onclick = () => { closeModal(); onDone && onDone(); };
     m.querySelector('#rvOk').onclick = async () => {
@@ -1842,6 +1907,8 @@ function reviewItemsModal(sup, inv, onDone){
         cfg.ov[id] = {...o, price: Math.round(r.price*100)/100, priceHist: hist, last: inv.invoiceDate || o.last};
         updated++;
       });
+      const fees = [...m.querySelectorAll('tr[data-rf]')].filter(tr => tr.querySelector('.rf-on').checked).map(tr => { const r = rows.find(x => x.i === +tr.dataset.rf); return {kind: tr.querySelector('.rf-kind').value, name: (r.l.description || '').toUpperCase(), no: r.l.itemNo || '', amount: chargeAmount(r.l), date: inv.invoiceDate || C.today, src: inv.invoiceNo || ''}; });
+      if (fees.length && SET().suppliers[sup]){ const set2 = JSON.parse(JSON.stringify(SET())); mergeCharges(set2.suppliers[sup], fees); await saveSettings(set2); }
       try { await saveItemCfg(cfg); closeModal(); toast(`${created} nye varer${updated?` og ${updated} nye priser`:''} er lagret.`); onDone && onDone(); }
       catch(e){ b.disabled = false; toast(e.message || 'Kunne ikke lagre.'); }
     };

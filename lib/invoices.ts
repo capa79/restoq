@@ -26,7 +26,7 @@ export type Invoice = {
   createdAt: string;
 };
 export type Slip = { id?: string; supplier: string; slipNo: string; date: string; orderId?: string | null; fileId?: string | null; lines: Line[]; received?: boolean; createdAt: string; source: "app" | "api" };
-export type MatchLine = { itemId: string | null; itemNo: string; name: string; ordered: number | null; received: number | null; invoiced: number | null; agreedPrice: number | null; invoicedPrice: number | null; flags: string[] };
+export type MatchLine = { itemId: string | null; itemNo: string; name: string; ordered: number | null; received: number | null; invoiced: number | null; agreedPrice: number | null; invoicedPrice: number | null; flags: string[]; charge?: boolean; amount?: number | null };
 export type Match = { orderId: string | null; ok: boolean; lines: MatchLine[]; issues: string[]; expectedExVat: number | null; invoicedExVat: number | null; checkedAt: string };
 
 export const newId = () => Date.now().toString(36) + randomBytes(4).toString("hex");
@@ -34,7 +34,7 @@ const iso = () => new Date().toISOString();
 const PRICE_TOL = 0.02; // 2 % prisavvik godtas
 const AMOUNT_TOL = (v: number) => Math.max(10, Math.abs(v) * 0.01); // 1 % / minst 10 kr
 
-type Docs = { orders: Record<string, unknown>[]; slips: Slip[]; items: Record<string, { id: string; sup: string; no: string; name: string; price?: number }>; suppliers: Record<string, { name: string; orgnr?: string }> };
+type Docs = { orders: Record<string, unknown>[]; slips: Slip[]; items: Record<string, { id: string; sup: string; no: string; name: string; price?: number }>; suppliers: Record<string, { name: string; orgnr?: string; charges?: { key?: string; kind: string; name: string; last?: number | null }[] }> };
 
 export async function loadDocs(orgId: number): Promise<Docs> {
   const p = await db();
@@ -70,8 +70,14 @@ function findOrder(d: Docs, sup: string, ref: string | null | undefined, date: s
   return cands[0]?.o ?? null;
 }
 
+// Frakt, gebyrer, pant og avgifter: egne linjer på leverandøren, ikke varer (samme regel som i appen)
+export const FEE_RE = /frakt|gebyr|pant|levering|transport|rabatt|miljøavgift|emballasjeavgift|småordre|drivstoff|porto|ekspedisjon/i;
+const normTxt = (s: string) => String(s || "").toUpperCase().replace(/[0-9.,%]+/g, " ").replace(/[^A-ZÆØÅ ]+/g, " ").replace(/\s+/g, " ").trim();
+
 export function matchInvoice(inv: Invoice, d: Docs): Match {
-  const lines = inv.lines.map((l) => ({ ...l, itemId: l.itemId || itemIdFor(inv.supplier, l.itemNo) }));
+  const isCharge = (l: Line) => FEE_RE.test(l.description || "") && !(l.itemId || d.items[itemIdFor(inv.supplier, l.itemNo)]);
+  const chargeLines = inv.lines.filter(isCharge);
+  const lines = inv.lines.filter((l) => !isCharge(l)).map((l) => ({ ...l, itemId: l.itemId || itemIdFor(inv.supplier, l.itemNo) }));
   const order = findOrder(d, inv.supplier, inv.orderId, inv.invoiceDate, lines.map((l) => l.itemId!));
   const slip = inv.slipId ? d.slips.find((s) => s.id === inv.slipId) : order ? d.slips.find((s) => s.orderId === order.id) : undefined;
   const issues: string[] = [];
@@ -97,6 +103,17 @@ export function matchInvoice(inv: Invoice, d: Docs): Match {
     if (!item && invoiced != null) flags.push("Ukjent vare");
     expected += (received ?? 0) * (agreed ?? invPrice ?? 0);
     out.push({ itemId: item ? id : null, itemNo: il[0]?.itemNo ?? item?.no ?? id.split("-").slice(1).join("-"), name: item?.name ?? il[0]?.description ?? id, ordered, received, invoiced, agreedPrice: agreed, invoicedPrice: invPrice, flags });
+  }
+  // Gebyrer og frakt: regnes med i forventet beløp, sammenlignes med det som er registrert på leverandøren
+  const known = d.suppliers[inv.supplier]?.charges ?? [];
+  for (const l of chargeLines) {
+    const amount = l.total ?? (l.unitPrice != null ? (Number(l.qty) || 1) * Number(l.unitPrice) : null);
+    const k = known.find((c) => normTxt(c.name) === normTxt(l.description ?? ""));
+    const flags: string[] = [];
+    if (!k) flags.push("Nytt gebyr – ikke registrert på leverandøren");
+    else if (k.last != null && amount != null && Math.abs(amount - k.last) > Math.max(1, Math.abs(k.last) * PRICE_TOL)) flags.push(`${amount.toFixed(2)} kr mot vanlig ${Number(k.last).toFixed(2)} kr`);
+    if (amount != null) expected += amount;
+    out.push({ itemId: null, itemNo: l.itemNo || "", name: l.description || "Gebyr", ordered: null, received: null, invoiced: Number(l.qty) || 1, agreedPrice: k?.last ?? null, invoicedPrice: amount, flags, charge: true, amount });
   }
   if (!order) issues.push("Fant ingen bestilling å matche mot. Velg bestilling manuelt.");
   if (!lines.length) issues.push("Fakturaen har ingen varelinjer – bare beløpet kan kontrolleres.");
