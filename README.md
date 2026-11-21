@@ -127,6 +127,16 @@ cp .env.example .env.local   # fyll inn
 npm run dev
 ```
 
+## Salg per uke (kassesystem)
+
+Salg per uke (matsalg og totalt, eks. mva) styrer forventet matsalg og forbruksprognosene. Tallene kan komme inn på tre måter:
+
+1. **Last opp salgsrapport** under Innstillinger → Salg per uke (Excel eller CSV). Restoq forstår uketabeller (dato/uke + matsalg + omsetning totalt), dagstabeller (summeres per ISO-uke) og salgsrapporter per kategori/vare fra kassen (f.eks. Katria «Sales per Item»). Ved kategorirapporter er matsalg summen av «Matkategorier» (lagres i `config/settings.salesImport.foodCats`), totalt er alle rader. Perioden leses fra en datokolonne, fra teksten over tabellen, eller fra valgt uke. Forhåndsvisning vises før lagring.
+2. **API**: `POST /api/v1/sales` med API-nøkkel (`weeks`, `days` eller `file`). Se `/api-dokumentasjon#salg`. Kassesystemet eller et nattlig skript kan sende tallene automatisk.
+3. **For hånd** i samme kort.
+
+Logikken ligger i `lib/sales-import.ts`. Uker med samme mandag erstattes; raden i `docs` låses (`FOR UPDATE`) under lagring. Statuslyset «Kassesystem» blir grønt når salg kommer via API-et.
+
 ## Planday (omsetningsplan og faktisk omsetning)
 
 Restoq leser daglige omsetningsbudsjetter (`GET /revenue/v1.0/budgets`) og daglig omsetning (`GET /revenue/v1.0/revenue`) fra Planday Open API og viser dem i kalenderen på Oversikt, sammen med bestillingsfrister og leveranser.
