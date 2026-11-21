@@ -5,6 +5,7 @@ import { requireDeveloper } from "@/lib/session";
 import { mailEnabled } from "@/lib/mail";
 import { googleEnabled } from "@/lib/google-auth";
 import { tripletexConfigured } from "@/lib/tripletex";
+import { plandayConfigured } from "@/lib/planday";
 import { logoutAction } from "../auth-actions";
 import { browser, FEEDBACK_KINDS, FEEDBACK_PRIORITIES, FEEDBACK_STATUSES, kindLabel, OPEN_STATUSES, priorityLabel, statusLabel } from "@/lib/feedback";
 import { aiTranslateMissingAction, clearErrorsAction, deleteErrorAction, deleteFeedbackAction, deleteSimilarErrorsAction, ignoreMissingAction, saveTranslationAction, updateFeedbackAction } from "./actions";
@@ -212,6 +213,7 @@ async function Status() {
           <tr><td>E-post (Resend)</td><td><Pill ok={mailEnabled()} /></td></tr>
           <tr><td>Logg inn med Google</td><td><Pill ok={googleEnabled()} /></td></tr>
           <tr><td>Tripletex</td><td><Pill ok={tripletexConfigured()} on={process.env.TRIPLETEX_ENV === "prod" ? "Produksjon" : "Testmiljø"} /></td></tr>
+          <tr><td>Planday</td><td><Pill ok={plandayConfigured()} on="Satt opp" /></td></tr>
           <tr><td>Ubesvarte henvendelser fra forsiden</td><td>{leads.rows[0].n}</td></tr>
         </tbody></table>
         <p className="small muted">Viser bare om tjenestene er slått på – aldri nøkler eller hemmeligheter.</p>

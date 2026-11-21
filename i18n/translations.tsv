@@ -1241,3 +1241,72 @@ Gebyret er lagt til på leverandøren.	The fee has been added to the supplier.	D
 Nytt gebyr – ikke registrert på leverandøren	New fee – not registered on the supplier	Neue Gebühr – beim Lieferanten nicht erfasst	Nowa opłata – nie zarejestrowana u dostawcy	Tasa nueva: no registrada en el proveedor
 {0} kr mot vanlig {1} kr	NOK {0} vs. usual NOK {1}	{0} NOK statt üblich {1} NOK	{0} NOK zamiast zwykle {1} NOK	{0} NOK frente a {1} NOK habitual
 {0} varer fikk endret lagertype eller kategori	{0} items had their storage type or category changed	Bei {0} Artikeln wurden Lagerart oder Kategorie geändert	{0} towarów ma zmieniony typ magazynu lub kategorię	{0} artículos cambiaron de almacenamiento o categoría
+Kalender	Calendar	Kalender	Kalendarz	Calendario
+Bestillingsfrister og leveranser	Order deadlines and deliveries	Bestellfristen und Lieferungen	Terminy zamówień i dostawy	Plazos de pedido y entregas
+Bestillingsfrister og leveranser, og omsetning fra Planday (faktisk / plan).	Order deadlines and deliveries, and revenue from Planday (actual / plan).	Bestellfristen und Lieferungen sowie Umsatz aus Planday (Ist / Plan).	Terminy zamówień i dostawy oraz obrót z Planday (rzeczywisty / plan).	Plazos de pedido y entregas, y facturación de Planday (real / plan).
+Forrige	Previous	Zurück	Poprzedni	Anterior
+Neste	Next	Weiter	Następny	Siguiente
+I dag	Today	Heute	Dziś	Hoy
+4 uker	4 weeks	4 Wochen	4 tygodnie	4 semanas
+2 uker	2 weeks	2 Wochen	2 tygodnie	2 semanas
+↻ Planday	↻ Planday	↻ Planday	↻ Planday	↻ Planday
+Hent omsetning og plan fra Planday	Fetch revenue and plan from Planday	Umsatz und Plan aus Planday abrufen	Pobierz obrót i plan z Planday	Obtener facturación y plan de Planday
+Uke {0}	Week {0}	Woche {0}	Tydzień {0}	Semana {0}
+plan {0} kr	plan NOK {0}	Plan {0} NOK	plan {0} NOK	plan {0} NOK
+🛒 Bestill	🛒 Order	🛒 Bestellen	🛒 Zamów	🛒 Pedir
+Bestilt levering	Ordered delivery	Bestellte Lieferung	Zamówiona dostawa	Entrega pedida
+Mulig leveringsdag	Possible delivery day	Möglicher Liefertag	Możliwy dzień dostawy	Posible día de entrega
+siste dag å bestille til neste levering	last day to order for the next delivery	letzter Bestelltag für die nächste Lieferung	ostatni dzień zamówienia na następną dostawę	último día para pedir para la próxima entrega
+bestilt levering	ordered delivery	bestellte Lieferung	zamówiona dostawa	entrega pedida
+mulig leveringsdag	possible delivery day	möglicher Liefertag	możliwy dzień dostawy	posible día de entrega
+Planday hentet {0}	Planday fetched {0}	Planday abgerufen {0}	Planday pobrano {0}	Planday obtenido {0}
+Koble til Planday	Connect Planday	Planday verbinden	Połącz Planday	Conectar Planday
+for omsetningsplan og faktisk omsetning	for revenue plan and actual revenue	für Umsatzplan und Ist-Umsatz	dla planu i rzeczywistego obrotu	para el plan y la facturación real
+Hentet omsetning for {0} dager fra Planday.	Fetched revenue for {0} days from Planday.	Umsatz für {0} Tage aus Planday abgerufen.	Pobrano obrót za {0} dni z Planday.	Facturación de {0} días obtenida de Planday.
+Kunne ikke hente fra Planday.	Could not fetch from Planday.	Abruf aus Planday fehlgeschlagen.	Nie udało się pobrać z Planday.	No se pudo obtener de Planday.
+Omsetningsplan (budsjett) og faktisk omsetning per dag hentes fra Planday og vises i kalenderen på Oversikt.	The revenue plan (budget) and actual revenue per day are fetched from Planday and shown in the calendar on the Overview.	Umsatzplan (Budget) und Ist-Umsatz pro Tag werden aus Planday abgerufen und im Kalender der Übersicht angezeigt.	Plan obrotu (budżet) i rzeczywisty obrót dzienny są pobierane z Planday i pokazywane w kalendarzu w Przeglądzie.	El plan de facturación (presupuesto) y la facturación real por día se obtienen de Planday y se muestran en el calendario del Resumen.
+Planday-koblingen er ikke aktivert på serveren ennå (Restoq må ha en Planday-app: PLANDAY_CLIENT_ID).	The Planday connection is not activated on the server yet (Restoq needs a Planday app: PLANDAY_CLIENT_ID).	Die Planday-Verbindung ist auf dem Server noch nicht aktiviert (Restoq braucht eine Planday-App: PLANDAY_CLIENT_ID).	Połączenie z Planday nie jest jeszcze aktywne na serwerze (Restoq potrzebuje aplikacji Planday: PLANDAY_CLIENT_ID).	La conexión con Planday aún no está activada en el servidor (Restoq necesita una app de Planday: PLANDAY_CLIENT_ID).
+Logg inn i Planday som administrator og gå til	Sign in to Planday as an administrator and go to	Melden Sie sich in Planday als Administrator an und gehen Sie zu	Zaloguj się do Planday jako administrator i przejdź do	Inicia sesión en Planday como administrador y ve a
+Innstillinger → API-tilgang	Settings → API access	Einstellungen → API-Zugriff	Ustawienia → Dostęp API	Ajustes → Acceso API
+Trykk	Press	Drücken Sie	Naciśnij	Pulsa
+Koble til app	Connect app	App verbinden	Połącz aplikację	Conectar app
+og skriv inn Restoqs app-ID:	and enter Restoq's app ID:	und geben Sie die App-ID von Restoq ein:	i wpisz identyfikator aplikacji Restoq:	e introduce el ID de app de Restoq:
+Godkjenn tilgangene (omsetning og avdelinger), og kopier	Approve the permissions (revenue and departments), and copy the	Genehmigen Sie die Berechtigungen (Umsatz und Abteilungen) und kopieren Sie das	Zatwierdź uprawnienia (obrót i działy) i skopiuj	Aprueba los permisos (facturación y departamentos) y copia el
+tokenet	token	Token	token	token
+som vises for appen.	shown for the app.	das für die App angezeigt wird.	wyświetlany dla aplikacji.	que se muestra para la app.
+Lim inn tokenet her.	Paste the token here.	Fügen Sie das Token hier ein.	Wklej token tutaj.	Pega el token aquí.
+Token fra Planday	Token from Planday	Token aus Planday	Token z Planday	Token de Planday
+Planday er koblet til.	Planday is connected.	Planday ist verbunden.	Planday jest połączony.	Planday está conectado.
+Koblet til Planday siden {0}.	Connected to Planday since {0}.	Seit {0} mit Planday verbunden.	Połączono z Planday od {0}.	Conectado a Planday desde {0}.
+Sist hentet {0}.	Last fetched {0}.	Zuletzt abgerufen {0}.	Ostatnio pobrano {0}.	Última obtención {0}.
+Avdelinger som tas med	Departments to include	Einbezogene Abteilungen	Uwzględniane działy	Departamentos incluidos
+Bruk omsetningsplanen for de neste 7 dagene som forventet salg i bestillingsforslagene	Use the revenue plan for the next 7 days as expected sales in the order suggestions	Umsatzplan der nächsten 7 Tage als erwarteten Umsatz in den Bestellvorschlägen verwenden	Używaj planu obrotu na najbliższe 7 dni jako oczekiwanej sprzedaży w propozycjach zamówień	Usar el plan de facturación de los próximos 7 días como ventas previstas en las sugerencias de pedido
+Andel mat av omsetningen (%)	Food share of revenue (%)	Anteil Speisen am Umsatz (%)	Udział jedzenia w obrocie (%)	Porcentaje de comida en la facturación (%)
+Forslagene regnes ut fra matsalg. Er drikke med i Planday-omsetningen, skriv inn matandelen, f.eks. 60.	Suggestions are based on food sales. If drinks are included in the Planday revenue, enter the food share, e.g. 60.	Vorschläge basieren auf dem Speisenumsatz. Sind Getränke im Planday-Umsatz enthalten, geben Sie den Speisenanteil ein, z. B. 60.	Propozycje opierają się na sprzedaży jedzenia. Jeśli napoje są wliczone w obrót Planday, wpisz udział jedzenia, np. 60.	Las sugerencias se basan en las ventas de comida. Si las bebidas están incluidas en la facturación de Planday, introduce el porcentaje de comida, p. ej., 60.
+↻ Hent nå	↻ Fetch now	↻ Jetzt abrufen	↻ Pobierz teraz	↻ Obtener ahora
+Koble fra Planday?	Disconnect Planday?	Planday trennen?	Odłączyć Planday?	¿Desconectar Planday?
+Omsetning og plan hentes ikke lenger. Det som allerede er hentet, blir liggende.	Revenue and plan will no longer be fetched. What has already been fetched remains.	Umsatz und Plan werden nicht mehr abgerufen. Bereits Abgerufenes bleibt erhalten.	Obrót i plan nie będą już pobierane. To, co już pobrano, pozostanie.	La facturación y el plan ya no se obtendrán. Lo ya obtenido se conserva.
+Lagret.	Saved.	Gespeichert.	Zapisano.	Guardado.
+Lim inn tokenet fra Planday.	Paste the token from Planday.	Fügen Sie das Token aus Planday ein.	Wklej token z Planday.	Pega el token de Planday.
+Bare administrator kan koble til Planday.	Only an administrator can connect Planday.	Nur ein Administrator kann Planday verbinden.	Tylko administrator może połączyć Planday.	Solo un administrador puede conectar Planday.
+Kunne ikke koble til Planday.	Could not connect to Planday.	Verbindung mit Planday fehlgeschlagen.	Nie udało się połączyć z Planday.	No se pudo conectar con Planday.
+Planday er ikke koblet til. Leder kobler til under Innstillinger → Planday.	Planday is not connected. A manager connects it under Settings → Planday.	Planday ist nicht verbunden. Ein Leiter verbindet es unter Einstellungen → Planday.	Planday nie jest połączony. Kierownik łączy go w Ustawienia → Planday.	Planday no está conectado. Un responsable lo conecta en Ajustes → Planday.
+Planday godtok ikke tokenet. Sjekk at Restoq-appen er koblet til i Planday og at hele tokenet er limt inn.	Planday did not accept the token. Check that the Restoq app is connected in Planday and that the whole token was pasted.	Planday hat das Token nicht akzeptiert. Prüfen Sie, ob die Restoq-App in Planday verbunden ist und das ganze Token eingefügt wurde.	Planday nie zaakceptował tokenu. Sprawdź, czy aplikacja Restoq jest połączona w Planday i czy wklejono cały token.	Planday no aceptó el token. Comprueba que la app de Restoq está conectada en Planday y que pegaste el token completo.
+Fikk ikke kontakt med Planday. Prøv igjen om litt.	Could not reach Planday. Try again shortly.	Planday ist nicht erreichbar. Versuchen Sie es gleich erneut.	Brak połączenia z Planday. Spróbuj ponownie za chwilę.	No se pudo conectar con Planday. Inténtalo de nuevo en un momento.
+Restoq mangler tilgang i Planday (omsetning/avdelinger). Gi appen tilgangene revenue:read og department:read.	Restoq lacks access in Planday (revenue/departments). Give the app the revenue:read and department:read permissions.	Restoq fehlt der Zugriff in Planday (Umsatz/Abteilungen). Geben Sie der App die Berechtigungen revenue:read und department:read.	Restoq nie ma dostępu w Planday (obrót/działy). Nadaj aplikacji uprawnienia revenue:read i department:read.	Restoq no tiene acceso en Planday (facturación/departamentos). Da a la app los permisos revenue:read y department:read.
+mot plan	vs. plan	gegenüber Plan	względem planu	frente al plan
+hittil	so far	bisher	dotąd	hasta ahora
+faktisk	actual	Ist	rzeczywisty	real
+Man	Mon	Mo	Pon	Lun
+Tir	Tue	Di	Wt	Mar
+Ons	Wed	Mi	Śr	Mié
+Tor	Thu	Do	Czw	Jue
+Fre	Fri	Fr	Pt	Vie
+Lør	Sat	Sa	Sob	Sáb
+Søn	Sun	So	Nd	Dom
+Koble fra	Disconnect	Trennen	Odłącz	Desconectar
+Sist hentet	Last fetched	Zuletzt abgerufen	Ostatnio pobrano	Última obtención
+Planday hentet	Planday fetched	Planday abgerufen	Planday pobrano	Planday obtenido
+plan	plan	Plan	plan	plan
+Bestill innen denne dagen for levering {0}.	Order by this day for delivery {0}.	Bis zu diesem Tag bestellen für Lieferung {0}.	Zamów do tego dnia na dostawę {0}.	Pide antes de este día para la entrega {0}.
+{0} aktive varer mangler telling og står som «Tell». Tell dem neste gang, eller sett dem til «Ved behov» under Varer.	{0} active items have no count and show as “Count”. Count them next time, or set them to “As needed” under Items.	{0} aktive Artikel haben keine Inventur und stehen auf „Zählen“. Zählen Sie sie beim nächsten Mal oder setzen Sie sie unter Artikel auf „Bei Bedarf“.	{0} aktywnych towarów nie ma inwentaryzacji i mają status „Policz”. Policz je następnym razem lub ustaw „W razie potrzeby” w Towarach.	{0} artículos activos no tienen recuento y aparecen como «Contar». Cuéntalos la próxima vez o ponlos en «Según necesidad» en Artículos.

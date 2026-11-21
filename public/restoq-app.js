@@ -93,7 +93,7 @@ function handleWriteErr(e){
 }
 function applyDocs(d){
   S.waste = d.waste || []; S.orders = d.orders || []; S.counts = d.counts || []; S.invoices = d.invoices || []; S.slips = d.slips || [];
-  (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; });
+  (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; });
 }
 async function apiLoad(first){
   try {
@@ -176,8 +176,18 @@ function getItems(){
 }
 
 /* ---------- beregningsmotor (samme logikk som Excel-arket) ---------- */
+/** Omsetningsplan fra Planday for de neste 7 dagene (× matandel). null hvis ikke slått på eller ingen plan. */
+function plandayWeekPlan(set){
+  const pl = set.planday || {}; const days = (S.planday && S.planday.days) || {};
+  if (!pl.useForSales) return null;
+  let sum = 0, n = 0; const t = todayStr();
+  for (let i = 0; i < 7; i++){ const d = days[addDays(t, i)]; if (d && d.plan != null){ sum += d.plan; n++; } }
+  if (!n) return null;
+  return Math.round(sum * (pl.foodShare > 0 ? pl.foodShare : 100) / 100);
+}
 function expectedSales(set){
   if (set.expectedSales) return set.expectedSales;
+  const pw = plandayWeekPlan(set); if (pw) return pw;
   const w = [...set.weeks].sort((a,b) => a.from < b.from ? -1 : 1).slice(-4);
   return w.length ? w.reduce((s,x) => s + x.sales, 0) / w.length : 100000;
 }
@@ -310,6 +320,65 @@ const roM = () => S.canWrite && S.canManage ? '' : 'disabled';
 const roNote = () => S.canWrite ? '' : `<div class="note warn">Du har bare lesetilgang. Eier må gi deg tilgang som Bidragsyter for at du skal kunne registrere.</div>`;
 
 /* ================= OVERSIKT ================= */
+/* ================= KALENDER (Oversikt) ================= */
+function calData(from, to){
+  const set = SET(); const ev = {}; const E = d => (ev[d] = ev[d] || {del: [], ord: []});
+  const pdays = (S.planday && S.planday.days) || {};
+  for (let d = from; d <= to; d = addDays(d, 1)){ const e = E(d); const p = pdays[d]; if (p){ e.plan = p.plan; e.actual = p.actual; } }
+  const today = todayStr();
+  S.orders.forEach(o => {
+    if (o.status === 'kansellert') return;
+    if (o.deliveryDate >= from && o.deliveryDate <= to) E(o.deliveryDate).del.push({sup: o.sup, kind: o.status === 'mottatt' ? 'mottatt' : 'bestilt'});
+  });
+  Object.keys(set.suppliers).forEach(code => {
+    const sp = set.suppliers[code]; const wd = sp.wd || []; if (!wd.length) return;
+    const lead = Math.ceil(sp.lead || 1);
+    for (let d = from; d <= addDays(to, lead); d = addDays(d, 1)){
+      if (!wd.includes(pd(d).getDay())) continue;
+      if (d <= to && d >= today && !E(d).del.some(x => x.sup === code)) E(d).del.push({sup: code, kind: 'mulig'});
+      const od = addDays(d, -lead);
+      if (od >= today && od >= from && od <= to && !S.orders.some(o => o.sup === code && o.deliveryDate === d && o.status !== 'kansellert')) E(od).ord.push({sup: code, del: d});
+    }
+  });
+  return ev;
+}
+function calHtml(){
+  const set = SET(); const today = C.today;
+  const monday = d => addDays(d, -((pd(d).getDay() + 6) % 7));
+  if (!UI.calStart) UI.calStart = monday(today);
+  const weeks = UI.calWeeks || 2; const from = UI.calStart, to = addDays(from, weeks * 7 - 1);
+  const ev = calData(from, to);
+  const hasRev = Object.values(ev).some(e => e.plan != null || e.actual != null);
+  const pl = set.planday || {}; const connected = !!(S.planday && S.planday.syncedAt);
+  const kk = v => v == null ? '' : nf0.format(Math.round(v / 100) * 100) + ' kr';
+  const weekNo = d => { const t = pd(d); const x = new Date(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())); const dn = (x.getUTCDay() + 6) % 7; x.setUTCDate(x.getUTCDate() - dn + 3); const fy = new Date(Date.UTC(x.getUTCFullYear(), 0, 4)); return 1 + Math.round(((x - fy) / 864e5 - 3 + ((fy.getUTCDay() + 6) % 7)) / 7); };
+  let h = `<div class="card cal"><div class="row between"><div><h3>Kalender</h3><div class="small muted">Bestillingsfrister og leveranser${hasRev || connected ? ', og omsetning fra Planday (faktisk / plan)' : ''}.</div></div>
+    <div class="row" style="gap:6px"><button class="btn sm" data-calnav="-1" aria-label="Forrige">‹</button><button class="btn sm" data-calnav="0">I dag</button><button class="btn sm" data-calnav="1" aria-label="Neste">›</button><button class="btn sm" id="calWeeks">${weeks === 2 ? '4 uker' : '2 uker'}</button>${connected ? `<button class="btn sm" id="calSync" title="Hent omsetning og plan fra Planday">↻ Planday</button>` : ''}</div></div>
+    <div class="calgrid"><div class="calhead">${[1,2,3,4,5,6,0].map(d => `<div>${cap(WD[d])}</div>`).join('')}</div>`;
+  for (let w = 0; w < weeks; w++){
+    const ws = addDays(from, w * 7); let wPlan = 0, wAct = 0, wPlanAct = 0, wHasP = false, wHasA = false;
+    h += `<div class="calweek"><div class="calwn">Uke ${weekNo(ws)}</div>`;
+    for (let i = 0; i < 7; i++){
+      const d = addDays(ws, i); const e = ev[d] || {del: [], ord: []}; const past = d < today;
+      if (e.plan != null){ wPlan += e.plan; wHasP = true; } if (e.actual != null){ wAct += e.actual; wHasA = true; if (e.plan != null) wPlanAct += e.plan; }
+      const pct = e.plan && e.actual != null ? Math.round((e.actual / e.plan - 1) * 100) : null;
+      h += `<div class="calday ${d === today ? 'today' : ''} ${past ? 'past' : ''}"><div class="cd-h"><span class="cd-wd">${cap(WD[pd(d).getDay()])}</span> <b>${pd(d).getDate()}.</b>${pd(d).getDate() === 1 || (w === 0 && i === 0) ? ` <span class="muted small">${['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des'][pd(d).getMonth()]}</span>` : ''}</div>
+        ${e.actual != null || e.plan != null ? `<div class="cd-rev">${e.actual != null ? `<b>${kk(e.actual)}</b>` : ''}${e.plan != null ? `<span class="muted">${e.actual != null ? ' / ' : '<span>plan</span> '}<span>${kk(e.plan)}</span></span>` : ''}${pct != null ? ` <span class="${pct < 0 ? 'neg' : 'pos'}">${pct > 0 ? '+' : ''}${pct} %</span>` : ''}</div>` : ''}
+        ${e.ord.map(o => `<button class="cchip ord" data-go="bestill" data-sup="${esc(o.sup)}" title="Bestill innen denne dagen for levering ${fmtD(o.del)}">🛒 Bestill <span translate="no">${esc(o.sup)}</span></button>`).join('')}
+        ${e.del.map(x => `<span class="cchip del ${x.kind}" title="${x.kind === 'bestilt' ? 'Bestilt levering' : x.kind === 'mottatt' ? 'Mottatt' : 'Mulig leveringsdag'}">${x.kind === 'mottatt' ? '✓' : '📦'} <span translate="no">${esc(x.sup)}</span></span>`).join('')}
+      </div>`;
+    }
+    h += `${wHasP || wHasA ? `<div class="calwsum small"><span>Uke ${weekNo(ws)}</span>: ${wHasA ? `<span>faktisk</span> <b>${kk(wAct)}</b>` : ''}${wHasP ? `${wHasA ? ' · ' : ''}<span>plan</span> <span>${kk(wPlan)}</span>` : ''}${wHasP && wHasA && wPlanAct ? ` · <span>${wAct >= wPlanAct ? '+' : ''}${Math.round((wAct / wPlanAct - 1) * 100)} %</span> <span>mot plan</span>${wPlanAct < wPlan ? ' <span>hittil</span>' : ''}` : ''}</div>` : ''}</div>`;
+  }
+  h += `</div><div class="small muted callegend"><span class="cchip ord">🛒 Bestill</span><span>siste dag å bestille til neste levering</span> · <span class="cchip del bestilt">📦</span><span>bestilt levering</span> · <span class="cchip del mulig">📦</span><span>mulig leveringsdag</span> · <span class="cchip del mottatt">✓</span><span>mottatt</span>${connected ? ` · <span>Planday hentet</span> <span translate="no">${new Date(S.planday.syncedAt).toLocaleString('nb-NO', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</span>` : S.canManage ? ' · <a href="#oppsett">Koble til Planday</a> <span>for omsetningsplan og faktisk omsetning</span>' : ''}</div></div>`;
+  return h;
+}
+function bindCal(){
+  const today = C.today; const monday = d => addDays(d, -((pd(d).getDay() + 6) % 7));
+  document.querySelectorAll('[data-calnav]').forEach(b => b.onclick = () => { const n = +b.dataset.calnav; UI.calStart = n === 0 ? monday(today) : addDays(UI.calStart, n * 7 * (UI.calWeeks || 2)); render(); });
+  const cw = $('#calWeeks'); if (cw) cw.onclick = () => { UI.calWeeks = (UI.calWeeks || 2) === 2 ? 4 : 2; render(); };
+  const cs = $('#calSync'); if (cs) cs.onclick = async () => { cs.disabled = true; try { const r = await api('POST', '/api/planday/sync', {}); await apiLoad(true); toast(`Hentet omsetning for ${r.days} dager fra Planday.`); } catch(e){ toast(e.message || 'Kunne ikke hente fra Planday.'); cs.disabled = false; } };
+}
 function vOversikt(){
   const it = C.items, set = SET();
   const act = it.filter(r => r.active);
@@ -332,6 +401,7 @@ function vOversikt(){
     <button class="tile ${wr.length?'amber':'green'}" data-filter="svinn"><span class="lbl">Svinnrisiko</span><span class="big">${wr.length}</span><span class="small muted">går ut før det brukes opp</span></button>
     <button class="tile blue" data-go="varer"><span class="lbl">Lagerverdi nå</span><span class="big">${C.cur ? kr(value) : '–'}</span><span class="small muted">${C.cur ? 'beregnet, eks. mva' : 'krever telling'}</span></button>
   </div>`;
+  h += calHtml();
   // leverandørkort
   h += `<div class="grid g3">` + Object.keys(set.suppliers).map(code => {
     const s = set.suppliers[code]; const lines = act.filter(r => r.sup === code && r.sugg > 0);
@@ -352,7 +422,7 @@ function vOversikt(){
   if (nT.length && C.cur) h += `<div class="note info">${nT.length} aktive varer mangler telling og står som «Tell». Tell dem neste gang, eller sett dem til «Ved behov» under Varer.</div>`;
   $('#view').innerHTML = h;
   document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { const f = b.dataset.filter; UI.vStatus = f; UI.vSup=''; UI.vStore=''; UI.vSearch=''; go('varer'); });
-  bindItemRows();
+  bindItemRows(); bindCal();
 }
 const greet = () => { const h = new Date().getHours(); return h < 10 ? 'morgen' : h < 17 ? 'dag' : 'kveld'; };
 const cap = s => s.charAt(0).toUpperCase() + s.slice(1);
@@ -836,6 +906,7 @@ function vOppsett(){
     <div class="grid g3" style="align-items:end"><label class="f">Uke starter (mandag)<input type="date" id="wkFrom" value="${addDays(C.today, -((pd(C.today).getDay()+6)%7) - 7)}"></label><label class="f">Matsalg (kr eks. mva)<input type="text" inputmode="numeric" id="wkSales"></label><button class="btn" id="wkAdd">Legg til uke</button></div>
     <div class="tblwrap" style="max-height:300px"><table><thead><tr><th>Uke</th><th>Fra</th><th class="n">Matsalg</th><th></th></tr></thead><tbody>${weeks.map(w=>`<tr><td>${w.wk}</td><td>${fmtDL(w.from)}</td><td class="n">${kr(w.sales)}</td><td class="n"><button class="btn sm danger" data-wkdel="${w.from}">Slett</button></td></tr>`).join('')}</tbody></table></div></div>`;
   h += `<div class="row" style="justify-content:flex-end"><button class="btn primary lg" id="sSave" ${roM()}>Lagre innstillinger</button></div>`;
+  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="pdCard"><h3>Planday</h3><div class="small muted">Omsetningsplan (budsjett) og faktisk omsetning per dag hentes fra Planday og vises i kalenderen på Oversikt.</div><div id="pdBody" class="muted small">Henter status …</div></div>`;
   if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="ttxCard"><h3>Regnskap</h3><div class="small muted">Regnskapssystem: Tripletex</div><div id="ttxBody" class="muted small">Henter status …</div></div>
     <div class="card grid" style="gap:12px" id="keysCard"><div class="row between"><h3>API-nøkler</h3><button class="btn sm" id="kAdd">+ Ny API-nøkkel</button></div><div class="small muted">For skannere, EDI og andre systemer som skal registrere fakturaer og pakksedler i Restoq. Se <a href="/api-dokumentasjon" target="_blank" rel="noopener">API-dokumentasjonen</a>.</div><div id="keysList" class="muted small">Henter …</div></div>`;
   if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="usersCard"><div class="row between"><h3>Brukere</h3><button class="btn sm" id="uAdd">+ Legg til ansatt</button></div><div class="small muted">Ansatte kan telle, bestille, ta imot varer og føre avskrivning. Administratorer kan i tillegg legge til og fjerne brukere, endre roller og endre innstillinger, varer, leverandører, logo og fakturaer. Det må alltid være minst én administrator.</div><div id="usersList" class="muted small">Henter brukere …</div></div>`;
@@ -851,12 +922,13 @@ function vOppsett(){
   if (!S.canManage) document.querySelectorAll('#view input, #view .chip[data-wd], #view button[data-wkdel], #wkAdd').forEach(el => el.disabled = true);
   const read = () => { const s = set; s.expectedSales = num($('#sExp').value.replace(/\s/g,'')); s.freq = s.freq || {}; document.querySelectorAll('[data-freq]').forEach(inp => { const v = num(inp.value); s.freq[inp.dataset.freq] = v > 0 ? v : FREQ_DEFAULT[inp.dataset.freq]; }); document.querySelectorAll('[data-sp]').forEach(inp => { const [c,k] = inp.dataset.sp.split(':'); s.suppliers[c][k] = ['days','notes','orgnr'].includes(k) ? inp.value.trim() : (num(inp.value) ?? 0); }); return s; };
   document.querySelectorAll('[data-wd]').forEach(b => b.onclick = () => { const [c,d] = b.dataset.wd.split(':'); const s = set.suppliers[c]; s.wd = s.wd || []; const n = +d; s.wd = s.wd.includes(n) ? s.wd.filter(x=>x!==n) : [...s.wd, n]; b.classList.toggle('on'); });
-  $('#sSave').onclick = async () => { await saveSettings(read()); toast('Innstillingene er lagret.'); };
+  $('#sSave').onclick = async () => { const r = read(); const cur = SET(); r.planday = cur.planday; r.categories = cur.categories ?? r.categories; await saveSettings(r); toast('Innstillingene er lagret.'); };
   $('#fDef').onclick = () => { document.querySelectorAll('[data-freq]').forEach(inp => inp.value = String(FREQ_DEFAULT[inp.dataset.freq]).replace('.',',')); toast('Anbefalte frekvenser er fylt inn. Trykk «Lagre innstillinger».'); };
   $('#supAdd').onclick = () => supplierEditModal(null, {});
   document.querySelectorAll('[data-supdel]').forEach(b => b.onclick = () => confirmBox('Fjerne leverandøren?', 'Leverandøren har ingen varer og fjernes fra oppsettet.', 'Fjern', async () => { const s = read(); delete s.suppliers[b.dataset.supdel]; await saveSettings(s); render(); }));
   if ($('#usersCard')) loadUsers();
   if ($('#ttxCard')) loadTtx();
+  if ($('#pdCard')) loadPlanday();
   if ($('#keysCard')) loadKeys();
   $('#wkAdd').onclick = async () => { const f = $('#wkFrom').value, v = num($('#wkSales').value.replace(/\s/g,'')); if (!f || !v){ toast('Fyll inn dato og beløp.'); return; } const s = read(); s.weeks = s.weeks.filter(w => w.from !== f); s.weeks.push({wk:isoWeek(pd(f)), from:f, sales:v}); await saveSettings(s); toast('Uka er lagt til.'); };
   document.querySelectorAll('[data-wkdel]').forEach(b => b.onclick = async () => { const s = read(); s.weeks = s.weeks.filter(w => w.from !== b.dataset.wkdel); await saveSettings(s); });
@@ -1503,6 +1575,32 @@ function invoiceDrawer(id){
       else go2();
     });
   });
+}
+async function loadPlanday(){
+  const box = $('#pdBody'); if (!box) return;
+  try {
+    const s = await api('GET', '/api/planday'); const pl = SET().planday || {};
+    if (!s.available){ box.innerHTML = 'Planday-koblingen er ikke aktivert på serveren ennå (Restoq må ha en Planday-app: PLANDAY_CLIENT_ID).'; return; }
+    box.className = 'grid'; box.style.gap = '10px';
+    if (!s.connected){
+      box.innerHTML = `<ol class="small" style="margin:0;padding-left:18px"><li>Logg inn i Planday som administrator og gå til <b>Innstillinger → API-tilgang</b>.</li><li>Trykk <b>Koble til app</b> og skriv inn Restoqs app-ID: <code translate="no">${esc(s.clientId || '')}</code></li><li>Godkjenn tilgangene (omsetning og avdelinger), og kopier <b>tokenet</b> som vises for appen.</li><li>Lim inn tokenet her.</li></ol>
+        <div class="row" style="flex-wrap:nowrap"><input type="text" id="pdTok" placeholder="Token fra Planday" autocomplete="off"><button class="btn primary" id="pdOn">Koble til</button></div>`;
+      const on = $('#pdOn'); on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/planday', {token: $('#pdTok').value}); await apiLoad(true); toast('Planday er koblet til.'); loadPlanday(); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
+      return;
+    }
+    const inf = s.info || {}; const sel = new Set(inf.departmentIds || []);
+    box.innerHTML = `<div class="note good"><div><span>Koblet til Planday siden ${fmtDL(String(inf.connectedAt || '').slice(0, 10))}.</span>${inf.lastSync ? ` <span>Sist hentet</span> <span translate="no">${new Date(inf.lastSync).toLocaleString('nb-NO')}</span>` : ''}</div></div>
+      ${inf.lastError ? `<div class="note bad small"><div>${esc(inf.lastError)}</div></div>` : ''}
+      ${(inf.departments || []).length > 1 ? `<div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Avdelinger som tas med<div class="chips">${inf.departments.map(d => `<label class="chip ${sel.has(d.id) ? 'on' : ''}"><input type="checkbox" class="pd-dep hide" value="${d.id}" ${sel.has(d.id) ? 'checked' : ''}><span translate="no">${esc(d.name)}</span></label>`).join('')}</div></div>` : ''}
+      <label class="row small" style="gap:8px"><input type="checkbox" id="pdUse" ${pl.useForSales ? 'checked' : ''} style="width:20px;height:20px"> Bruk omsetningsplanen for de neste 7 dagene som forventet salg i bestillingsforslagene</label>
+      <label class="f" style="max-width:260px">Andel mat av omsetningen (%)<input type="text" inputmode="numeric" id="pdShare" value="${pl.foodShare || 100}"><span class="small" style="font-weight:400">Forslagene regnes ut fra matsalg. Er drikke med i Planday-omsetningen, skriv inn matandelen, f.eks. 60.</span></label>
+      <div class="row"><button class="btn" id="pdSync">↻ Hent nå</button><button class="btn danger sm" id="pdOff">Koble fra</button></div>`;
+    box.querySelectorAll('.pd-dep').forEach(cb => cb.onchange = async () => { cb.closest('.chip').classList.toggle('on', cb.checked); const ids = [...box.querySelectorAll('.pd-dep:checked')].map(x => +x.value); try { await api('POST', '/api/planday', {departmentIds: ids}); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); } });
+    const saveOpt = async () => { const set = JSON.parse(JSON.stringify(SET())); set.planday = {...(set.planday || {}), useForSales: $('#pdUse').checked, foodShare: Math.min(100, Math.max(1, num($('#pdShare').value) || 100))}; await saveSettings(set); toast('Lagret.'); };
+    $('#pdUse').onchange = saveOpt; $('#pdShare').onchange = saveOpt;
+    $('#pdSync').onclick = async () => { const b = $('#pdSync'); b.disabled = true; try { const r = await api('POST', '/api/planday/sync', {}); await apiLoad(true); toast(`Hentet omsetning for ${r.days} dager fra Planday.`); loadPlanday(); } catch(e){ toast(e.message || 'Kunne ikke hente.'); b.disabled = false; } };
+    $('#pdOff').onclick = () => confirmBox('Koble fra Planday?', 'Omsetning og plan hentes ikke lenger. Det som allerede er hentet, blir liggende.', 'Koble fra', async () => { await api('DELETE', '/api/planday'); loadPlanday(); });
+  } catch(e){ box.textContent = 'Kunne ikke hente status.'; }
 }
 async function loadTtx(){
   const box = $('#ttxBody'); if (!box) return;

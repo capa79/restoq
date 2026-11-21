@@ -9,6 +9,7 @@ import { db } from "@/lib/db";
 import { requireAdmin } from "@/lib/session";
 import { mailEnabled } from "@/lib/mail";
 import { tripletexConfigured } from "@/lib/tripletex";
+import { plandayConfigured } from "@/lib/planday";
 import { googleEnabled } from "@/lib/google-auth";
 import { aiTranslateEnabled } from "@/lib/ai-translate";
 import { kindLabel } from "@/lib/feedback";
@@ -88,7 +89,7 @@ async function Overview({ badge }: { badge: { leads: number; fb: number; err: nu
         <div className="card"><span className="small muted">Bestillinger siste 30 dager</span><b>{s.orders30}</b></div>
         <div className="card"><span className="small muted">Fullførte varetellinger</span><b>{s.counts}</b></div>
         <div className="card"><span className="small muted">Fakturaer</span><b>{s.invoices}</b><span className="small muted">{s.avvik} med avvik</span></div>
-        <Link className="card" href="/admin?fane=oppsett"><span className="small muted">Tjenester</span><b style={{ fontSize: 18 }}>{[mailEnabled() && "E-post", googleEnabled() && "Google", tripletexConfigured() && "Tripletex"].filter(Boolean).join(" · ") || "Ingen satt opp"}</b></Link>
+        <Link className="card" href="/admin?fane=oppsett"><span className="small muted">Tjenester</span><b style={{ fontSize: 18 }}>{[mailEnabled() && "E-post", googleEnabled() && "Google", tripletexConfigured() && "Tripletex", plandayConfigured() && "Planday"].filter(Boolean).join(" · ") || "Ingen satt opp"}</b></Link>
       </div>
       <div className="grid2" style={{ alignItems: "start" }}>
         <div className="card"><div className="row" style={{ justifyContent: "space-between" }}><h3 style={{ margin: 0 }}>Nye tilbakemeldinger</h3><Link className="small" href="/utvikler">Alle</Link></div>
@@ -424,6 +425,7 @@ async function Setup({ email }: { email: string }) {
           <tr><td>E-post (Resend)</td><td><Pill ok={mailEnabled()} /> {process.env.MAIL_FROM ?? ""}</td></tr>
           <tr><td>Logg inn med Google</td><td><Pill ok={googleEnabled()} /></td></tr>
           <tr><td>Tripletex</td><td><Pill ok={tripletexConfigured()} on={process.env.TRIPLETEX_ENV === "prod" ? "Produksjon" : "Testmiljø"} /></td></tr>
+          <tr><td>Planday</td><td><Pill ok={plandayConfigured()} on="Satt opp" /></td></tr>
           <tr><td>Claude (fakturalesing og oversettelse)</td><td><Pill ok={aiTranslateEnabled()} /></td></tr>
           <tr><td>Henvendelser sendes til</td><td>{process.env.LEADS_EMAIL || process.env.ADMIN_EMAIL || "–"}</td></tr>
           <tr><td>Selskap i bunntekst og personvern</td><td>{process.env.LEGAL_ENTITY ? `${process.env.LEGAL_ENTITY}${process.env.LEGAL_ORGNR ? ` (${process.env.LEGAL_ORGNR})` : ""}` : <Pill ok={false} off="Mangler (LEGAL_ENTITY)" />}</td></tr>

@@ -125,3 +125,15 @@ npm install
 cp .env.example .env.local   # fyll inn
 npm run dev
 ```
+
+## Planday (omsetningsplan og faktisk omsetning)
+
+Restoq leser daglige omsetningsbudsjetter (`GET /revenue/v1.0/budgets`) og daglig omsetning (`GET /revenue/v1.0/revenue`) fra Planday Open API og viser dem i kalenderen på Oversikt, sammen med bestillingsfrister og leveranser.
+
+Oppsett:
+1. Opprett én Planday-app for Restoq (i en Planday-portal: Innstillinger → API-tilgang → Opprett app) med tilgangene `revenue:read` og `department:read`. App-ID-en settes som `PLANDAY_CLIENT_ID` i Render. `SECRET_KEY` (minst 32 tegn) må også være satt, fordi tokenet lagres kryptert.
+2. Kunden kobler appen til sin Planday-portal (Innstillinger → API-tilgang → Koble til app, med Restoqs app-ID), kopierer tokenet og limer det inn under Innstillinger → Planday i Restoq.
+3. Restoq henter tilgangstoken fra `https://id.planday.com/connect/token` (gyldig 1 time) og kaller API-et med `X-ClientId` + `Authorization: Bearer`.
+
+Valg hos kunden: hvilke avdelinger som tas med, og om omsetningsplanen for de neste 7 dagene (× matandel) skal brukes som forventet salg i bestillingsforslagene.
+For testing kan `PLANDAY_API_BASE` og `PLANDAY_TOKEN_URL` overstyres.
