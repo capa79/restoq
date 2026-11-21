@@ -1512,7 +1512,7 @@ function isoWeek(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), 
 /* ---------- dialoger, filer ---------- */
 /* ===== Innkjøpskategorier (hovedkategori › underkategori) ===== */
 const CAT_DEFAULT = [
-  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Frukt og grønnsaker', stor:'Kjøl'},{name:'Fryst', stor:'Frys'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
+  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Frukt og grønnsaker', stor:'Kjøl'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
   {name:'Drikke', stocked:true, account:'', subs:[{name:'Alkoholfritt', stor:'Romtemp.'},{name:'Øl og cider', stor:'Kjøl'},{name:'Vin', stor:'Romtemp.'},{name:'Brennevin', stor:'Romtemp.'},{name:'Kaffe og te', stor:'Tørr'}]},
   {name:'Emballasje', stocked:true, account:'', subs:[{name:'Take-away', stor:'Tørr'},{name:'Folie og film', stor:'Tørr'}]},
   {name:'Rengjøring og hygiene', stocked:true, account:'', subs:[{name:'Vask og rengjøring', stor:'Tørr'},{name:'Papir og hygiene', stor:'Tørr'}]},
@@ -1524,7 +1524,7 @@ const FG = 'Frukt og grønnsaker';
 const FG_OLD = ['Grønt', 'Frukt', 'Grønnsaker', 'Salat og urter', 'Poteter og rotgrønnsaker'];
 /** Eldre oppsett: Mat › Grønt (eller en egen hovedkategori «Frukt og grønnsaker») blir Mat › Frukt og grønnsaker. */
 function catsMigrated(c){
-  let out = c.filter(g => g.name !== FG).map(g => g.name === 'Mat' ? {...g, subs: g.subs.map(x => x.name === 'Grønt' ? {...x, name: FG} : x)} : g);
+  let out = c.filter(g => g.name !== FG).map(g => g.name === 'Mat' ? {...g, subs: g.subs.filter(x => x.name !== 'Fryst').map(x => x.name === 'Grønt' ? {...x, name: FG} : x)} : g);
   const mat = out.find(g => g.name === 'Mat');
   if (mat && !mat.subs.some(x => x.name === FG)){ const k = mat.subs.findIndex(x => x.name === 'Kjøtt og fisk'); mat.subs.splice(k >= 0 ? k + 1 : mat.subs.length, 0, {name: FG, stor: 'Kjøl'}); }
   return out;
@@ -1535,6 +1535,8 @@ const catLabel = (g, c) => g && c && g !== c ? `${g} › ${c}` : (c || g || 'Ann
 const catOf = it => {
   // Varer lagret som Mat › Grønt (før egen hovedkategori) vises som Frukt og grønnsaker › Grønnsaker
   if ((it.group === FG || ((!it.group || it.group === 'Mat') && it.cat === 'Grønt')) && FG_OLD.concat(FG).includes(it.cat || 'Grønt') && !CATS().some(g => g.name === FG)) return {group: 'Mat', cat: FG};
+  // Mat › Fryst er fjernet (frys styres av lagertypen): ny kategori ut fra varenavnet
+  if (it.cat === 'Fryst' && (!it.group || it.group === 'Mat') && !CATS().some(g => g.subs.some(x => x.name === 'Fryst'))){ const g = guessCat(it.name || '', ''); return g.group === 'Mat' ? g : {group: 'Mat', cat: 'Ferskt'}; }
   return {group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat || 'Annet'};
 };
 const catStocked = g => (CATS().find(x => x.name === g) || {stocked:true}).stocked !== false;
@@ -1548,7 +1550,7 @@ function catOptions(group, cat){
 const splitCat = v => { const [group, cat] = String(v || '').split('|'); return {group: group || '', cat: cat || group || 'Annet'}; };
 const CAT_WORDS = [
   [/meieri|ost\b|melk|fløte|smør|yoghurt|rømme|egg/i, 'Mat', 'Meieri'], [/kjøtt|kylling|svin|storfe|lam|bacon|pølse|fisk|laks|reke|sjømat|torsk/i, 'Mat', 'Kjøtt og fisk'],
-  [/grønt|grønnsak|frukt|eple|appelsin|sitron|lime|banan|drue|bær|mango|ananas|pære|melon|kiwi|salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|potet|gulrot|rotgrønnsak|kålrot|rødbet|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|asparges|purre/i, 'Mat', FG], [/frys|fryst|frossen|frozen|is\b|iskrem/i, 'Mat', 'Fryst'],
+  [/grønt|grønnsak|frukt|eple|appelsin|sitron|lime|banan|drue|bær|mango|ananas|pære|melon|kiwi|salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|potet|gulrot|rotgrønnsak|kålrot|rødbet|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|asparges|purre/i, 'Mat', FG], 
   [/brød|bakst|bolle|brioche|bakeri|kake|baguette|surdeig/i, 'Mat', 'Brød og bakst'], [/tørr|mel\b|ris\b|pasta|sukker|krydder|olje|eddik|hermetikk|saus|nøtter|tørrvare/i, 'Mat', 'Tørrvarer'],
   [/øl\b|pils|ipa|cider|lager\b/i, 'Drikke', 'Øl og cider'], [/vin\b|rødvin|hvitvin|musserende|prosecco|champagne/i, 'Drikke', 'Vin'], [/vodka|gin\b|rom\b|whisk|likør|brennevin|tequila|akevitt/i, 'Drikke', 'Brennevin'],
   [/kaffe|espresso|\bte\b|kakao/i, 'Drikke', 'Kaffe og te'], [/drikke|brus|cola|juice|vann\b|mineralvann|energi|red bull|tonic|saft/i, 'Drikke', 'Alkoholfritt'],
@@ -1562,7 +1564,7 @@ function guessCat(text, stor){
   const t = String(text || ''); const cats = CATS();
   for (const g of cats) for (const s of g.subs) if (s.name.length > 2 && new RegExp('\\b' + s.name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i').test(t)) return {group: g.name, cat: s.name};
   for (const [re, g, c] of CAT_WORDS) if (re.test(t)){ const gg = cats.find(x => x.name === g); if (gg && gg.subs.some(s => s.name === c)) return {group: g, cat: c}; }
-  const byStor = {Kjøl:['Mat','Ferskt'], Frys:['Mat','Fryst'], Tørr:['Mat','Tørrvarer']}[stor];
+  const byStor = {Kjøl:['Mat','Ferskt'], Tørr:['Mat','Tørrvarer']}[stor];
   if (byStor){ const gg = cats.find(x => x.name === byStor[0]); if (gg && gg.subs.some(s => s.name === byStor[1])) return {group: byStor[0], cat: byStor[1]}; }
   const last = cats[cats.length - 1]; return {group: last.name, cat: last.subs[0]?.name || last.name};
 }
@@ -1579,7 +1581,7 @@ function categoriesModal(onSaved){
     m.querySelectorAll('.ct-sdel').forEach(b => b.onclick = () => { read(); cats[+b.closest('.catcard').dataset.g].subs.splice(+b.closest('.ct-sub').dataset.s, 1); draw(m); });
     m.querySelectorAll('.ct-sadd').forEach(b => b.onclick = () => { read(); cats[+b.closest('.catcard').dataset.g].subs.push({name:'', stor:''}); draw(m); });
   };
-  modal(`<h3>Kategorier for innkjøp</h3><div class="small muted">Hovedkategorier (f.eks. mat, drikke, inventar, driftsmateriell) med underkategorier (f.eks. ferskt, fryst, tørr). Underkategorien kan ha en lagertype som settes automatisk på varen. Kategorier som ikke «telles og bestilles» (f.eks. inventar) får ikke bestillingsforslag.</div>${S.canManage ? '' : '<div class="note warn small">Bare administrator kan endre kategoriene.</div>'}
+  modal(`<h3>Kategorier for innkjøp</h3><div class="small muted">Hovedkategorier (f.eks. mat, drikke, inventar, driftsmateriell) med underkategorier (f.eks. ferskt, meieri, tørrvarer). Underkategorien kan ha en lagertype som settes automatisk på varen. Kategorier som ikke «telles og bestilles» (f.eks. inventar) får ikke bestillingsforslag.</div>${S.canManage ? '' : '<div class="note warn small">Bare administrator kan endre kategoriene.</div>'}
     <div id="ctList" class="grid" style="gap:10px"></div>
     <div class="row between"><div class="row"><button class="btn sm" id="ctAdd">+ Hovedkategori</button><button class="btn sm" id="ctDef">Tilbakestill til standard</button></div><div class="row"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="ctOk" ${roM()}>Lagre kategorier</button></div></div>`, m => {
     draw(m);
