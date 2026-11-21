@@ -70,6 +70,7 @@ Pilotdata for About Contrasts ligger i `data/about-contrasts.json` og lastes inn
 Restoq er en *kommersiell integrasjon* (flere kunder). Det krever:
 1. **Consumer token** fra Tripletex. Søk om integrasjon på developer.tripletex.no. Test i `api-test.tripletex.tech` først (`TRIPLETEX_ENV=test`). Godkjenning for produksjon tar ifølge Tripletex-utviklere typisk 2–3 uker. Sett `TRIPLETEX_ENV=prod` når den er godkjent.
 2. Hver kunde lager et **employee token** i sin Tripletex (Brukerinnstillinger → API-tilgang, velg applikasjonen Restoq) og limer det inn under Innstillinger → Tripletex i appen. Tokenet krypteres med `SECRET_KEY` (AES-256-GCM). Kunden må ha tilleggsmodulen «Integrasjoner» i Tripletex (inkludert i noen pakker, tillegg i andre).
+3. **Alternativ uten consumer token:** kunden kan i stedet lage et **API-token (JWT)** under Selskap → API-tokens i Tripletex (starter med `tlxr_`) og lime det inn samme sted. Restoq kjenner det igjen og bytter det inn via `POST /token/session/:createFromRefreshToken`. Tripletex beregner dette for interne integrasjoner (ett selskap/konsern), ikke kommersielle flerkunde-integrasjoner. Tokenet må være laget i samme miljø som `TRIPLETEX_ENV` peker mot (produksjonstokens virker ikke mot testmiljøet).
 
 Endepunkter som brukes (`lib/tripletex.ts`):
 | Formål | Kall |

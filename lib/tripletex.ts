@@ -1,6 +1,7 @@
 // Tripletex API v2 (https://developer.tripletex.no).
 // Restoq er en kommersiell integrasjon: Restoq har ett consumerToken (søkes om hos Tripletex),
 // og hver kunde lager et employeeToken i sin Tripletex (Brukerinnstillinger → API-tilgang).
+// Alternativt kan kunden lime inn et JWT/API-token (Selskap → API-tokens, «tlxr_…»), se isTripletexJwt().
 // Øktnøkkel: PUT /token/session/:create?consumerToken&employeeToken&expirationDate,
 // brukes som passord i Basic Auth med brukernavn 0. Gjelder til midnatt på utløpsdatoen.
 import { db } from "./db";
@@ -8,7 +9,9 @@ import { decrypt, encrypt } from "./crypto";
 
 export const tripletexBase = () =>
   (process.env.TRIPLETEX_BASE || (process.env.TRIPLETEX_ENV === "prod" ? "https://tripletex.no/v2" : "https://api-test.tripletex.tech/v2")).replace(/\/$/, "");
-export const tripletexConfigured = () => Boolean(process.env.TRIPLETEX_CONSUMER_TOKEN && (process.env.SECRET_KEY ?? "").length >= 32);
+// SECRET_KEY trengs alltid (kryptering); consumerToken bare for employee tokens, ikke for JWT/API-tokens.
+export const tripletexConfigured = () => (process.env.SECRET_KEY ?? "").length >= 32;
+const secretKeyOk = () => (process.env.SECRET_KEY ?? "").length >= 32;
 
 export class TripletexError extends Error {
   constructor(message: string, public status = 0) {
@@ -18,7 +21,52 @@ export class TripletexError extends Error {
 
 const isoDate = (d: Date) => d.toISOString().slice(0, 10);
 
+/**
+ * Tripletex har to slags nøkler:
+ *  - employee token (Min profil → API-tilgang): brukes sammen med Restoqs consumerToken.
+ *  - JWT/refresh-token (Selskap → API-tokens, starter med «tlxr_»): for interne integrasjoner,
+ *    krever ikke consumerToken. Byttes inn via POST /token/session/:createFromRefreshToken.
+ */
+export function isTripletexJwt(token: string): boolean {
+  const t = token.trim();
+  if (t.startsWith("tlxr_")) return true;
+  const head = t.split(".")[0];
+  try {
+    const h = JSON.parse(Buffer.from(head.replace(/-/g, "+").replace(/_/g, "/"), "base64").toString("utf8"));
+    return typeof h?.typ === "string" && h.typ.includes("jwt");
+  } catch {
+    return false;
+  }
+}
+
+async function createSessionFromJwt(refreshToken: string): Promise<{ token: string; expires: string }> {
+  // Øktnøkkelen lever i 2 døgn; vi lagrer utløp som i morgen, så sessionFor() fornyer i god tid.
+  const res = await fetch(`${tripletexBase()}/token/session/:createFromRefreshToken`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Accept: "application/json" },
+    body: JSON.stringify({ refreshToken, ttlSeconds: 2 * 86400 }),
+    signal: AbortSignal.timeout(20_000),
+  });
+  if (!res.ok) {
+    const detail = await res.text().catch(() => "");
+    console.error("Tripletex createFromRefreshToken", res.status, detail.slice(0, 500));
+    throw new TripletexError(
+      res.status === 401 || res.status === 403
+        ? "Tripletex godtok ikke API-tokenet. Sjekk at det ikke er slettet, at modulen «Integrasjoner» er aktiv, og at serveren peker mot riktig miljø (produksjon/test)."
+        : `Tripletex svarte ${res.status} ved innlogging med API-token.`,
+      res.status
+    );
+  }
+  const j = (await res.json()) as { token?: string; value?: { token?: string } };
+  const token = j.token ?? j.value?.token;
+  if (!token) throw new TripletexError("Tripletex sendte ingen øktnøkkel.");
+  return { token, expires: isoDate(new Date(Date.now() + 864e5)) };
+}
+
 async function createSession(employeeToken: string): Promise<{ token: string; expires: string }> {
+  if (isTripletexJwt(employeeToken)) return createSessionFromJwt(employeeToken.trim());
+  if (!process.env.TRIPLETEX_CONSUMER_TOKEN)
+    throw new TripletexError("Restoq har ikke consumer token fra Tripletex ennå. Bruk et API-token fra Tripletex (Selskap → API-tokens) i stedet.");
   const expires = isoDate(new Date(Date.now() + 2 * 864e5));
   const q = new URLSearchParams({ consumerToken: process.env.TRIPLETEX_CONSUMER_TOKEN!, employeeToken, expirationDate: expires });
   const res = await fetch(`${tripletexBase()}/token/session/:create?${q}`, { method: "PUT", signal: AbortSignal.timeout(20_000) });
@@ -30,10 +78,11 @@ async function createSession(employeeToken: string): Promise<{ token: string; ex
 
 /** Lagrer kundens employeeToken kryptert og tester det. */
 export async function connectTripletex(orgId: number, employeeToken: string) {
+  if (!secretKeyOk()) throw new TripletexError("Tripletex-koblingen er ikke satt opp på serveren (SECRET_KEY mangler).");
   const s = await createSession(employeeToken.trim());
   const who = await rawCall(s.token, "GET", "/token/session/>whoAmI");
   const p = await db();
-  const info = { companyId: who?.value?.company?.id ?? who?.value?.companyId ?? null, employee: who?.value?.employee?.id ?? null, connectedAt: new Date().toISOString() };
+  const info = { tokenType: isTripletexJwt(employeeToken) ? "jwt" : "employee", companyId: who?.value?.company?.id ?? who?.value?.companyId ?? null, employee: who?.value?.employee?.id ?? null, connectedAt: new Date().toISOString() };
   await p.query(
     `INSERT INTO integrations (org_id, provider, secret, info, session_token, session_expires) VALUES ($1, 'tripletex', $2, $3, $4, $5)
      ON CONFLICT (org_id, provider) DO UPDATE SET secret = EXCLUDED.secret, info = EXCLUDED.info, session_token = EXCLUDED.session_token, session_expires = EXCLUDED.session_expires`,
@@ -45,7 +94,7 @@ export async function connectTripletex(orgId: number, employeeToken: string) {
 export async function tripletexStatus(orgId: number) {
   const p = await db();
   const r = (await p.query("SELECT info, created_at FROM integrations WHERE org_id = $1 AND provider = 'tripletex'", [orgId])).rows[0];
-  return { available: tripletexConfigured(), connected: !!r, env: process.env.TRIPLETEX_ENV === "prod" ? "prod" : "test", info: r?.info ?? null };
+  return { available: secretKeyOk(), connected: !!r, env: process.env.TRIPLETEX_ENV === "prod" ? "prod" : "test", info: r?.info ?? null };
 }
 
 export async function disconnectTripletex(orgId: number) {
@@ -54,7 +103,7 @@ export async function disconnectTripletex(orgId: number) {
 }
 
 async function sessionFor(orgId: number): Promise<string> {
-  if (!tripletexConfigured()) throw new TripletexError("Tripletex-koblingen er ikke satt opp på serveren (TRIPLETEX_CONSUMER_TOKEN og SECRET_KEY).");
+  if (!secretKeyOk()) throw new TripletexError("Tripletex-koblingen er ikke satt opp på serveren (SECRET_KEY).");
   const p = await db();
   const r = (await p.query("SELECT secret, session_token, session_expires FROM integrations WHERE org_id = $1 AND provider = 'tripletex'", [orgId])).rows[0];
   if (!r) throw new TripletexError("Regnskap er ikke koblet til. Leder kobler til under Innstillinger → Regnskap.");
