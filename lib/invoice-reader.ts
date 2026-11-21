@@ -84,7 +84,7 @@ export async function readInvoice(file: { mime: string; data: Buffer; name: stri
         tool_choice: { type: "auto" },
       }),
       signal: AbortSignal.timeout(180_000),
-    });
+    }).catch((e) => { throw new Error(e?.name === "TimeoutError" ? "Claude brukte for lang tid på fakturaen. Prøv igjen." : "Fikk ikke kontakt med Claude. Prøv igjen om litt."); });
     if (!res.ok) throw new Error(await apiError(res));
     const j = await res.json();
     out = j?.content?.find((c: { type: string }) => c.type === "tool_use")?.input as ReadInvoice | undefined;

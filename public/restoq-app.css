@@ -203,3 +203,7 @@ header.top .powered svg{display:inline-block;vertical-align:-2px;margin:0 1px}
 .catcard{padding:12px 14px} .catcard .ct-sub input,.catcard .ct-sub select{min-height:38px;padding:6px 8px}
 .modal:has(.catcard){width:min(820px,96vw)}
 .rvtbl select.wz-cat,.rvtbl select.rv-cat{max-width:170px}
+.wzinvtbl td{vertical-align:middle}
+.wzinvtbl select{width:auto;max-width:280px;min-height:36px;padding:4px 8px}
+.wzinvtbl tr.off td{opacity:.6}
+.wzinvtbl tr.off td:last-child{opacity:1}
