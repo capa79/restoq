@@ -8,7 +8,7 @@
   var html = document.documentElement;
   var lang = html.getAttribute("lang") || "nb";
   var SKIP = "script,style,noscript,textarea,input,code,pre,.iname,[data-no-translate],[translate='no'],.notranslate";
-  var ATTRS = ["placeholder", "aria-label", "title", "alt"];
+  var ATTRS = ["placeholder", "aria-label", "title", "alt", "label"];
   var TOKEN = /(?:^|(?<=[\s(«]))(?:man|tir|ons|tor|fre|lør|søn) \d{1,2}\.\d{1,2}\.\d{2}|\d+(?:[   .,:/]\d+)*/g;
   var WD = {
     en: { man: "Mon", tir: "Tue", ons: "Wed", tor: "Thu", fre: "Fri", "lør": "Sat", "søn": "Sun" },
@@ -93,7 +93,7 @@
       }
     }
     if (start.nodeType !== 1) return;
-    var els = [start].concat(Array.prototype.slice.call(start.querySelectorAll("[placeholder],[aria-label],[title],[alt]")));
+    var els = [start].concat(Array.prototype.slice.call(start.querySelectorAll("[placeholder],[aria-label],[title],[alt],optgroup[label]")));
     els.forEach(function (el) {
       if (el.closest("[data-no-translate],[translate='no'],.notranslate")) return;
       var st = attrOrig.get(el) || {};
@@ -136,7 +136,7 @@
       var add1 = function (s) { s = norm(s); if (!worthy(s)) return; var x = split(s); out[x.vals.length ? x.key : s] = 1; };
       var add = function (s) { s = norm(s); if (s.indexOf(" · ") > -1) s.split(" · ").forEach(add1); else add1(s); };
       for (var n = w.nextNode(); n; n = w.nextNode()) add(n.nodeValue);
-      document.querySelectorAll("[placeholder],[aria-label],[title],[alt]").forEach(function (el) { if (!el.closest("[data-no-translate],[translate='no']")) ATTRS.forEach(function (a) { var v = el.getAttribute(a); if (v) add(v); }); });
+      document.querySelectorAll("[placeholder],[aria-label],[title],[alt],optgroup[label]").forEach(function (el) { if (!el.closest("[data-no-translate],[translate='no']")) ATTRS.forEach(function (a) { var v = el.getAttribute(a); if (v) add(v); }); });
       return Object.keys(out);
     },
   };

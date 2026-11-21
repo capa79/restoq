@@ -877,7 +877,7 @@ const WZ_FIELDS = [['', '– Ikke bruk –'], ['name','Varenavn (må velges)'], 
 /** Hjelpetekst som vises under valget */
 const WZ_HELP = {name:'Navnet slik det står på fakturaen.', qty:'Det dere har på lager i dag. Brukes som første varetelling i steg 3.', bought:'Hvor mye som er kjøpt inn i perioden lista gjelder. Restoq deler på antall uker og får forbruk per uke.', date:'Brukes til å finne hvor lang perioden er.'};
 let WZ = null;
-function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: ''}; }
+function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: '', manual: []}; }
 async function readSheetFile(f){
   if (/\.(xlsx|xlsm|xls|ods|numbers)$/i.test(f.name) || /spreadsheet|excel/i.test(f.type)){
     const fd = new FormData(); fd.append('file', f);
@@ -978,6 +978,7 @@ function wzBuildRows(){
     seen.set(key, row); if (!byName.has(nk)) byName.set(nk, row); out.push(row);
   };
   wzSheetRows().forEach(add);
+  (WZ.manual || []).forEach(add);
   WZ.invoices.filter(v => v.inv && !v.dup).forEach(v => { const sup = v.supCode; v.inv.lines.forEach(l => add({src:'faktura', srcDate: v.inv.invoiceDate || '', srcName: v.inv.invoiceNo, sup, no: l.itemNo || '', name: (l.description || '').toUpperCase(), unit: (l.unit || 'stk').toLowerCase(), price: l.unitPrice ?? (l.qty ? (l.lineTotal || 0) / l.qty : 0), stor: l.storage || normStore(l.category), ...guessCat((l.category || '') + ' ' + (l.description || ''), l.storage), pack: 1, shelf: l.shelfDays ?? null, gtin: l.gtin || '', qty: null})); });
   WZ.rows = out;
 }
@@ -985,6 +986,40 @@ function wzBuildRows(){
 const wzSameInv = (a, b) => (a.name === b.name && a.size && a.size === b.size) || (!!a.inv?.invoiceNo && a.inv?.invoiceNo === b.inv?.invoiceNo && (a.supCode === b.supCode || sameSupName(a.inv.supplierName, b.inv.supplierName)));
 function wzMarkDups(){ WZ.invoices.forEach((v, i) => { v.dup = !!v.inv && WZ.invoices.slice(0, i).some(o => o.inv && !o.dup && wzSameInv(o, v)); }); }
 const wzSupName = c => SET().suppliers[c]?.name || WZ.newSups.find(n => n.code === c)?.sup.name || c;
+/** Legg til en artikkel for hånd i lista i Kom i gang. Uten varenummer får den et RE-nummer når den lagres. */
+function wzAddItemModal(){
+  const set = SET();
+  const sups = [...Object.keys(set.suppliers).map(c => [c, set.suppliers[c].name]), ...WZ.newSups.filter(n => !set.suppliers[n.code]).map(n => [n.code, n.sup.name + ' (ny)'])];
+  const defSup = WZ.supF || WZ.defSup || (sups[0] || [''])[0];
+  modal(`<h3>Legg til artikkel</h3><div class="small muted">Artikkelen legges til lista og opprettes når du fullfører veiviseren. Pris hentes fra leverandørfakturaen.</div>
+    ${sups.length ? '' : '<div class="note warn small"><div>Legg inn minst én leverandør i steg 1 først.</div></div>'}
+    <div class="grid g2"><label class="f">Leverandør<select id="waSup">${sups.map(([c, n]) => `<option value="${esc(c)}" translate="no" ${c === defSup ? 'selected' : ''}>${esc(c)} – ${esc(n)}</option>`).join('')}</select></label>
+      <label class="f">Varenummer hos leverandøren (valgfritt)<input type="text" id="waNo" placeholder="Tomt = RE-nummer fra Restoq"></label></div>
+    <label class="f">Varenavn<input type="text" id="waName" placeholder="f.eks. SMØR USALTET 500G"></label>
+    <div class="grid g2"><label class="f">Enhet<input type="text" id="waUnit" value="stk"></label><label class="f">Antall på lager nå (valgfritt)<input type="text" inputmode="decimal" id="waQty" placeholder="Blir første telling"></label></div>
+    <div class="grid g2"><label class="f">Kategori<select id="waCat">${catOptions('', '')}</select></label><label class="f">Lager<select id="waStor">${STORES.map(x => `<option>${x}</option>`).join('')}</select></label></div>
+    <div class="small muted">Har varen ikke eget nummer hos leverandøren, lager Restoq et unikt nummer automatisk (RE-000001, RE-000002 …).</div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn" id="waMore" ${sups.length ? '' : 'disabled'}>Legg til og ny</button><button class="btn primary" id="waOk" ${sups.length ? '' : 'disabled'}>Legg til</button></div>`, m => {
+    bindCatStor(m, '#waCat', '#waStor');
+    const nameEl = m.querySelector('#waName'); setTimeout(() => nameEl.focus(), 0);
+    m.querySelector('#waName').oninput = () => { const g = guessCat(nameEl.value, ''); const c = m.querySelector('#waCat'); if (!c.dataset.touched && g.group) { c.value = g.group + '|' + g.cat; c.dispatchEvent(new Event('change')); } };
+    m.querySelector('#waCat').addEventListener('change', e => { if (e.isTrusted) e.target.dataset.touched = '1'; });
+    const save = again => {
+      const g = sel => m.querySelector(sel).value.trim();
+      const name = g('#waName').toUpperCase(); if (!name){ toast('Skriv inn varenavn.'); return; }
+      const sup = g('#waSup'), no = g('#waNo');
+      if ((WZ.manual || []).some(x => x.sup === sup && normName(x.name) === normName(name))){ toast('Artikkelen er allerede lagt til.'); return; }
+      WZ.manual = WZ.manual || [];
+      WZ.manual.push({src:'manuell', sup, no, name, unit: (g('#waUnit') || 'stk').toLowerCase(), price: 0, stor: g('#waStor'), ...splitCat(g('#waCat')), pack: 1, shelf: null, manual: null, qty: num(g('#waQty')), exp: null});
+      toast(`Lagt til: ${name}`);
+      if (again){ ['#waNo', '#waName', '#waQty'].forEach(x => m.querySelector(x).value = ''); nameEl.focus(); render(); return; }
+      closeModal(); render();
+    };
+    m.querySelector('#waOk').onclick = () => save(false);
+    m.querySelector('#waMore').onclick = () => save(true);
+    nameEl.onkeydown = e => { if (e.key === 'Enter') save(true); };
+  });
+}
 function wzDelInv(idx){
   const del = new Set(idx); WZ.invoices = WZ.invoices.filter((v, i) => !del.has(i));
   WZ.newSups = WZ.newSups.filter(n => n.fromSheet || WZ.invoices.some(v => v.supCode === n.code));
@@ -1074,10 +1109,11 @@ function vKomigang(){
     const RV = WZ.supF ? R.filter(r => r.sup === WZ.supF) : R;
     if (R.length){
       const sups = [...new Set(R.map(r => r.sup))].sort((a, b) => wzSupName(a).localeCompare(wzSupName(b), 'nb'));
-      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.${R.some(r => r.on && !r.ex && !r.price) ? ` <b>${R.filter(r => r.on && !r.ex && !r.price).length} valgte varer har ingen pris ennå</b> – prisen legges inn fra leverandørfakturaene (last dem opp over, eller under Faktura senere).` : ''}</div></div><div class="row"><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
+      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.${R.some(r => r.on && !r.ex && !r.price) ? ` <b>${R.filter(r => r.on && !r.ex && !r.price).length} valgte varer har ingen pris ennå</b> – prisen legges inn fra leverandørfakturaene (last dem opp over, eller under Faktura senere).` : ''}</div></div><div class="row"><button class="btn sm primary" data-wzadd>+ Legg til artikkel</button><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
         ${sups.length > 1 ? `<div class="chips" style="padding:4px 16px 10px"><button class="chip ${!WZ.supF ? 'on' : ''}" data-wzsf="">Alle leverandører (${R.length})</button>${sups.map(c => `<button class="chip ${WZ.supF === c ? 'on' : ''}" data-wzsf="${esc(c)}"><span translate="no">${esc(c ? wzSupName(c) : 'Uten leverandør')}</span> (${R.filter(r => r.sup === c).length}${R.some(r => r.sup === c && r.on) ? ` · ${R.filter(r => r.sup === c && r.on).length} valgt` : ''})</button>`).join('')}</div>` : ''}
-        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td class="n small">${r.price ? `<span title="Fra faktura ${esc(r.srcName || '')}">${kr2(r.price)}</span>` : '<span class="muted" title="Pris legges inn fra leverandørfakturaen">fra faktura</span>'}</td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : r.src === 'manuell' ? 'Lagt til' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td class="n small">${r.price ? `<span title="Fra faktura ${esc(r.srcName || '')}">${kr2(r.price)}</span>` : '<span class="muted" title="Pris legges inn fra leverandørfakturaen">fra faktura</span>'}</td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
     }
+    if (!R.length) h += `<div class="card row between"><div><h3>Artikler</h3><div class="small muted">Ingen artikler ennå. Last opp en vareliste eller fakturaer over, eller legg til artikler én og én.</div></div><button class="btn primary" data-wzadd>+ Legg til artikkel</button></div>`;
     h += `<div class="row between"><button class="btn" id="wzBack">Tilbake</button><div class="row"><span class="small muted">${R.length ? '' : 'Du kan også hoppe over og legge inn varer senere.'}</span><button class="btn primary lg" id="wzNext" ${WZ.invoices.some(v => v.busy) ? 'disabled' : ''}>${R.length ? 'Neste: beholdning' : 'Hopp over'}</button></div></div>`;
   }
   if (WZ.step === 3){
@@ -1121,6 +1157,7 @@ function vKomigang(){
     const fi = $('#wzInv'); if (fi) fi.onchange = e => { wzReadTable(); wzReadInvoices([...e.target.files].slice(0, 20)); };
     document.querySelectorAll('[data-wzsup]').forEach(sel => sel.onchange = () => { wzReadTable(); const v = WZ.invoices[+sel.dataset.wzsup]; if (sel.value === '__new'){ const n = WZ.newSups.find(n => normName(n.sup.name) === normName(v.inv.supplierName)); v.supCode = n ? n.code : ''; } else v.supCode = sel.value; render(); });
     document.querySelectorAll('tr[data-wzr] .wz-on').forEach(cb => cb.onchange = () => { const r = WZ.rows[+cb.closest('tr').dataset.wzr]; r.on = cb.checked; cb.closest('tr').classList.toggle('off', !cb.checked); });
+    document.querySelectorAll('[data-wzadd]').forEach(b => b.onclick = () => { wzReadTable(); wzAddItemModal(); });
     const inF = r => !WZ.supF || r.sup === WZ.supF;
     const all = $('#wzAll'); if (all) all.onclick = () => { wzReadTable(); WZ.rows.forEach(r => { if (inF(r) && !r.ex && !r.fee && r.sup) r.on = true; }); wzKeep(); render(); };
     const none = $('#wzNone'); if (none) none.onclick = () => { wzReadTable(); WZ.rows.forEach(r => { if (inF(r)) r.on = false; }); wzKeep(); render(); };
@@ -1409,7 +1446,8 @@ function isoWeek(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), 
 /* ---------- dialoger, filer ---------- */
 /* ===== Innkjøpskategorier (hovedkategori › underkategori) ===== */
 const CAT_DEFAULT = [
-  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Grønt', stor:'Kjøl'},{name:'Fryst', stor:'Frys'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
+  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Fryst', stor:'Frys'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
+  {name:'Frukt og grønnsaker', stocked:true, account:'', subs:[{name:'Frukt', stor:'Kjøl'},{name:'Grønnsaker', stor:'Kjøl'},{name:'Salat og urter', stor:'Kjøl'},{name:'Poteter og rotgrønnsaker', stor:'Tørr'}]},
   {name:'Drikke', stocked:true, account:'', subs:[{name:'Alkoholfritt', stor:'Romtemp.'},{name:'Øl og cider', stor:'Kjøl'},{name:'Vin', stor:'Romtemp.'},{name:'Brennevin', stor:'Romtemp.'},{name:'Kaffe og te', stor:'Tørr'}]},
   {name:'Emballasje', stocked:true, account:'', subs:[{name:'Take-away', stor:'Tørr'},{name:'Folie og film', stor:'Tørr'}]},
   {name:'Rengjøring og hygiene', stocked:true, account:'', subs:[{name:'Vask og rengjøring', stor:'Tørr'},{name:'Papir og hygiene', stor:'Tørr'}]},
@@ -1417,9 +1455,22 @@ const CAT_DEFAULT = [
   {name:'Inventar', stocked:false, account:'', subs:[{name:'Maskiner og utstyr', stor:'Romtemp.'},{name:'Møbler', stor:'Romtemp.'},{name:'Servise og glass', stor:'Romtemp.'}]},
   {name:'Annet', stocked:true, account:'', subs:[{name:'Annet', stor:'Tørr'}]},
 ];
-const CATS = () => { const c = SET().categories; return Array.isArray(c) && c.length ? c : CAT_DEFAULT; };
+const FG = 'Frukt og grønnsaker';
+/** Lagrede kategorier fra før «Frukt og grønnsaker» ble egen hovedkategori: legg den inn etter Mat og ta bort Mat › Grønt. */
+function catsMigrated(c){
+  if (c.some(g => g.name === FG)) return c;
+  const fg = JSON.parse(JSON.stringify(CAT_DEFAULT.find(g => g.name === FG)));
+  const out = c.map(g => g.name === 'Mat' ? {...g, subs: g.subs.filter(x => x.name !== 'Grønt')} : g);
+  const i = out.findIndex(g => g.name === 'Mat'); out.splice(i >= 0 ? i + 1 : 0, 0, fg); return out;
+}
+let _catsSrc = null, _catsOut = null;
+const CATS = () => { const c = SET().categories; if (!(Array.isArray(c) && c.length)) return CAT_DEFAULT; if (c !== _catsSrc){ _catsSrc = c; _catsOut = catsMigrated(c); } return _catsOut; };
 const catLabel = (g, c) => g && c && g !== c ? `${g} › ${c}` : (c || g || 'Annet');
-const catOf = it => ({group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat || 'Annet'});
+const catOf = it => {
+  // Varer lagret som Mat › Grønt (før egen hovedkategori) vises som Frukt og grønnsaker › Grønnsaker
+  if (it.cat === 'Grønt' && (!it.group || it.group === 'Mat') && !CATS().some(g => g.name === (it.group || 'Mat') && g.subs.some(x => x.name === 'Grønt'))) return {group: FG, cat: 'Grønnsaker'};
+  return {group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat || 'Annet'};
+};
 const catStocked = g => (CATS().find(x => x.name === g) || {stocked:true}).stocked !== false;
 const subStor = (g, c) => ((CATS().find(x => x.name === g) || {subs:[]}).subs.find(s => s.name === c) || {}).stor || '';
 /** <option>er gruppert per hovedkategori. Verdi «Hoved|Under». */
@@ -1431,7 +1482,10 @@ function catOptions(group, cat){
 const splitCat = v => { const [group, cat] = String(v || '').split('|'); return {group: group || '', cat: cat || group || 'Annet'}; };
 const CAT_WORDS = [
   [/meieri|ost\b|melk|fløte|smør|yoghurt|rømme|egg/i, 'Mat', 'Meieri'], [/kjøtt|kylling|svin|storfe|lam|bacon|pølse|fisk|laks|reke|sjømat|torsk/i, 'Mat', 'Kjøtt og fisk'],
-  [/grønt|grønnsak|frukt|salat|urter|tomat|løk|agurk|potet|sopp|bær/i, 'Mat', 'Grønt'], [/frys|fryst|frossen|frozen|is\b|iskrem/i, 'Mat', 'Fryst'],
+  [/frukt|eple|epler|appelsin|sitron|lime|banan|drue|bær|jordbær|bringebær|blåbær|mango|ananas|pære|melon|kiwi|granateple|clementin|grapefrukt/i, FG, 'Frukt'],
+  [/salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|gressløk|timian|rosmarin|karse/i, FG, 'Salat og urter'],
+  [/potet|gulrot|rotgrønnsak|kålrot|pastinakk|rødbet|selleri(rot)?|søtpotet|jordskokk/i, FG, 'Poteter og rotgrønnsaker'],
+  [/grønt|grønnsak|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|mais\b|erter|bønner|asparges|purre/i, FG, 'Grønnsaker'], [/frys|fryst|frossen|frozen|is\b|iskrem/i, 'Mat', 'Fryst'],
   [/brød|bakst|bolle|brioche|bakeri|kake|baguette|surdeig/i, 'Mat', 'Brød og bakst'], [/tørr|mel\b|ris\b|pasta|sukker|krydder|olje|eddik|hermetikk|saus|nøtter|tørrvare/i, 'Mat', 'Tørrvarer'],
   [/øl\b|pils|ipa|cider|lager\b/i, 'Drikke', 'Øl og cider'], [/vin\b|rødvin|hvitvin|musserende|prosecco|champagne/i, 'Drikke', 'Vin'], [/vodka|gin\b|rom\b|whisk|likør|brennevin|tequila|akevitt/i, 'Drikke', 'Brennevin'],
   [/kaffe|espresso|\bte\b|kakao/i, 'Drikke', 'Kaffe og te'], [/drikke|brus|cola|juice|vann\b|mineralvann|energi|red bull|tonic|saft/i, 'Drikke', 'Alkoholfritt'],
