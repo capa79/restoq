@@ -19,7 +19,7 @@ export default function Privacy() {
         <h2>Informasjonskapsler</h2>
         <p>Vi bruker bare én nødvendig informasjonskapsel for å holde deg innlogget. Vi bruker ikke analyse- eller reklamekapsler.</p>
         <h2>Lagring og underleverandører</h2>
-        <p>Data lagres hos våre underleverandører for drift (Render) og database (Neon) på servere i EU. E-post sendes via Resend. Kobler kunden til Tripletex, sendes fakturaer og bilag dit etter kundens instruks.</p>
+        <p>Data lagres hos våre underleverandører for drift (Render) og database (Neon) på servere i EU. E-post sendes via Resend. Kobler kunden til Tripletex, sendes fakturaer og bilag dit etter kundens instruks. Velger kunden automatisk lesing av fakturaer, sendes fakturaen til Anthropic (Claude) for tolkning; Anthropic bruker ikke data fra API-et til å trene modeller.</p>
         <h2>Dine rettigheter</h2>
         <p>Du kan be om innsyn, retting og sletting, og klage til Datatilsynet. Kontakt oss på {contact}.</p>
       </main>

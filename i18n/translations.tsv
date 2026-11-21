@@ -724,3 +724,65 @@ Kunne ikke hente status.	Could not load the status.	Der Status konnte nicht gela
 Kunne ikke hente nøkler.	Could not load keys.	Die Schlüssel konnten nicht geladen werden.	Nie udało się pobrać kluczy.	No se pudieron cargar las claves.
 Ingen API-nøkler.	No API keys.	Keine API-Schlüssel.	Brak kluczy API.	No hay claves API.
 (deg)	(you)	(du)	(ty)	(tú)
+Avskrivning	Write-offs	Abschreibungen	Odpisy	Bajas
++ Avskrivning	+ Write-off	+ Abschreibung	+ Odpis	+ Baja
+Ny avskrivning	New write-off	Neue Abschreibung	Nowy odpis	Nueva baja
+Registrer avskrivning	Log write-off	Abschreibung erfassen	Zarejestruj odpis	Registrar baja
+Hva avskrives mest – og hvorfor	What is written off most – and why	Was am meisten abgeschrieben wird – und warum	Co jest najczęściej odpisywane – i dlaczego	Qué se da de baja más – y por qué
+Avskrevet	Written off	Abgeschrieben	Odpisano	Dado de baja
+Av varekjøp	Of purchases	Vom Wareneinkauf	Z zakupów	De las compras
+Største årsak	Main reason	Hauptgrund	Główna przyczyna	Causa principal
+Mest avskrevne vare	Most written-off item	Am meisten abgeschriebener Artikel	Najczęściej odpisywany towar	Artículo más dado de baja
+Hva kan gjøres	What can be done	Was getan werden kann	Co można zrobić	Qué se puede hacer
+Etter årsak	By reason	Nach Grund	Według przyczyny	Por causa
+Etter kategori	By category	Nach Kategorie	Według kategorii	Por categoría
+Topp 10 varer	Top 10 items	Top 10 Artikel	10 najczęstszych towarów	Los 10 artículos principales
+Sortert etter verdi i perioden	Sorted by value in the period	Nach Wert im Zeitraum sortiert	Posortowane według wartości w okresie	Ordenado por valor en el periodo
+Ganger	Times	Mal	Razy	Veces
+Hovedårsak	Main reason	Hauptgrund	Główna przyczyna	Causa principal
+Andel	Share	Anteil	Udział	Proporción
+Last ned (CSV)	Download (CSV)	Herunterladen (CSV)	Pobierz (CSV)	Descargar (CSV)
+Siste 30 dager	Last 30 days	Letzte 30 Tage	Ostatnie 30 dni	Últimos 30 días
+Denne måneden	This month	Dieser Monat	Ten miesiąc	Este mes
+Forrige måned	Last month	Letzter Monat	Poprzedni miesiąc	Mes anterior
+Siste 3 måneder	Last 3 months	Letzte 3 Monate	Ostatnie 3 miesiące	Últimos 3 meses
+I år	This year	Dieses Jahr	W tym roku	Este año
+Alt	All	Alle	Wszystko	Todo
+Ingen avskrivninger i perioden.	No write-offs in the period.	Keine Abschreibungen im Zeitraum.	Brak odpisów w tym okresie.	No hay bajas en el periodo.
+Ingen avskrivninger registrert ennå.	No write-offs logged yet.	Noch keine Abschreibungen erfasst.	Nie zarejestrowano jeszcze odpisów.	Aún no hay bajas registradas.
+Brekkasje	Breakage	Bruch	Stłuczka	Rotura
+Utgått på dato	Past expiry date	Abgelaufen	Po terminie	Caducado
+Bedervet / feil oppbevaring	Spoiled / wrong storage	Verdorben / falsche Lagerung	Zepsute / złe przechowywanie	Estropeado / mal almacenado
+Feil i produksjon	Production error	Fehler in der Produktion	Błąd w produkcji	Error de producción
+Overproduksjon	Overproduction	Überproduktion	Nadprodukcja	Sobreproducción
+Returnert av gjest	Returned by guest	Vom Gast zurückgegeben	Zwrócone przez gościa	Devuelto por el cliente
+Personalmat	Staff meals	Personalessen	Posiłki dla personelu	Comida del personal
+Representasjon	Hospitality	Bewirtung	Reprezentacja	Representación
+Annet	Other	Sonstiges	Inne	Otro
+uttak	withdrawal	Entnahme	pobranie	retirada
+Utvikling per uke	Trend per week	Entwicklung pro Woche	Trend tygodniowy	Evolución por semana
+Utvikling per måned	Trend per month	Entwicklung pro Monat	Trend miesięczny	Evolución por mes
+− Avskrevet siden telling	− Written off since count	− Abgeschrieben seit Zählung	− Odpisano od inwentaryzacji	− Dado de baja desde el recuento
++ Legg inn varer	+ Add items	+ Artikel hinzufügen	+ Dodaj towary	+ Añadir artículos
+Legg inn varer	Add items	Artikel hinzufügen	Dodaj towary	Añadir artículos
+Skriv inn manuelt	Enter manually	Manuell eingeben	Wpisz ręcznie	Introducir manualmente
+Fra faktura	From invoice	Aus Rechnung	Z faktury	Desde factura
+Varer fra faktura	Items from invoice	Artikel aus Rechnung	Towary z faktury	Artículos de la factura
+Varer fra fakturaen	Items from the invoice	Artikel aus der Rechnung	Towary z faktury	Artículos de la factura
+Importer vareliste (Excel/CSV)	Import item list (Excel/CSV)	Artikelliste importieren (Excel/CSV)	Importuj listę towarów (Excel/CSV)	Importar lista de artículos (Excel/CSV)
+Gå videre til varene	Continue to items	Weiter zu den Artikeln	Przejdź do towarów	Continuar a los artículos
+Lagre varer og priser	Save items and prices	Artikel und Preise speichern	Zapisz towary i ceny	Guardar artículos y precios
+Hopp over	Skip	Überspringen	Pomiń	Omitir
+Nye priser	New prices	Neue Preise	Nowe ceny	Precios nuevos
+På fakturaen	On the invoice	Auf der Rechnung	Na fakturze	En la factura
+Endring	Change	Änderung	Zmiana	Cambio
+✨ Les fakturaen	✨ Read the invoice	✨ Rechnung lesen	✨ Odczytaj fakturę	✨ Leer la factura
+📎 Velg faktura (PDF, bilde eller EHF)	📎 Choose invoice (PDF, image or EHF)	📎 Rechnung wählen (PDF, Bild oder EHF)	📎 Wybierz fakturę (PDF, obraz lub EHF)	📎 Elegir factura (PDF, imagen o EHF)
+Registrer også fakturaen for kontroll mot bestilling og varemottak	Also register the invoice for checking against order and goods receipt	Rechnung auch zur Prüfung gegen Bestellung und Wareneingang erfassen	Zarejestruj też fakturę do kontroli z zamówieniem i przyjęciem	Registrar también la factura para cotejarla con pedido y recepción
+Opprett leverandør	Create supplier	Lieferant anlegen	Utwórz dostawcę	Crear proveedor
+Topp 10 kasserte varer	Top 10 discarded items	Top 10 entsorgte Artikel	10 najczęściej wyrzucanych towarów	Los 10 artículos más desechados
+Sortert etter verdi i perioden. Personalmat og representasjon er holdt utenfor.	Sorted by value in the period. Staff meals and hospitality are excluded.	Nach Wert im Zeitraum sortiert. Personalessen und Bewirtung sind ausgenommen.	Posortowane według wartości w okresie. Posiłki dla personelu i reprezentacja są wyłączone.	Ordenado por valor en el periodo. Se excluyen comida del personal y representación.
+Kassert etter kategori	Discarded by category	Entsorgt nach Kategorie	Wyrzucone według kategorii	Desechado por categoría
+Ingenting kassert.	Nothing discarded.	Nichts entsorgt.	Nic nie wyrzucono.	Nada desechado.
+Ingenting kassert i perioden.	Nothing discarded in the period.	Im Zeitraum nichts entsorgt.	W tym okresie nic nie wyrzucono.	Nada desechado en el periodo.
+bare uttak i perioden	only withdrawals in the period	nur Entnahmen im Zeitraum	tylko pobrania w tym okresie	solo retiradas en el periodo

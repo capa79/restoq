@@ -17,6 +17,11 @@ Norsk, engelsk, tysk, polsk og spansk. Språkvelgeren (flagget) ligger i toppen 
 - Tall og datoer i en tekst erstattes med `{0}`, `{1}` … før oppslag, så «3 varer · 2 407 kr» slås opp som «{0} varer · {1} kr». Ukedager i datoer oversettes. Linjer med « · » oversettes del for del.
 - Varenavn (`.iname`), leverandørnavn og alt merket `translate="no"` eller `data-no-translate` oversettes ikke. Admin- og utviklersidene er bare på norsk.
 - Kilde for alle oversettelser: `i18n/translations.tsv` (kolonner nb, en, de, pl, es). Kjør `npm run i18n` etter endringer (skjer også ved `npm run build`).
+## Avskrivning og varer fra faktura
+
+- **Avskrivning** (tidligere Svinn): brekkasje, utgått på dato, bedervet/feil oppbevaring, feil i produksjon, overproduksjon, returnert av gjest, personalmat, representasjon og annet. Oversikt per periode over hva som avskrives mest og hvorfor: andel av varekjøp, største årsak, topp 10 varer, kategori, utvikling og forslag til tiltak. Personalmat og representasjon er uttak (mval. § 8-3 første ledd bokstav d og e, § 3-21) og holdes utenfor svinnet. CSV-eksport skiller kassert og uttak.
+- **Legg inn varer** manuelt, fra Excel/CSV eller fra faktura. En opplastet faktura leses av Claude (leverandør, linjer, priser, mva); nye varer opprettes og endrede priser oppdateres først etter godkjenning. Prisendringer lagres som prishistorikk på varen.
+
 - Tekster som mangler oversettelse når en bruker ser dem, meldes til serveren og vises under **Utvikler → Oversettelser**. Der kan de oversettes eller rettes direkte (lagres i databasen og går foran ordboka), kopieres som oppgave, eller oversettes automatisk med Claude hvis `ANTHROPIC_API_KEY` er satt.
 
 ## Tilbakemeldinger, feillogg og utviklerside
@@ -89,7 +94,8 @@ Se `/api-dokumentasjon`. Nøkler lages av leder under Innstillinger → API-nøk
 | `RESEND_API_KEY` / `MAIL_FROM` | E-post (invitasjoner, henvendelser). Domenet restoq.no må bekreftes hos Resend |
 | `LEADS_EMAIL` | Mottaker av henvendelser fra forsiden (ellers `ADMIN_EMAIL`) |
 | `TRIPLETEX_CONSUMER_TOKEN` / `TRIPLETEX_ENV` / `TRIPLETEX_PAYMENT_TYPE` | Tripletex (se over) |
-| `ANTHROPIC_API_KEY` / `RESTOQ_AI_MODEL` | Valgfri. Automatisk oversettelse av manglende tekster på utviklersiden (standard modell claude-haiku-5-5) |
+| `ANTHROPIC_API_KEY` | Valgfri. Slår på automatisk lesing av fakturaer (PDF, bilde, EHF) og automatisk oversettelse på utviklersiden. Maks 150 fakturalesinger per kunde per døgn |
+| `RESTOQ_INVOICE_MODEL` / `RESTOQ_AI_MODEL` | Valgfri. Modell for fakturalesing (standard claude-sonnet-5-5) og oversettelse (standard claude-haiku-5-5) |
 | `LEGAL_ENTITY` / `LEGAL_ORGNR` / `PRIVACY_CONTACT` | Selskapet bak Restoq, vises i bunntekst og personvernerklæring |
 
 Tabellene opprettes automatisk første gang appen kobler til databasen.

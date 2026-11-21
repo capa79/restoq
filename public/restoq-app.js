@@ -7,7 +7,20 @@ const BASE_ITEMS = SEED.items;
 const FREQ_DEFAULT = {'Kjøl':3.5, 'Frys':7, 'Tørr':14, 'Romtemp.':14};
 const FREQ_TXT = {'Kjøl':'Ferskvare: 2 ganger i uka', 'Frys':'Frysevarer: 1 gang i uka', 'Tørr':'Tørrvare: annenhver uke', 'Romtemp.':'Romtemperatur (drikke, emballasje): annenhver uke'};
 const DAY = 864e5;
-const REASONS = ['Utgått på dato','Skadet','Feil i produksjon','Personalmat','Annet'];
+const WASTE_REASONS = [
+  {k:'Brekkasje', t:'kassert', tip:'Se på hyller, håndtering og emballasje – hvor og når skjer det, og ved hvilke oppgaver?'},
+  {k:'Utgått på dato', t:'kassert', tip:'Bestill mindre eller oftere, og bruk eldste pakning først (først inn, først ut).'},
+  {k:'Bedervet / feil oppbevaring', t:'kassert', tip:'Sjekk temperaturen i kjøl og frys, og at varer pakkes, merkes og dekkes riktig.'},
+  {k:'Feil i produksjon', t:'kassert', tip:'Gå gjennom oppskrift, utstyr og opplæring.'},
+  {k:'Overproduksjon', t:'kassert', tip:'Juster preppmengdene etter forventet salg og ukedag.'},
+  {k:'Returnert av gjest', t:'kassert', tip:'Følg opp kvalitet, porsjoner og bestillinger fra salen.'},
+  {k:'Personalmat', t:'uttak'},
+  {k:'Representasjon', t:'uttak'},
+  {k:'Annet', t:'kassert', tip:'Skriv en kort kommentar ved hver registrering, så blir mønsteret lettere å se.'}];
+const REASONS = WASTE_REASONS.map(r => r.k);
+const REASON_ALIAS = {'Skadet':'Brekkasje'};
+const reasonOf = r => REASON_ALIAS[r] || r || 'Annet';
+const reasonInfo = r => WASTE_REASONS.find(x => x.k === reasonOf(r)) || {k:reasonOf(r), t:'kassert'};
 const STORES = ['Kjøl','Frys','Tørr','Romtemp.'];
 const WD = ['søn','man','tir','ons','tor','fre','lør'];
 const WDL = ['søndag','mandag','tirsdag','onsdag','torsdag','fredag','lørdag'];
@@ -82,7 +95,7 @@ function applyDocs(d){
 async function apiLoad(first){
   try {
     const j = await api('GET', '/api/data');
-    applyDocs(j.docs); S.me = j.me; S.canManage = !!j.me.canManage; S.mode = 'shared'; S.ready = true;
+    applyDocs(j.docs); S.me = j.me; S.features = j.features || {}; S.canManage = !!j.me.canManage; S.mode = 'shared'; S.ready = true;
   } catch(e){ if (e && e.code === 'auth') return; S.mode = 'error'; S.ready = true; }
   // Ikke tegn siden på nytt midt i skriving, i en dialog eller i innstillingene
   const ae = document.activeElement; const busy = !first && ((ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) || $('#layer').innerHTML || view === 'oppsett' || countDirty || countSaving);
@@ -242,7 +255,7 @@ const TABS = [
   ['bestill','Bestill','<path d="M7 18a2 2 0 1 0 0 4 2 2 0 0 0 0-4zm10 0a2 2 0 1 0 0 4 2 2 0 0 0 0-4zM5.2 5H21l-2 8H7.4l-.4 2H19v2H4.6l1.6-8L4 3H1V1h4.2z"/>'],
   ['mottak','Varemottak','<path d="M20 8h-3V4H3a2 2 0 0 0-2 2v11h2a3 3 0 0 0 6 0h6a3 3 0 0 0 6 0h2v-5zM6 18.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3zm13.5-9 2 2.5H17V9.5zM18 18.5a1.5 1.5 0 1 1 0-3 1.5 1.5 0 0 1 0 3z"/>'],
   ['telling','Varetelling','<path d="M19 3h-4.2A3 3 0 0 0 12 1a3 3 0 0 0-2.8 2H5a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V5a2 2 0 0 0-2-2zm-7 0a1 1 0 1 1 0 2 1 1 0 0 1 0-2zm-2 14-4-4 1.4-1.4L10 14.2l6.6-6.6L18 9z"/>'],
-  ['svinn','Svinn','<path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"/>'],
+  ['svinn','Avskrivning','<path d="M6 19a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2V7H6zM19 4h-3.5l-1-1h-5l-1 1H5v2h14z"/>'],
   ['varer','Varer','<path d="M4 6h16v2H4zm0 5h16v2H4zm0 5h16v2H4z"/>'],
   ['faktura','Faktura','<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9zM8 13h8v2H8zm0 4h8v2H8z"/>'],
 ].filter(t => t[0] !== 'faktura' || MODE_API);
@@ -294,7 +307,7 @@ function vOversikt(){
   const today = C.today;
   const due = openO.filter(o => o.deliveryDate <= today);
   let h = `<div class="row between"><div><h2>God ${greet()}</h2><div class="muted">${cap(WDL[pd(today).getDay()])} ${fmtD(today)} · forventet matsalg ${kr(C.sales)} per uke</div></div>
-    <div class="row"><button class="btn" data-go="svinn">+ Registrer svinn</button><button class="btn primary" data-go="bestill">Lag bestilling</button></div></div>`;
+    <div class="row"><button class="btn" data-go="svinn">+ Avskrivning</button><button class="btn primary" data-go="bestill">Lag bestilling</button></div></div>`;
   h += roNote();
   if (S.mode === 'local') h += `<div class="note warn"><b>Lagres bare på denne enheten.</b>&nbsp;Åpne appen innlogget via lenken fra eier, så deler alle ansatte samme tall.</div>`;
   if (!getItems().length) h += `<div class="note info"><div><b>Kom i gang:</b> ${S.canManage ? 'legg inn leverandørene under Innstillinger, og importer varelista under Varer (Excel/CSV). Deretter teller dere varelageret.' : 'leder må legge inn leverandører og varer før dere kan telle og bestille.'}<div class="row" style="margin-top:10px">${S.canManage ? '<button class="btn primary" data-go="oppsett">Innstillinger</button><button class="btn" data-go="varer">Importer varer</button>' : ''}</div></div></div>`;
@@ -502,26 +515,88 @@ function finishCount(draft, prev, items){
 }
 
 /* ================= SVINN ================= */
+const W_PERIODS = [['30','Siste 30 dager'],['mnd','Denne måneden'],['fmnd','Forrige måned'],['90','Siste 3 måneder'],['aar','I år'],['alle','Alt']];
+function wRange(p){
+  const t = C.today, m1 = t.slice(0,7) + '-01';
+  if (p === '30') return [addDays(t,-29), t];
+  if (p === '90') return [addDays(t,-89), t];
+  if (p === 'mnd') return [m1, t];
+  if (p === 'fmnd'){ const e = addDays(m1,-1); return [e.slice(0,7) + '-01', e]; }
+  if (p === 'aar') return [t.slice(0,4) + '-01-01', t];
+  return ['0000-01-01', t];
+}
+const isoMon = d => { const x = new Date(d + 'T12:00:00'); const wd = (x.getDay() + 6) % 7; return addDays(d, -wd); };
+const wbar = (label, v, max, right, cls='') => `<div class="wbar ${cls}"><span class="wbar-l">${label}</span><span class="wbar-t"><i style="width:${max > 0 ? Math.max(2, v / max * 100) : 0}%"></i></span><span class="wbar-v">${right}</span></div>`;
+const pct = (a, b) => b > 0 ? nf1.format(a / b * 100) + ' %' : '–';
+
 function vSvinn(){
   const items = getItems(); if (!UI.wDate) UI.wDate = C.today;
-  const sel = UI.wItem ? items.find(i => i.id === UI.wItem) : null;
+  const byId = Object.fromEntries(items.map(i => [i.id, i]));
+  const sel = UI.wItem ? byId[UI.wItem] : null;
   const sq = UI.wSearch.trim().toLowerCase();
   const hits = sq && !sel ? items.filter(i => (i.name+' '+i.no).toLowerCase().includes(sq)).slice(0,8) : [];
-  const month = C.today.slice(0,7);
   const list = [...S.waste].sort((a,b) => a.date < b.date ? 1 : a.date > b.date ? -1 : (b.ts||0)-(a.ts||0));
-  const thisM = list.filter(w => w.date.slice(0,7) === month);
-  const byR = {}; thisM.forEach(w => byR[w.reason] = (byR[w.reason]||0) + (w.value||0));
-  const totM = thisM.reduce((s,w)=>s+(w.value||0),0);
-  let h = `<div><h2>Svinn</h2><div class="muted">Registrer alt som kastes, samme dag. Svinnet trekkes fra lageret og viser hva utgått og skadet vare koster.</div></div>` + roNote();
-  h += `<div class="card grid" style="gap:14px"><h3>Ny registrering</h3>`;
+  const ri = reasonInfo(UI.wReason);
+
+  let h = `<div><h2>Avskrivning</h2><div class="muted">Registrer alt som kastes eller tas ut av lageret, samme dag: brekkasje, utgått dato, bedervet vare, feil i produksjon, personalmat. Det trekkes fra lageret og viser hva som avskrives mest – og hvorfor.</div></div>` + roNote();
+  h += `<div class="card grid" style="gap:14px"><h3>Ny avskrivning</h3>`;
   h += sel ? `<div class="row between note good" style="margin:0"><div><div class="iname">${esc(sel.name)}</div><div class="isub">${sel.sup} ${esc(sel.no)} · ${esc(sel.unit)} · ${kr(sel.price)}/${esc(sel.unit)}</div></div><button class="btn sm" id="wClear">Bytt vare</button></div>`
-    : `<label class="f">Hvilken vare?<input type="search" id="wSearch" placeholder="Skriv navn, f.eks. «melk» eller «brioche»" value="${esc(UI.wSearch)}" autocomplete="off"></label>${hits.length?`<div class="card flush">${hits.map(i=>`<div class="countrow click" data-pick="${esc(i.id)}" style="grid-template-columns:1fr auto;cursor:pointer"><div><div class="iname">${esc(i.name)}</div><div class="isub">${i.sup} ${esc(i.no)} · ${esc(i.stor)}</div></div><span class="muted">${esc(i.unit)}</span></div>`).join('')}</div>`:sq?'<div class="small muted">Ingen treff.</div>':''}`;
+    : `<label class="f">Hvilken vare?<input type="search" id="wSearch" placeholder="Skriv navn, f.eks. «melk» eller «vinglass»" value="${esc(UI.wSearch)}" autocomplete="off"></label>${hits.length?`<div class="card flush">${hits.map(i=>`<div class="countrow click" data-pick="${esc(i.id)}" style="grid-template-columns:1fr auto;cursor:pointer"><div><div class="iname">${esc(i.name)}</div><div class="isub">${i.sup} ${esc(i.no)} · ${esc(i.stor)}</div></div><span class="muted">${esc(i.unit)}</span></div>`).join('')}</div>`:sq?'<div class="small muted">Ingen treff.</div>':''}`;
   h += `<div class="grid g2"><label class="f">Antall${sel?' ('+esc(sel.unit)+')':''}<input type="text" inputmode="decimal" id="wQty" value="${esc(UI.wQty)}" placeholder="f.eks. 2 eller 0,5"></label><label class="f">Dato<input type="date" id="wDate" value="${UI.wDate}"></label></div>
-    <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Årsak<div class="chips">${REASONS.map(r=>`<button class="chip ${UI.wReason===r?'on':''}" data-reason="${r}">${r}</button>`).join('')}</div></div>
-    <label class="f">Kommentar (valgfritt)<input type="text" id="wComment" value="${esc(UI.wComment)}" placeholder="f.eks. kjøleskap 2 for varmt"></label>
-    <div class="row between"><span class="muted">${sel && num(UI.wQty) ? 'Verdi: <b>'+kr(num(UI.wQty)*sel.price)+'</b>' : ''}</span><button class="btn primary lg" id="wSave" ${sel && num(UI.wQty) > 0 && S.canWrite ? '' : 'disabled'}>Registrer svinn</button></div></div>`;
-  h += `<div class="grid g4"><div class="tile amber"><span class="lbl">Svinn denne måneden</span><span class="big">${kr(totM)}</span><span class="small muted">${thisM.length} registreringer</span></div>${REASONS.slice(0,3).map(r=>`<div class="tile"><span class="lbl">${r}</span><span class="big">${kr(byR[r]||0)}</span></div>`).join('')}</div>`;
-  h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Siste registreringer</h3></div>${list.length?`<div class="tblwrap"><table><thead><tr><th>Dato</th><th>Vare</th><th class="n">Antall</th><th>Årsak</th><th class="n">Verdi</th><th></th></tr></thead><tbody>${list.slice(0,60).map(w=>{ const i = items.find(x=>x.id===w.itemId)||{name:w.itemId,unit:''}; return `<tr><td>${fmtDL(w.date)}</td><td><div class="iname">${esc(i.name)}</div>${w.comment?`<div class="isub">${esc(w.comment)}</div>`:''}</td><td class="n">${q(w.qty)} ${esc(i.unit)}</td><td>${esc(w.reason)}</td><td class="n">${kr(w.value)}</td><td class="n"><button class="btn sm danger" data-wdel="${w.id}" aria-label="Slett" ${ro()}>Slett</button></td></tr>`; }).join('')}</tbody></table></div>`:'<div class="empty">Ingen svinn registrert ennå.</div>'}</div>`;
+    <div class="f" style="display:flex;flex-direction:column;gap:6px;font-size:14px;font-weight:600;color:var(--muted)">Årsak<div class="chips">${WASTE_REASONS.map(r=>`<button class="chip ${reasonOf(UI.wReason)===r.k?'on':''}" data-reason="${esc(r.k)}">${esc(r.k)}</button>`).join('')}</div>${ri.t==='uttak'?'<span class="small" style="font-weight:400">Føres som uttak, ikke svinn (se merknad i oversikten).</span>':''}</div>
+    <label class="f">Kommentar${ri.k==='Annet'||ri.k==='Brekkasje'?' (hva skjedde?)':' (valgfritt)'}<input type="text" id="wComment" value="${esc(UI.wComment)}" placeholder="${ri.k==='Brekkasje'?'f.eks. mistet kasse ved varemottak':'f.eks. kjøleskap 2 for varmt'}"></label>
+    <div class="row between"><span class="muted">${sel && num(UI.wQty) ? 'Verdi: <b>'+kr(num(UI.wQty)*sel.price)+'</b>' : ''}</span><button class="btn primary lg" id="wSave" ${sel && num(UI.wQty) > 0 && S.canWrite ? '' : 'disabled'}>Registrer avskrivning</button></div></div>`;
+
+  // ---------- oversikt ----------
+  const per = UI.wPer || '30'; const [from, to] = wRange(per);
+  const inP = S.waste.filter(w => w.date >= from && w.date <= to);
+  const val = w => w.value || 0;
+  const tot = inP.reduce((s,w) => s + val(w), 0);
+  const utt = inP.filter(w => reasonInfo(w.reason).t === 'uttak'); const uttV = utt.reduce((s,w)=>s+val(w),0);
+  const kassV = tot - uttV;
+  const buy = S.orders.filter(o => o.status === 'mottatt' && o.deliveryDate >= from && o.deliveryDate <= to).reduce((s,o) => s + o.lines.reduce((a,l) => a + (l.recv != null ? l.recv : l.qty) * (l.price ?? byId[l.id]?.price ?? 0), 0), 0);
+  const byR = {}; inP.forEach(w => { const k = reasonOf(w.reason); (byR[k] ??= {v:0, n:0}); byR[k].v += val(w); byR[k].n++; });
+  const reasons = Object.entries(byR).sort((a,b) => b[1].v - a[1].v);
+  const kass = inP.filter(w => reasonInfo(w.reason).t !== 'uttak');
+  const byI = {}; kass.forEach(w => { const x = (byI[w.itemId] ??= {v:0, q:0, n:0, r:{}}); x.v += val(w); x.q += w.qty || 0; x.n++; const k = reasonOf(w.reason); x.r[k] = (x.r[k]||0) + val(w); });
+  const topI = Object.entries(byI).sort((a,b) => b[1].v - a[1].v).slice(0, 10);
+  const byS = {}; kass.forEach(w => { const s = byId[w.itemId]?.cat || 'Ukjent'; byS[s] = (byS[s]||0) + val(w); });
+  const cats = Object.entries(byS).sort((a,b) => b[1]-a[1]).slice(0, 8);
+  const days = Math.round((new Date(to) - new Date(from === '0000-01-01' ? (S.waste.map(w=>w.date).sort()[0] || to) : from)) / 864e5) + 1;
+  const monthly = days > 100;
+  const bucket = d => monthly ? d.slice(0,7) : isoMon(d);
+  const trend = {}; inP.forEach(w => { const b = bucket(w.date); trend[b] = (trend[b]||0) + val(w); });
+  const tKeys = Object.keys(trend).sort().slice(-14); const tMax = Math.max(0, ...tKeys.map(k => trend[k]));
+  const mainR = r => Object.entries(r).sort((a,b) => b[1]-a[1])[0]?.[0] || '';
+
+  h += `<div class="row between" style="margin-top:6px"><h2 style="font-size:22px">Hva avskrives mest – og hvorfor</h2><button class="btn sm" id="wCsv" ${inP.length?'':'disabled'}>Last ned (CSV)</button></div>
+    <div class="chips">${W_PERIODS.map(([k,l]) => `<button class="chip ${per===k?'on':''}" data-wper="${k}">${l}</button>`).join('')}</div>`;
+  if (!inP.length){
+    h += `<div class="card"><div class="empty">Ingen avskrivninger i perioden.</div></div>`;
+  } else {
+    const top = topI[0]; const topItem = top && byId[top[0]];
+    const rK = reasons.filter(([k]) => reasonInfo(k).t !== 'uttak');
+    h += `<div class="grid g4">
+      <div class="tile amber"><span class="lbl">Avskrevet</span><span class="big">${kr(tot)}</span><span class="small muted">${inP.length} registreringer</span></div>
+      <div class="tile"><span class="lbl">Av varekjøp</span><span class="big">${pct(kassV, buy)}</span><span class="small muted">kassert ${kr(kassV)} av ${buy ? kr(buy) : 'ingen'} mottatt</span></div>
+      <div class="tile"><span class="lbl">Største årsak</span><span class="big" style="font-size:22px">${rK.length ? esc(rK[0][0]) : '–'}</span><span class="small muted">${rK.length ? kr(rK[0][1].v) + ' · ' + pct(rK[0][1].v, kassV) + ' av kassert' : 'bare uttak i perioden'}</span></div>
+      <div class="tile"><span class="lbl">Mest avskrevne vare</span><span class="big" style="font-size:18px;line-height:1.2">${esc(topItem?.name || top?.[0] || '–')}</span><span class="small muted">${top ? kr(top[1].v) + ' · ' + esc(mainR(top[1].r)) : ''}</span></div></div>`;
+    // tiltak
+    const tips = [];
+    const topK = reasons.find(([k]) => reasonInfo(k).t === 'kassert');
+    if (topK) tips.push(`<b>${esc(topK[0])}</b> står for ${pct(topK[1].v, kassV)} av det som kastes (${kr(topK[1].v)}). ${esc(reasonInfo(topK[0]).tip || '')}`);
+    if (top && topItem){ const mr = mainR(top[1].r); tips.push(`<b>${esc(topItem.name)}</b> er avskrevet ${top[1].n} ${top[1].n === 1 ? 'gang' : 'ganger'} (${q(top[1].q)} ${esc(topItem.unit)}), mest på grunn av ${esc(mr.toLowerCase())}.${mr === 'Utgått på dato' ? ` Vurder lavere mållager eller mindre pakning${topItem.pack > 1 ? ` (bestilles nå i pakninger à ${q(topItem.pack)})` : ''}.` : ''}`); }
+    if (buy && kassV / buy > 0.04) tips.push(`Kassert vare er ${pct(kassV, buy)} av varekjøpet i perioden. Mange kjøkken jobber mot under 3–4 %.`);
+    h += `<div class="card"><h3 style="margin-bottom:8px">Hva kan gjøres</h3><ul class="wtips">${tips.map(t => `<li>${t}</li>`).join('')}</ul></div>`;
+    const rMax = reasons[0][1].v;
+    h += `<div class="grid g2" style="align-items:start">
+      <div class="card"><h3 style="margin-bottom:10px">Etter årsak</h3>${reasons.map(([k,x]) => wbar(`${esc(k)}${reasonInfo(k).t==='uttak'?' <span class="pill p-tell" style="font-size:11px">uttak</span>':''}`, x.v, rMax, `${kr(x.v)} <span class="muted">· ${pct(x.v, tot)} · ${x.n}×</span>`, reasonInfo(k).t)).join('')}</div>
+      <div class="card"><h3 style="margin-bottom:10px">Kassert etter kategori</h3>${cats.length ? cats.map(([k,v]) => wbar(esc(k), v, cats[0][1], `${kr(v)} <span class="muted">· ${pct(v, kassV)}</span>`)).join('') : '<div class="empty">Ingenting kassert.</div>'}</div></div>`;
+    h += `<div class="card"><h3 style="margin-bottom:10px">Utvikling per ${monthly ? 'måned' : 'uke'}</h3><div class="wtrend">${tKeys.map(k => `<div class="wtcol" title="${kr(trend[k])}"><span class="wtv">${trend[k] >= 1000 ? nf0.format(trend[k]/1000) + 'k' : nf0.format(trend[k])}</span><i style="height:${tMax ? Math.max(3, trend[k]/tMax*100) : 0}%"></i><span class="wtl">${monthly ? k.slice(5,7) + '.' + k.slice(2,4) : 'u. ' + fmtD(k)}</span></div>`).join('')}</div></div>`;
+    h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Topp 10 kasserte varer</h3><div class="small muted">Sortert etter verdi i perioden. Personalmat og representasjon er holdt utenfor.</div></div><div class="tblwrap"><table><thead><tr><th>Vare</th><th class="n">Ganger</th><th class="n">Antall</th><th>Hovedårsak</th><th class="n">Verdi</th><th class="n">Andel</th></tr></thead><tbody>${topI.map(([id, x]) => { const i = byId[id] || {name:id, unit:''}; const others = Object.entries(x.r).sort((a,b)=>b[1]-a[1]).slice(1,3).map(([k])=>k).join(', '); return `<tr class="click" data-item="${esc(id)}"><td><div class="iname">${esc(i.name)}</div><div class="isub">${esc(i.cat||'')}${i.stor?' · '+esc(i.stor):''}</div></td><td class="n">${x.n}</td><td class="n">${q(x.q)} ${esc(i.unit)}</td><td>${esc(mainR(x.r))}${others?`<div class="isub">også ${esc(others.toLowerCase())}</div>`:''}</td><td class="n"><b>${kr(x.v)}</b></td><td class="n">${pct(x.v, kassV)}</td></tr>`; }).join('') || '<tr><td colspan="6"><div class="empty">Ingenting kassert i perioden.</div></td></tr>'}</tbody></table></div></div>`;
+    if (uttV > 0) h += `<div class="note info small"><div><b>Personalmat og representasjon (${kr(uttV)})</b> er uttak, ikke svinn, og er holdt utenfor «av varekjøp». Det er ikke fradrag for inngående mva på kost til ansatte og representasjon (mval. § 8-3 første ledd bokstav d og e), og varer som tas fra lageret til dette kan utløse uttaksmerverdiavgift (mval. § 3-21). Avklar bokføringen med regnskapsfører – CSV-filen skiller kassert og uttak.</div></div>`;
+  }
+  h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Siste registreringer</h3></div>${list.length?`<div class="tblwrap"><table><thead><tr><th>Dato</th><th>Vare</th><th class="n">Antall</th><th>Årsak</th><th class="n">Verdi</th><th></th></tr></thead><tbody>${list.slice(0,60).map(w=>{ const i = byId[w.itemId]||{name:w.itemId,unit:''}; return `<tr><td>${fmtDL(w.date)}</td><td><div class="iname">${esc(i.name)}</div>${w.comment||w.by?`<div class="isub">${esc(w.comment||'')}${w.comment&&w.by?' · ':''}${w.by?'<span translate="no">'+esc(w.by)+'</span>':''}</div>`:''}</td><td class="n">${q(w.qty)} ${esc(i.unit)}</td><td>${esc(reasonOf(w.reason))}</td><td class="n">${kr(w.value)}</td><td class="n"><button class="btn sm danger" data-wdel="${w.id}" aria-label="Slett" ${ro()}>Slett</button></td></tr>`; }).join('')}</tbody></table></div>`:'<div class="empty">Ingen avskrivninger registrert ennå.</div>'}</div>`;
   $('#view').innerHTML = h;
   const ws = $('#wSearch'); if (ws) ws.oninput = e => { UI.wSearch = e.target.value; render(); };
   document.querySelectorAll('[data-pick]').forEach(d => d.onclick = () => { UI.wItem = d.dataset.pick; UI.wSearch = ''; render(); setTimeout(()=>{ const x=$('#wQty'); x && x.focus(); },0); });
@@ -530,11 +605,13 @@ function vSvinn(){
   $('#wDate').onchange = e => { UI.wDate = e.target.value; };
   $('#wComment').oninput = e => { UI.wComment = e.target.value; };
   document.querySelectorAll('[data-reason]').forEach(b => b.onclick = () => { UI.wReason = b.dataset.reason; render(); });
-  $('#wSave').onclick = async () => { const qty = num(UI.wQty); await store.put('waste', uid(), {date:UI.wDate||C.today, itemId:sel.id, qty, reason:UI.wReason, comment:UI.wComment, value:Math.round(qty*sel.price*100)/100, ts:Date.now()}); toast(`Svinn registrert: ${nf1.format(qty)} ${sel.unit} ${sel.name}`); UI.wItem=null; UI.wQty=''; UI.wComment=''; render(); };
-  document.querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => confirmBox('Slette registreringen?', 'Svinnet legges tilbake i beregnet beholdning.', 'Slett', () => store.del('waste', b.dataset.wdel)));
+  document.querySelectorAll('[data-wper]').forEach(b => b.onclick = () => { UI.wPer = b.dataset.wper; render(); });
+  $('#wSave').onclick = async () => { const qty = num(UI.wQty); await store.put('waste', uid(), {date:UI.wDate||C.today, itemId:sel.id, qty, reason:reasonOf(UI.wReason), type:reasonInfo(UI.wReason).t, comment:UI.wComment, value:Math.round(qty*sel.price*100)/100, by:S.me?.name||S.me?.email||'', ts:Date.now()}); toast(`Avskrevet: ${nf1.format(qty)} ${sel.unit} ${sel.name}`); UI.wItem=null; UI.wQty=''; UI.wComment=''; render(); };
+  const cv = $('#wCsv'); if (cv) cv.onclick = () => download(`avskrivning-${from === '0000-01-01' ? 'alle' : from}-${to}.csv`, csv([['Dato','Leverandør','Varenr','Vare','Kategori','Antall','Enhet','Årsak','Type','Verdi eks. mva','Kommentar','Registrert av'], ...inP.sort((a,b)=>a.date<b.date?-1:1).map(w => { const i = byId[w.itemId]||{}; return [w.date,i.sup,i.no,i.name,i.cat,w.qty,i.unit,reasonOf(w.reason),reasonInfo(w.reason).t==='uttak'?'Uttak':'Kassert',w.value,w.comment||'',w.by||'']; })]));
+  document.querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => confirmBox('Slette registreringen?', 'Varen legges tilbake i beregnet beholdning.', 'Slett', () => store.del('waste', b.dataset.wdel)));
+  bindItemRows();
 }
 
-/* ================= VARER ================= */
 function vVarer(){
   let rows = C.items;
   const sq = UI.vSearch.trim().toLowerCase();
@@ -546,7 +623,7 @@ function vVarer(){
   const get = r => key==='cover' ? (r.cover ?? 1e9) : key==='name' ? r.name : r[key];
   rows = [...rows].sort((a,b) => { const x = get(a), y = get(b); return (typeof x === 'string' ? x.localeCompare(y,'nb') : x - y) * dir; });
   const th = (k,l,n) => `<th class="sort ${n?'n':''}" data-sort="${k}">${l}${UI.vSort===k?(UI.vDir>0?' ▲':' ▼'):''}</th>`;
-  let h = `<div class="row between"><div><h2>Varer og beholdning</h2><div class="muted">${rows.length} av ${C.items.length} varer · trykk på en vare for detaljer og innstillinger</div></div><div class="row"><button class="btn" id="vImp" ${roM()}>Importer varer (Excel/CSV)</button><button class="btn" id="vNew" ${roM()}>+ Ny vare</button></div></div>`;
+  let h = `<div class="row between"><div><h2>Varer og beholdning</h2><div class="muted">${rows.length} av ${C.items.length} varer · trykk på en vare for detaljer og innstillinger</div></div><div class="row"><button class="btn primary" id="vNew" ${roM()}>+ Legg inn varer</button></div></div>`;
   h += `<div class="card grid" style="gap:10px"><input type="search" id="vSearch" placeholder="Søk navn, varenummer eller kategori" value="${esc(UI.vSearch)}">
     <div class="row"><div class="chips"><button class="chip ${!UI.vStatus?'on':''}" data-vs="">Alle</button>${['bestill','snart','ok','tell','behov'].map(s=>`<button class="chip ${UI.vStatus===s?'on':''}" data-vs="${s}">${STATUS[s][0]}</button>`).join('')}<button class="chip ${UI.vStatus==='svinn'?'on':''}" data-vs="svinn">Svinnrisiko</button></div>
     <select id="vSup" style="width:auto"><option value="">Alle leverandører</option>${Object.keys(SET().suppliers).map(c=>`<option ${UI.vSup===c?'selected':''}>${c}</option>`).join('')}</select>
@@ -560,8 +637,7 @@ function vVarer(){
   $('#vSup').onchange = e => { UI.vSup = e.target.value; render(); };
   $('#vStore').onchange = e => { UI.vStore = e.target.value; render(); };
   document.querySelectorAll('[data-sort]').forEach(t => t.onclick = () => { const k = t.dataset.sort; if (UI.vSort === k) UI.vDir *= -1; else { UI.vSort = k; UI.vDir = k==='name'||k==='cover' ? 1 : -1; } render(); });
-  $('#vNew').onclick = newItemModal;
-  $('#vImp').onclick = importItemsModal;
+  $('#vNew').onclick = addItemsModal;
   bindItemRows();
 }
 function bindItemRows(){ document.querySelectorAll('[data-item]').forEach(el => el.onclick = e => { if (e.target.closest('button,input')) return; itemDrawer(el.dataset.item); }); }
@@ -575,7 +651,7 @@ function itemDrawer(id){
     <div class="grid g2"><div class="tile"><span class="lbl">Har nå (beregnet)</span><span class="big">${r.countDate?q(r.stockNow):'–'} <span style="font-size:16px">${esc(r.unit)}</span></span></div><div class="tile"><span class="lbl">Holder</span><span class="big">${r.countDate?coverTxt(r):'–'}</span><span class="small muted">${r.runsOut&&r.countDate?'tom ca. '+fmtDL(r.runsOut):''}</span></div></div>
     <div class="card"><h3 style="margin-bottom:8px">Slik er tallet regnet</h3>${r.countDate ? `<div class="calc">
       <span>Talt ${fmtDL(r.countDate)}</span><span class="num">${q(r.stockAtCount)}</span>
-      <span>− Svinn siden telling</span><span class="num">${q(r.wasteSince)}</span>
+      <span>− Avskrevet siden telling</span><span class="num">${q(r.wasteSince)}</span>
       <span>− Forbruk ${r.daysSince} dager (${q(r.usageWeek)}/uke)</span><span class="num">${q(r.usedSince)}</span>
       <span>+ Mottatt siden telling</span><span class="num">${q(r.rcvSince)}</span>
       <span class="tot">= Har nå</span><span class="tot num">${q(r.stockNow)}</span>
@@ -829,7 +905,7 @@ function invoiceModal(){
     <div class="grid g3"><label class="f">Leverandør<select id="ivSup">${sups.map(c => `<option value="${esc(c)}">${esc(c)} – ${esc(SET().suppliers[c].name)}</option>`).join('')}</select></label><label class="f">Fakturanummer<input type="text" id="ivNo"></label><label class="f">KID (valgfritt)<input type="text" id="ivKid" inputmode="numeric"></label></div>
     <div class="grid g3"><label class="f">Fakturadato<input type="date" id="ivDate" value="${C.today}"></label><label class="f">Forfall<input type="date" id="ivDue" value="${addDays(C.today,14)}"></label><label class="f">Bestilling<select id="ivOrder"></select></label></div>
     <div class="grid g3"><label class="f">Beløp eks. mva<input type="text" inputmode="decimal" id="ivEx"></label><label class="f">Mva<input type="text" inputmode="decimal" id="ivVat"></label><label class="f">Å betale inkl. mva<input type="text" inputmode="decimal" id="ivTot"></label></div>
-    <div class="row"><label class="btn" style="cursor:pointer">📎 Last opp faktura (PDF/bilde/EHF)<input type="file" id="ivFile" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.xml" class="hide"></label><span id="ivFileName" class="small muted">Ingen fil valgt</span></div>
+    <div class="row"><label class="btn" style="cursor:pointer">📎 Last opp faktura (PDF/bilde/EHF)<input type="file" id="ivFile" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.xml" class="hide"></label><span id="ivFileName" class="small muted">Ingen fil valgt</span>${S.features?.readInvoice ? '<button class="btn hide" id="ivRead">✨ Les fakturaen</button>' : ''}</div><div id="ivReadRes"></div>
     <details><summary style="cursor:pointer;font-weight:600">Varelinjer (gir kontroll per vare)</summary>${lineEditor([])}</details>
     <div id="ivErr"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="ivOk">Registrer og kontroller</button></div>`, m => {
@@ -840,12 +916,30 @@ function invoiceModal(){
     const getLines = bindLines(m, sup, ord);
     const ex = m.querySelector('#ivEx'), vat = m.querySelector('#ivVat'), tot = m.querySelector('#ivTot');
     ex.oninput = () => { const v = num(ex.value); if (v != null && !vat.value){ tot.placeholder = nf1.format(v*1.15) + ' (15 % mva)'; } };
-    m.querySelector('#ivFile').onchange = async e => { m.querySelector('#ivFileName').textContent = 'Laster opp …'; file = await uploadFile(e.target); m.querySelector('#ivFileName').textContent = file ? file.name : 'Ingen fil valgt'; };
+    let parsed = null;
+    const rd = m.querySelector('#ivRead');
+    const doRead = async () => {
+      if (!file || !rd) return; rd.disabled = true; const res = m.querySelector('#ivReadRes'); res.innerHTML = '<div class="note info small"><span class="spin"></span> Leser fakturaen – det tar 10–30 sekunder …</div>';
+      try {
+        const inv = await readInvoiceFile(file.id); parsed = inv;
+        const set = SET(); const found = matchSupplier(set, inv);
+        if (found){ m.querySelector('#ivSup').value = found; fillOrders(); }
+        const put = (s, v) => { if (v != null && v !== '') m.querySelector(s).value = typeof v === 'number' ? String(v).replace('.',',') : v; };
+        put('#ivNo', inv.invoiceNo); put('#ivKid', inv.kid); put('#ivDate', inv.invoiceDate); put('#ivDue', inv.dueDate); put('#ivEx', inv.amountExVat); put('#ivVat', inv.vat); put('#ivTot', inv.amount);
+        if (inv.lines.length){ m.querySelector('#lnTbl tbody').innerHTML = inv.lines.map(l => lineRow({itemNo:l.itemNo, description:l.description, qty:l.qty, unitPrice:l.unitPrice})).join(''); m.querySelectorAll('.ln-del').forEach(b => b.onclick = () => b.closest('tr').remove()); m.querySelector('details').open = true; }
+        res.innerHTML = `<div class="note good small">Lest: ${inv.lines.length} linjer${found ? '' : `. Fant ikke leverandøren <b translate="no">${esc(inv.supplierName||'')}</b> – ${S.canManage ? '<button class="btn sm" id="ivNewSup">Opprett leverandør</button>' : 'be en leder legge den til'}`}. Sjekk feltene før du registrerer.</div>${inv.warnings?.length ? `<div class="note warn small">${inv.warnings.map(esc).join('<br>')}</div>` : ''}`;
+        const ns = m.querySelector('#ivNewSup'); if (ns) ns.onclick = async () => { ns.disabled = true; const c = await createSupplierFrom(inv); const sel = m.querySelector('#ivSup'); sel.insertAdjacentHTML('beforeend', `<option value="${esc(c)}">${esc(c)} – ${esc(inv.supplierName)}</option>`); sel.value = c; fillOrders(); ns.replaceWith(document.createTextNode('opprettet som ' + c + '.')); };
+      } catch(err){ res.innerHTML = `<div class="note bad small">${esc(err.message || 'Kunne ikke lese fakturaen.')}</div>`; }
+      rd.disabled = false;
+    };
+    if (rd) rd.onclick = doRead;
+    m.querySelector('#ivFile').onchange = async e => { m.querySelector('#ivFileName').textContent = 'Laster opp …'; file = await uploadFile(e.target); m.querySelector('#ivFileName').textContent = file ? file.name : 'Ingen fil valgt'; if (file && rd){ rd.classList.remove('hide'); doRead(); } };
     m.querySelector('#ivOk').onclick = async () => {
       const b = m.querySelector('#ivOk'); b.disabled = true;
       try {
         const r = await api('POST', '/api/invoices', {supplier:sup(), invoiceNo:m.querySelector('#ivNo').value, kid:m.querySelector('#ivKid').value, invoiceDate:m.querySelector('#ivDate').value, dueDate:m.querySelector('#ivDue').value, orderId:ord() || null, amountExVat:num(ex.value), vat:num(vat.value), amount:num(tot.value), fileId:file?.id || null, lines:getLines()});
-        closeModal(); await apiLoad(true); invoiceDrawer(r.invoice.id);
+        closeModal(); await apiLoad(true);
+        if (parsed && parsed.lines.length) reviewItemsModal(sup(), {...parsed, invoiceNo:m.querySelector('#ivNo').value, invoiceDate:m.querySelector('#ivDate').value}, () => invoiceDrawer(r.invoice.id)); else invoiceDrawer(r.invoice.id);
       } catch(e){ m.querySelector('#ivErr').innerHTML = `<div class="note bad">${esc(e.message||'Noe gikk galt.')}</div>`; b.disabled = false; }
     };
   });
@@ -932,6 +1026,132 @@ async function loadKeys(){
 function isoWeek(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), d.getDate())); const day = t.getUTCDay() || 7; t.setUTCDate(t.getUTCDate() + 4 - day); const y0 = new Date(Date.UTC(t.getUTCFullYear(),0,1)); return Math.ceil(((t - y0) / DAY + 1) / 7); }
 
 /* ---------- dialoger, filer ---------- */
+/* ===== Fakturalesing med Claude og varer fra faktura ===== */
+const normNo = s => String(s||'').replace(/[^A-Za-z0-9]/g,'').replace(/^0+/,'').toUpperCase();
+const normName = s => String(s||'').toUpperCase().replace(/[^A-ZÆØÅ0-9]+/g,' ').trim();
+const FEE_RE = /frakt|gebyr|pant|levering|transport|rabatt|miljøavgift|emballasjeavgift|småordre|drivstoff/i;
+function matchSupplier(set, inv){
+  const org = String(inv.supplierOrgNo||'').replace(/\D/g,'');
+  const codes = Object.keys(set.suppliers);
+  if (org.length === 9){ const c = codes.find(c => String(set.suppliers[c].orgnr||'').replace(/\D/g,'') === org); if (c) return c; }
+  const n = normName(inv.supplierName).replace(/\b(AS|ASA|AB|NORGE|NORWAY|DA|ANS)\b/g,'').trim();
+  if (!n) return null;
+  return codes.find(c => { const s = normName(set.suppliers[c].name).replace(/\b(AS|ASA|AB|NORGE|NORWAY|DA|ANS)\b/g,'').trim(); return s && (s === n || s.includes(n) || n.includes(s)); }) || null;
+}
+async function createSupplierFrom(inv){
+  const set = JSON.parse(JSON.stringify(SET()));
+  const words = normName(inv.supplierName).replace(/\b(AS|ASA|AB|DA|ANS)\b/g,'').split(/\s+/).filter(Boolean);
+  let base = (words.length > 1 ? words.map(w => w[0]).join('') : (words[0] || 'LEV')).slice(0,4);
+  if (base.length < 2) base = (words[0] || 'LEV').slice(0,3);
+  let code = base, i = 2; while (set.suppliers[code]) code = base.slice(0,3) + i++;
+  set.suppliers[code] = {name: inv.supplierName || code, orgnr: inv.supplierOrgNo || '', wd:[], days:'Etter avtale', interval:7, lead:1, safety:2, notes:'', fees:''};
+  await saveSettings(set);
+  return code;
+}
+async function readInvoiceFile(fileId){
+  const r = await api('POST', '/api/invoices/read', {fileId});
+  return r.invoice;
+}
+function supplierPicker(inv, id){
+  const set = SET(); const found = matchSupplier(set, inv);
+  const opts = Object.keys(set.suppliers).map(c => `<option value="${esc(c)}" ${c===found?'selected':''}>${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('');
+  return `<label class="f">Leverandør${inv.supplierName?` <span style="font-weight:400">(på fakturaen: <span translate="no">${esc(inv.supplierName)}</span>${inv.supplierOrgNo?' · '+esc(inv.supplierOrgNo):''})</span>`:''}<select id="${id}">${S.canManage && inv.supplierName ? `<option value="__new" ${found?'':'selected'}>+ Ny leverandør: ${esc(inv.supplierName)}</option>` : ''}${opts}</select></label>`;
+}
+async function resolveSupplier(value, inv){ return value === '__new' ? await createSupplierFrom(inv) : value; }
+
+/** Gjennomgang av fakturalinjer: opprett nye varer og oppdater priser. */
+function reviewItemsModal(sup, inv, onDone){
+  const items = getItems().filter(i => i.sup === sup);
+  const rows = (inv.lines || []).filter(l => l.description || l.itemNo).map((l, i) => {
+    const ex = items.find(it => l.itemNo && normNo(it.no) === normNo(l.itemNo)) || items.find(it => normName(it.name) === normName(l.description));
+    const price = l.unitPrice ?? (l.qty ? (l.lineTotal ?? 0) / l.qty : null);
+    const changed = ex && price != null && price > 0 && Math.abs(price - (ex.price || 0)) > Math.max(0.01, (ex.price || 0) * 0.005);
+    return {i, l, ex, price, changed, fee: FEE_RE.test(l.description || '') || (l.qty ?? 0) < 0};
+  });
+  const nNew = rows.filter(r => !r.ex), nChg = rows.filter(r => r.changed), nSame = rows.filter(r => r.ex && !r.changed);
+  if (!nNew.length && !nChg.length){ toast(`Alle ${rows.length} varene finnes allerede med riktig pris.`); onDone && onDone(); return; }
+  if (!S.canManage){ toast(`Fakturaen har ${nNew.length} nye varer og ${nChg.length} prisendringer. Be en leder opprette dem under Varer.`); onDone && onDone(); return; }
+  const set = SET();
+  modal(`<h3>Varer fra fakturaen</h3><div class="small muted">${esc(set.suppliers[sup]?.name || sup)}${inv.invoiceNo?' · faktura '+esc(inv.invoiceNo):''}. ${nNew.length} nye varer, ${nChg.length} prisendringer${nSame.length?`, ${nSame.length} uendret`:''}. Sjekk og juster før du lagrer – lager, kategori og holdbarhet er forslag.</div>
+    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px"></td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td><select class="rv-stor">${STORES.map(s => `<option ${(r.l.storage||normStore(r.l.category))===s?'selected':''}>${s}</option>`).join('')}</select></td><td><input class="rv-cat" value="${esc(r.l.category||'Annet')}" style="width:110px"></td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
+    ${nChg.length ? `<h3 style="margin-top:6px">Nye priser</h3><div class="tblwrap"><table><thead><tr><th></th><th>Vare</th><th class="n">Nå</th><th class="n">På fakturaen</th><th class="n">Endring</th></tr></thead><tbody>${nChg.map(r => { const d = (r.price - r.ex.price) / (r.ex.price || 1) * 100; return `<tr data-rc="${r.i}"><td><input type="checkbox" class="rc-on" checked style="width:20px;height:20px"></td><td><div class="iname">${esc(r.ex.name)}</div><div class="isub">${esc(r.ex.no)} · ${esc(r.ex.unit)}${r.l.unit && normName(r.l.unit) !== normName(r.ex.unit) ? ` · <b style="color:var(--amber)">fakturert i ${esc(r.l.unit)}</b>` : ''}</div></td><td class="n">${kr(r.ex.price)}</td><td class="n"><b>${kr(r.price)}</b></td><td class="n" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':''}${nf1.format(d)} %</td></tr>`; }).join('')}</tbody></table></div>` : ''}
+    <div class="row" style="justify-content:flex-end"><button class="btn" id="rvSkip">Hopp over</button><button class="btn primary" id="rvOk">Lagre varer og priser</button></div>`, m => {
+    m.querySelector('#rvSkip').onclick = () => { closeModal(); onDone && onDone(); };
+    m.querySelector('#rvOk').onclick = async () => {
+      const b = m.querySelector('#rvOk'); b.disabled = true;
+      const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
+      const all = getItems(); let created = 0, updated = 0;
+      m.querySelectorAll('tr[data-rv]').forEach(tr => {
+        if (!tr.querySelector('.rv-on').checked) return;
+        const g = c => tr.querySelector(c).value.trim();
+        const name = g('.rv-name'); if (!name) return;
+        const no = g('.rv-no') || normName(name).replace(/\s/g,'').slice(0,14);
+        const id = sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
+        if (all.find(i => i.id === id && !cfg.ov[id]?.removed) && !cfg.ov[id]?.custom) return;
+        const prev = cfg.ov[id] || {};
+        cfg.ov[id] = {...prev, id, custom:true, removed:false, sup, no, name, unit:g('.rv-unit')||'stk', price:num(g('.rv-price'))||0, stor:g('.rv-stor'), cat:g('.rv-cat')||'Annet', area:prev.area||'Kjøkken', shelf:num(g('.rv-shelf')), pack:num(g('.rv-pack'))||1, manual:prev.manual??null, active:prev.active??true, h100:prev.h100||0, b13:prev.b13||0, b6:prev.b6||0, ndel:prev.ndel||0, last:inv.invoiceDate||C.today, source:'faktura', priceHist:[{d:inv.invoiceDate||C.today, p:num(g('.rv-price'))||0, inv:inv.invoiceNo||''}]};
+        created++;
+      });
+      m.querySelectorAll('tr[data-rc]').forEach(tr => {
+        if (!tr.querySelector('.rc-on').checked) return;
+        const r = rows.find(x => x.i === +tr.dataset.rc); const id = r.ex.id; const o = cfg.ov[id] || {};
+        const hist = [...(o.priceHist || [{d:'', p:r.ex.price}]), {d:inv.invoiceDate||C.today, p:Math.round(r.price*100)/100, inv:inv.invoiceNo||''}].slice(-12);
+        cfg.ov[id] = {...o, price: Math.round(r.price*100)/100, priceHist: hist, last: inv.invoiceDate || o.last};
+        updated++;
+      });
+      try { await saveItemCfg(cfg); closeModal(); toast(`${created} nye varer${updated?` og ${updated} nye priser`:''} er lagret.`); onDone && onDone(); }
+      catch(e){ b.disabled = false; toast(e.message || 'Kunne ikke lagre.'); }
+    };
+  });
+}
+
+/** Legg inn varer: manuelt eller fra faktura. */
+function addItemsModal(){
+  modal(`<h3>Legg inn varer</h3>
+    <div class="grid g2">
+      <button class="pickcard" id="aiManual"><b>Skriv inn manuelt</b><span class="small muted">Én vare om gangen, med navn, pris, lager og forbruk.</span></button>
+      <button class="pickcard" id="aiInvoice"><b>Fra faktura</b><span class="small muted">${S.features?.readInvoice ? 'Last opp PDF, bilde eller EHF. Restoq leser varelinjene, og du godkjenner før de lagres.' : 'Automatisk lesing er ikke satt opp ennå (ANTHROPIC_API_KEY). Du kan registrere fakturaen og linjene manuelt.'}</span></button>
+    </div>
+    <div class="row between"><button class="btn sm" id="aiCsv">Importer vareliste (Excel/CSV)</button><button class="btn" data-close>Lukk</button></div>`, m => {
+    m.querySelector('#aiManual').onclick = () => { closeModal(); newItemModal(); };
+    m.querySelector('#aiCsv').onclick = () => { closeModal(); importItemsModal(); };
+    m.querySelector('#aiInvoice').onclick = () => { closeModal(); S.features?.readInvoice ? itemsFromInvoiceModal() : invoiceModal(); };
+  });
+}
+function itemsFromInvoiceModal(){
+  modal(`<h3>Varer fra faktura</h3><div class="small muted">Last opp fakturaen. Restoq leser leverandør, varelinjer og priser – det tar 10–30 sekunder.</div>
+    <div class="row"><label class="btn primary" style="cursor:pointer">📎 Velg faktura (PDF, bilde eller EHF)<input type="file" id="ifFile" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.xml" class="hide"></label><span id="ifStatus" class="small muted"></span></div>
+    <div id="ifRes"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary hide" id="ifOk">Gå videre til varene</button></div>`, m => {
+    let file = null, inv = null;
+    m.querySelector('#ifFile').onchange = async e => {
+      const st = m.querySelector('#ifStatus'); st.textContent = 'Laster opp …';
+      file = await uploadFile(e.target); if (!file){ st.textContent = ''; return; }
+      st.innerHTML = '<span class="spin"></span> Leser fakturaen …';
+      try { inv = await readInvoiceFile(file.id); } catch(err){ st.textContent = ''; m.querySelector('#ifRes').innerHTML = `<div class="note bad">${esc(err.message || 'Kunne ikke lese fakturaen.')}</div>`; return; }
+      st.textContent = file.name;
+      m.querySelector('#ifRes').innerHTML = `<div class="note good">Fant ${inv.lines.length} linjer${inv.invoiceNo?' på faktura '+esc(inv.invoiceNo):''}${inv.invoiceDate?' datert '+fmtDL(inv.invoiceDate):''}${inv.amount!=null?' · '+kr(inv.amount)+' inkl. mva':''}.</div>
+        ${inv.warnings?.length ? `<div class="note warn small">${inv.warnings.map(esc).join('<br>')}</div>` : ''}
+        ${supplierPicker(inv, 'ifSup')}
+        <label class="row small" style="gap:8px"><input type="checkbox" id="ifReg" checked style="width:20px;height:20px"> Registrer også fakturaen for kontroll mot bestilling og varemottak</label>`;
+      m.querySelector('#ifOk').classList.remove('hide');
+    };
+    m.querySelector('#ifOk').onclick = async () => {
+      const b = m.querySelector('#ifOk'); b.disabled = true;
+      try {
+        const sup = await resolveSupplier(m.querySelector('#ifSup').value, inv);
+        let invId = null;
+        if (m.querySelector('#ifReg').checked){
+          const r = await api('POST', '/api/invoices', {supplier:sup, invoiceNo:inv.invoiceNo, kid:inv.kid, invoiceDate:inv.invoiceDate||C.today, dueDate:inv.dueDate||null, orderId:null, amountExVat:inv.amountExVat, vat:inv.vat, amount:inv.amount, fileId:file.id, lines:inv.lines.map(l => ({itemNo:l.itemNo, description:l.description, qty:l.qty??0, unitPrice:l.unitPrice}))});
+          invId = r.invoice.id;
+        }
+        closeModal(); await apiLoad(true);
+        reviewItemsModal(sup, inv, async () => { if (invId){ await apiLoad(true); go('faktura'); invoiceDrawer(invId); } else render(); });
+      } catch(err){ b.disabled = false; m.querySelector('#ifRes').insertAdjacentHTML('beforeend', `<div class="note bad">${esc(err.message || 'Noe gikk galt.')}</div>`); }
+    };
+  });
+}
+
 function modal(html, bind){ $('#layer').innerHTML = `<div class="modal-bg" id="mbg"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`; const m = $('#layer .modal'); m.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal); $('#mbg').onclick = e => { if (e.target.id === 'mbg') closeModal(); }; bind && bind(m); const f = m.querySelector('input,button.primary'); f && f.focus(); }
 function closeModal(){ $('#layer').innerHTML = ''; }
 function drawer(html, bind){ $('#layer').innerHTML = `<div class="drawer-bg" id="dbg"><div class="drawer" role="dialog" aria-modal="true">${html}</div></div>`; const d = $('#layer .drawer'); d.querySelectorAll('[data-close]').forEach(b => b.onclick = closeLayer); $('#dbg').onclick = e => { if (e.target.id === 'dbg') closeLayer(); }; bind && bind(d); }
