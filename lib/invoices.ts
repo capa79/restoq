@@ -150,7 +150,7 @@ export async function createInvoice(orgId: number, body: Record<string, unknown>
   if (!d.suppliers[supplier]) throw new Error(`Ukjent leverandør «${supplier}». Bruk leverandørkoden fra Innstillinger.`);
   const p = await db();
   const dup = (await p.query("SELECT id FROM docs WHERE org_id = $1 AND col = 'invoices' AND data->>'supplier' = $2 AND data->>'invoiceNo' = $3", [orgId, supplier, invoiceNo])).rows[0];
-  if (dup) throw new Error(`Faktura ${invoiceNo} fra ${supplier} er allerede registrert.`);
+  if (dup) throw new Error("Fakturaen er allerede registrert for denne leverandøren.");
   const inv: Invoice = {
     supplier, invoiceNo, invoiceDate,
     dueDate: date(body.dueDate) || undefined,
