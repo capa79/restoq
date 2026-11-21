@@ -7,7 +7,6 @@ const COLS = [
   ["Varenr", 12, "Leverandørens varenummer, slik det står på fakturaen. Mangler det, får varen et eget Restoq-nummer (RE-000001 …).", "Anbefalt", "545657"],
   ["Varenavn", 38, "Navnet på varen, gjerne som på fakturaen. Ta med størrelse (500G, 1L, 24X250ML) – da kan Restoq sammenligne priser.", "Ja", "SMØR USALTET 500G"],
   ["Enhet", 9, "Enheten dere teller og bestiller i: stk, kg, l, krt, pk, fl, boks.", "Ja", "stk"],
-  ["Pris per enhet", 14, "Innkjøpspris eks. mva per enhet. Brukes til lagerverdi og avskrivning.", "Anbefalt", 62.5],
   ["Lager", 11, "Kjøl, Frys, Tørr eller Romtemp. Styrer hvor ofte varen bør bestilles.", "Anbefalt", "Kjøl"],
   ["Kategori", 16, "Fritt valgt, f.eks. Meieri, Kjøtt, Grønt, Drikke, Tørrvarer, Emballasje.", "Nei", "Meieri"],
   ["Pakning", 10, "Minste antall som kan bestilles (f.eks. 6 hvis varen selges i kartong à 6).", "Nei", 1],
@@ -31,16 +30,16 @@ head.eachCell((c, i) => {
 });
 const N = 1000;
 for (let r = 2; r <= N; r++) {
-  ws.getCell(`F${r}`).dataValidation = { type: "list", allowBlank: true, formulae: ['"Kjøl,Frys,Tørr,Romtemp."'], showErrorMessage: true, errorTitle: "Lager", error: "Velg Kjøl, Frys, Tørr eller Romtemp." };
+  ws.getCell(`E${r}`).dataValidation = { type: "list", allowBlank: true, formulae: ['"Kjøl,Frys,Tørr,Romtemp."'], showErrorMessage: true, errorTitle: "Lager", error: "Velg Kjøl, Frys, Tørr eller Romtemp." };
   ws.getCell(`D${r}`).dataValidation = { type: "list", allowBlank: true, formulae: ['"stk,kg,l,krt,pk,fl,boks,g,dl"'], showErrorMessage: false };
-  for (const col of ["E", "H", "I", "J", "K"]) ws.getCell(`${col}${r}`).dataValidation = { type: "decimal", operator: "greaterThanOrEqual", allowBlank: true, formulae: [0], showErrorMessage: true, errorTitle: "Tall", error: "Skriv et tall (0 eller mer)." };
-  ws.getCell(`L${r}`).dataValidation = { type: "date", operator: "greaterThan", allowBlank: true, formulae: [new Date(2020, 0, 1)], showErrorMessage: true, errorTitle: "Dato", error: "Skriv en dato, f.eks. 2026-12-15." };
-  ws.getCell(`E${r}`).numFmt = "#,##0.00"; ws.getCell(`L${r}`).numFmt = "yyyy-mm-dd";
+  for (const col of ["G", "H", "I", "J"]) ws.getCell(`${col}${r}`).dataValidation = { type: "decimal", operator: "greaterThanOrEqual", allowBlank: true, formulae: [0], showErrorMessage: true, errorTitle: "Tall", error: "Skriv et tall (0 eller mer)." };
+  ws.getCell(`K${r}`).dataValidation = { type: "date", operator: "greaterThan", allowBlank: true, formulae: [new Date(2020, 0, 1)], showErrorMessage: true, errorTitle: "Dato", error: "Skriv en dato, f.eks. 2026-12-15." };
+  ws.getCell(`K${r}`).numFmt = "yyyy-mm-dd";
 }
 // To eksempellinjer, tydelig merket. Restoq hopper over rader der varenavnet starter med «EKSEMPEL».
 const EX = [
-  ["Servicegrossisten", "545657", "EKSEMPEL: SMØR USALTET 500G", "stk", 62.5, "Kjøl", "Meieri", 1, 30, 10, 4, new Date(2026, 11, 15)],
-  ["Odd Langdalen", "1009", "EKSEMPEL: AGURK NORSK", "stk", 12.9, "Kjøl", "Grønt", 12, 10, 24, null, null],
+  ["Servicegrossisten", "545657", "EKSEMPEL: SMØR USALTET 500G", "stk", "Kjøl", "Meieri", 1, 30, 10, 4, new Date(2026, 11, 15)],
+  ["Odd Langdalen", "1009", "EKSEMPEL: AGURK NORSK", "stk", "Kjøl", "Grønt", 12, 10, 24, null, null],
 ];
 EX.forEach((vals, i) => {
   const row = ws.getRow(2 + i); row.values = vals;
@@ -65,10 +64,10 @@ let y = 5 + COLS.length + 1;
 g.getCell(`A${y}`).value = "Eksempelrader"; g.getCell(`A${y}`).font = { bold: true, size: 13 }; y++;
 const ex = [
   COLS.map((c) => c[0]),
-  ["Servicegrossisten", "545657", "SMØR USALTET 500G", "stk", 62.5, "Kjøl", "Meieri", 1, 30, 10, 4, "2026-12-15"],
-  ["Servicegrossisten", "5104906", "RED BULL REGULAR 24X250ML", "krt", 351, "Romtemp.", "Drikke", 1, 365, 2, 3, ""],
-  ["Odd Langdalen", "1009", "AGURK NORSK", "stk", 12.9, "Kjøl", "Grønt", 12, 10, 24, "", ""],
-  ["MA", "7641", "RIS JASMIN 20KG", "sekk", 520, "Tørr", "Tørrvarer", 1, 365, 0.5, 1, ""],
+  ["Servicegrossisten", "545657", "SMØR USALTET 500G", "stk", "Kjøl", "Meieri", 1, 30, 10, 4, "2026-12-15"],
+  ["Servicegrossisten", "5104906", "RED BULL REGULAR 24X250ML", "krt", "Romtemp.", "Drikke", 1, 365, 2, 3, ""],
+  ["Odd Langdalen", "1009", "AGURK NORSK", "stk", "Kjøl", "Grønt", 12, 10, 24, "", ""],
+  ["MA", "7641", "RIS JASMIN 20KG", "sekk", "Tørr", "Tørrvarer", 1, 365, 0.5, 1, ""],
 ];
 ex.forEach((vals, i) => { const row = g.getRow(y + i); row.values = vals; if (i === 0) row.eachCell((c) => { c.font = { bold: true }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: GREY } }; }); else row.font = { italic: true, color: { argb: "FF5D6965" } }; });
 y += ex.length + 1;
@@ -78,7 +77,8 @@ const tips = [
   "• Har dere allerede en vareliste i Excel, kan dere også laste den opp direkte. Restoq kjenner igjen vanlige kolonnenavn, og du kan velge kolonnene selv.",
   "• Mangler leverandørkolonnen, velger du én leverandør for hele lista ved opplasting.",
   "• Varer som finnes fra før (samme leverandør og varenr), oppdateres ikke dobbelt – de vises som «finnes».",
-  "• Priser er eks. mva. Bruk punktum eller komma som desimaltegn.",
+  "• Priser hentes fra leverandørfakturaene (last dem opp i Kom i gang eller under Faktura), ikke fra denne lista. Lista brukes til varer, beholdning og forbruk.",
+  "• Bruk punktum eller komma som desimaltegn.",
 ];
 tips.forEach((t, i) => { g.mergeCells(`A${y + i}:D${y + i}`); const c = g.getCell(`A${y + i}`); c.value = t; c.alignment = { wrapText: true }; if (!i) c.font = { bold: true, size: 13 }; });
 await wb.xlsx.writeFile("public/restoq-varemal.xlsx");

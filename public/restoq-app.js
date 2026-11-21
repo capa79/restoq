@@ -38,6 +38,7 @@ const fmtDL = s => { if(!s) return '–'; const d = pd(s); return WD[d.getDay()]
 const nf0 = new Intl.NumberFormat('nb-NO',{maximumFractionDigits:0});
 const nf1 = new Intl.NumberFormat('nb-NO',{maximumFractionDigits:1});
 const kr = v => nf0.format(Math.round(v||0)) + ' kr';
+const kr2 = v => new Intl.NumberFormat('nb-NO', {minimumFractionDigits: 2, maximumFractionDigits: 2}).format(v || 0) + ' kr';
 const q = v => v == null || v === '' ? '–' : nf1.format(v);
 const uid = () => Date.now().toString(36) + Math.random().toString(36).slice(2,7);
 const num = v => { if(v === '' || v == null) return null; const n = Number(String(v).replace(',', '.')); return isFinite(n) ? n : null; };
@@ -845,7 +846,7 @@ function parseCsv(text){
 }
 function normStore(s){ s = (s||'').toLowerCase(); if (/frys|frozen/.test(s)) return 'Frys'; if (/kjøl|kjol|fersk|chill/.test(s)) return 'Kjøl'; if (/rom|ambient/.test(s)) return 'Romtemp.'; return 'Tørr'; }
 function importItemsModal(){
-  modal(`<h3>Importer varer</h3><div class="small muted">Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad. Kolonner: <b>Leverandør, Navn</b> (påkrevd), Varenr, Enhet, Pris, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Varer uten varenummer fra leverandøren får et eget Restoq-nummer (RE-000001, RE-000002 …). Finnes varen fra før (samme leverandør og varenr, eller samme navn), oppdateres den.</div>
+  modal(`<h3>Importer varer</h3><div class="small muted">Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad. Kolonner: <b>Leverandør, Navn</b> (påkrevd), Varenr, Enhet, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Varer uten varenummer fra leverandøren får et eget Restoq-nummer (RE-000001, RE-000002 …). Finnes varen fra før (samme leverandør og varenr, eller samme navn), oppdateres den. Priser hentes fra leverandørfakturaene, ikke fra lista.</div>
     <div class="row"><label class="btn primary" style="cursor:pointer">Velg fil<input type="file" id="impFile" accept=".xlsx,.xlsm,.xls,.ods,.numbers,.csv,.txt,text/csv" class="hide"></label><a class="btn" href="/restoq-varemal.xlsx" download>Last ned mal (Excel)</a></div><div id="impRes"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary hide" id="impOk">Importer</button></div>`, m => {
     let parsed = [];
@@ -853,7 +854,7 @@ function importItemsModal(){
       const head = rows[0].map(h => h.trim().toLowerCase()); const idx = {}; IMPORT_COLS.forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0) idx[k] = i; });
       if (idx.sup == null || idx.no == null || idx.name == null){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ikke kolonnene Leverandør, Varenr og Navn i første rad.</div>'; return; }
       const g = (r,k) => idx[k] != null ? (r[idx[k]]||'').trim() : '';
-      parsed = rows.slice(1).map(r => ({sup:g(r,'sup').toUpperCase(), no:g(r,'no'), name:g(r,'name'), unit:g(r,'unit')||'stk', price:num(g(r,'price'))||0, stor:normStore(g(r,'stor')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack:num(g(r,'pack'))||1, shelf:num(g(r,'shelf')), manual:num(g(r,'manual'))})).filter(x => x.sup && x.name && !/^EKSEMPEL\b/i.test(x.name));
+      parsed = rows.slice(1).map(r => ({sup:g(r,'sup').toUpperCase(), no:g(r,'no'), name:g(r,'name'), unit:g(r,'unit')||'stk', stor:normStore(g(r,'stor')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack:num(g(r,'pack'))||1, shelf:num(g(r,'shelf')), manual:num(g(r,'manual'))})).filter(x => x.sup && x.name && !/^EKSEMPEL\b/i.test(x.name));
       const sups = [...new Set(parsed.map(x => x.sup))]; const missing = sups.filter(s => !SET().suppliers[s]);
       m.querySelector('#impRes').innerHTML = `<div class="note good">${parsed.length} varer klare fra ${sups.length} leverandør${sups.length>1?'er':''}.${missing.length ? ' Nye leverandører opprettes: '+esc(missing.join(', '))+' (sjekk leveringsdager under Innstillinger etterpå).' : ''}</div>`;
       m.querySelector('#impOk').classList.toggle('hide', !parsed.length); };
@@ -863,7 +864,7 @@ function importItemsModal(){
       if (newSup) await saveSettings(set);
       const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
       const nextRe = reNoSeq(cfg);
-      parsed.forEach(x => { x.no = itemNoFor(x.sup, x.no, x.name, cfg, nextRe); const id = x.sup + '-' + x.no.replace(/[^A-Za-z0-9]/g,''); const prev = cfg.ov[id] || {}; cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:x.sup, no:x.no, name:x.name, unit:x.unit, price:x.price, stor:x.stor, group:x.group, cat:x.cat, area:prev.area||'Kjøkken', pack:x.pack, shelf:x.shelf, manual: x.manual ?? prev.manual ?? null, active: prev.active ?? true, h100: prev.h100 || 0, b13: prev.b13 || 0, b6: prev.b6 || 0}; });
+      parsed.forEach(x => { x.no = itemNoFor(x.sup, x.no, x.name, cfg, nextRe); const id = x.sup + '-' + x.no.replace(/[^A-Za-z0-9]/g,''); const prev = cfg.ov[id] || {}; cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:x.sup, no:x.no, name:x.name, unit:x.unit, price: prev.price ?? 0, stor:x.stor, group:x.group, cat:x.cat, area:prev.area||'Kjøkken', pack:x.pack, shelf:x.shelf, manual: x.manual ?? prev.manual ?? null, active: prev.active ?? true, h100: prev.h100 || 0, b13: prev.b13 || 0, b6: prev.b6 || 0}; });
       await saveItemCfg(cfg); closeModal(); toast(`${parsed.length} varer er importert.`);
     };
   });
@@ -871,9 +872,9 @@ function importItemsModal(){
 let WZ_EDITS = {};
 /* ===== Kom i gang-veiviser ===== */
 const WZ_COLS = [...IMPORT_COLS, ['qty',['beholdning (antall)','antall','beholdning','på lager','telling','talt','lagerbeholdning','qty','quantity','stock','antall på lager']], ['exp',['utløp','utløpsdato','best før','holdbar til','expiry']]];
-const WZ_FIELDS = [['', '– Ikke bruk –'], ['name','Varenavn (må velges)'], ['no','Varenummer hos leverandøren'], ['sup','Leverandør (navn eller kode)'], ['unit','Enhet (stk, kg, l, kartong …)'], ['price','Pris per enhet (kr eks. mva)'], ['total','Beløp totalt (kr) – Restoq regner ut pris per enhet'], ['qty','Antall på lager nå – blir første telling'], ['bought','Kjøpt antall i perioden – gir forbruk per uke'], ['date','Dato (levering eller faktura)'], ['stor','Lager (kjøl, frys, tørr)'], ['cat','Kategori'], ['pack','Pakningsstørrelse'], ['shelf','Holdbarhet (dager)'], ['manual','Forbruk per uke'], ['exp','Utløpsdato']];
+const WZ_FIELDS = [['', '– Ikke bruk –'], ['name','Varenavn (må velges)'], ['no','Varenummer hos leverandøren'], ['sup','Leverandør (navn eller kode)'], ['unit','Enhet (stk, kg, l, kartong …)'], ['qty','Antall på lager nå – blir første telling'], ['bought','Kjøpt antall i perioden – gir forbruk per uke'], ['date','Dato (levering eller faktura)'], ['stor','Lager (kjøl, frys, tørr)'], ['cat','Kategori'], ['pack','Pakningsstørrelse'], ['shelf','Holdbarhet (dager)'], ['manual','Forbruk per uke'], ['exp','Utløpsdato']];
 /** Hjelpetekst som vises under valget */
-const WZ_HELP = {name:'Navnet slik det står på fakturaen.', qty:'Det dere har på lager i dag. Brukes som første varetelling i steg 3.', bought:'Hvor mye som er kjøpt inn i perioden lista gjelder. Restoq deler på antall uker og får forbruk per uke.', total:'Sum i kroner for varen. Pris per enhet = beløp ÷ antall.', price:'Pris for én enhet, ikke en sum av flere priser.', date:'Brukes til å finne hvor lang perioden er.'};
+const WZ_HELP = {name:'Navnet slik det står på fakturaen.', qty:'Det dere har på lager i dag. Brukes som første varetelling i steg 3.', bought:'Hvor mye som er kjøpt inn i perioden lista gjelder. Restoq deler på antall uker og får forbruk per uke.', date:'Brukes til å finne hvor lang perioden er.'};
 let WZ = null;
 function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: ''}; }
 async function readSheetFile(f){
@@ -886,6 +887,7 @@ async function readSheetFile(f){
   return [{name: f.name, rows: parseCsv(await f.text())}];
 }
 /** Finn overskriftsraden (første rad med en navnekolonne) og foreslå kolonner. */
+const wzIsPriceHead = hd => /pris|price|beløp|belop|amount|kr\b|nok\b/i.test(String(hd || ''));
 /** Gjett hva en kolonne inneholder ut fra overskriften. Returnerer felt og poeng (høyest vinner). */
 function wzFieldFor(head){
   const h = searchNorm(head).replace(/\s+/g, ' ').trim(); if (!h) return null;
@@ -897,13 +899,13 @@ function wzFieldFor(head){
   if (has('pakning', 'pack')) return ['pack', 7];
   if (has('kategori', 'category', 'varegruppe')) return ['cat', 7];
   if (has('lagertype', 'storage', 'oppbevaring')) return ['stor', 7];
-  if (has('belop', 'amount', 'linjesum', 'sum kr', 'nok')) return ['total', 8];
+  if (has('belop', 'amount', 'linjesum', 'sum kr', 'nok')) return null; // priser kommer fra fakturaene
   if (has('antall', 'qty', 'quantity', 'mengde', 'stk antall')){
     if (has('kjopt', 'levert', 'fakturert', 'solgt', 'bestilt', 'innkjop') || isSum) return ['bought', 8];
     return ['qty', 7];
   }
   if (has('beholdning', 'pa lager', 'telling', 'talt', 'stock', 'lagerbeholdning')) return ['qty', 9];
-  if (has('pris', 'price', 'a pris', 'enhetspris', 'nettopris')) return isSum ? null : ['price', 7];
+  if (has('pris', 'price', 'a pris', 'enhetspris', 'nettopris')) return null; // priser kommer fra fakturaene
   if (has('dato', 'date')) return ['date', 6];
   if (has('enhet', 'unit', 'enh')) return ['unit', 7];
   if (has('varenr', 'vare nr', 'varenummer', 'artikkelnr', 'art nr', 'artnr', 'item no', 'sku', 'produktnr')) return ['no', 9];
@@ -955,20 +957,24 @@ function wzSheetRows(){
   const rows = s.sheets[s.idx].rows.slice(s.headRow + 1); const m = WZ.map;
   const g = (r, k) => m[k] != null && m[k] !== '' ? String(r[m[k]] ?? '').trim() : '';
   const weeks = WZ.weeks > 0 ? WZ.weeks : null;
-  return rows.map(r => { const qty = num(g(r,'qty')), bought = num(g(r,'bought')), total = num(g(r,'total')), per = bought ?? qty;
-    return {src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: num(g(r,'price')) || (total && per ? Math.round(total / per * 100) / 100 : 0), bought, srcDate: /^\d{4}-\d{2}-\d{2}/.test(g(r,'date')) ? g(r,'date').slice(0,10) : null, stor: normStore(g(r,'stor') || g(r,'cat')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')) ?? (bought != null && weeks ? Math.round(bought / weeks * 10) / 10 : null), qty, exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null}; }).filter(x => x.name && !/^EKSEMPEL\b/i.test(x.name) && !/^(sum|totalt?|grand total|totalsum)\b/i.test(x.name));
+  return rows.map(r => { const qty = num(g(r,'qty')), bought = num(g(r,'bought'));
+    return {src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: 0, bought, srcDate: /^\d{4}-\d{2}-\d{2}/.test(g(r,'date')) ? g(r,'date').slice(0,10) : null, stor: normStore(g(r,'stor') || g(r,'cat')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')) ?? (bought != null && weeks ? Math.round(bought / weeks * 10) / 10 : null), qty, exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null}; }).filter(x => x.name && !/^EKSEMPEL\b/i.test(x.name) && !/^(sum|totalt?|grand total|totalsum)\b/i.test(x.name));
 }
 /** Slår sammen kandidater fra liste og fakturaer, og markerer varer som finnes. */
 function wzBuildRows(){
   const items = getItems(); const out = []; const seen = new Map();
+  const byName = new Map();
   const add = x => {
     const supCode = x.sup;
-    const key = supCode + '|' + (x.no ? normNo(x.no) : 'N:' + normName(x.name));
+    let key = supCode + '|' + (x.no ? normNo(x.no) : 'N:' + normName(x.name));
+    // Samme vare i lista (uten varenr.) og på fakturaen (med varenr.), eller omvendt: slå sammen på navn
+    const nk = supCode + '|' + normName(x.name);
+    if (!seen.has(key) && byName.has(nk)){ const o = byName.get(nk); if (!x.no || !o.no || normNo(x.no) === normNo(o.no)){ key = o._key; if (x.no && !o.no) o.no = x.no; } }
     const ex = items.find(i => i.sup === supCode && ((x.no && normNo(i.no) === normNo(x.no)) || normName(i.name) === normName(x.name)));
-    if (seen.has(key)){ const o = seen.get(key); if (x.qty != null) o.qty = (o.qty || 0) + x.qty; if (x.src !== o.src) o.src = 'begge'; if (x.price && x.srcDate >= (o.srcDate || '')) { o.price = x.price; o.srcDate = x.srcDate; } return; }
+    if (seen.has(key)){ const o = seen.get(key); if (x.qty != null) o.qty = (o.qty || 0) + x.qty; if (x.src !== o.src) o.src = 'begge'; if (x.price && x.srcDate >= (o.srcDate || '')) { o.price = x.price; o.srcDate = x.srcDate; o.srcName = x.srcName; } return; }
     const fee = FEE_RE.test(x.name || '') || (x.price || 0) < 0;
-    const row = {...x, id: out.length, ex: ex || null, on: !ex && !fee && !!supCode, fee};
-    seen.set(key, row); out.push(row);
+    const row = {...x, id: out.length, ex: ex || null, on: !ex && !fee && !!supCode, fee, _key: key};
+    seen.set(key, row); if (!byName.has(nk)) byName.set(nk, row); out.push(row);
   };
   wzSheetRows().forEach(add);
   WZ.invoices.filter(v => v.inv && !v.dup).forEach(v => { const sup = v.supCode; v.inv.lines.forEach(l => add({src:'faktura', srcDate: v.inv.invoiceDate || '', srcName: v.inv.invoiceNo, sup, no: l.itemNo || '', name: (l.description || '').toUpperCase(), unit: (l.unit || 'stk').toLowerCase(), price: l.unitPrice ?? (l.qty ? (l.lineTotal || 0) / l.qty : 0), stor: l.storage || normStore(l.category), ...guessCat((l.category || '') + ' ' + (l.description || ''), l.storage), pack: 1, shelf: l.shelfDays ?? null, gtin: l.gtin || '', qty: null})); });
@@ -1043,15 +1049,15 @@ function vKomigang(){
         <div class="small muted">Restoq har gjettet ut fra overskriftene. Se på eksemplene og rett der det er feil. Bare <b>varenavn</b> må være med – resten er valgfritt.</div></div>
         <ul class="wtips small" style="margin:0">
           <li><b>Antall på lager nå</b> blir første varetelling. Er lista en innkjøpsoversikt (f.eks. «Totalt antall» for en periode), velg heller <b>Kjøpt antall i perioden</b> – da regner Restoq ut forbruk per uke.</li>
-          <li>Har lista bare <b>beløp i kroner</b> (summer), velg <b>Beløp totalt</b>, så regnes pris per enhet ut som beløp ÷ antall. «Summer av pris» er en sum av mange priser og bør ikke brukes.</li>
+          <li><b>Priser</b> hentes fra leverandørfakturaene, ikke fra lista. Kolonner med pris eller beløp lar du stå på <b>Ikke bruk</b> – last opp fakturaene til høyre i stedet.</li>
           <li>Kolonner du ikke trenger, lar du stå på <b>Ikke bruk</b>.</li></ul>
         <div class="tblwrap"><table class="wzmaptbl"><thead><tr><th>Kolonne i fila</th><th>Eksempler fra fila</th><th>Hva er dette?</th></tr></thead><tbody>
-        ${head.map((hd, i) => { const f = fieldOf(i); return `<tr class="${f ? '' : 'off'}"><td><b translate="no">${esc(hd || 'Kolonne ' + (i + 1))}</b></td><td class="small muted" translate="no">${ex(i).map(esc).join(' · ') || '–'}</td><td><select data-wzcol="${i}">${WZ_FIELDS.map(([k, l]) => `<option value="${k}" ${f === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${WZ_HELP[f] ? `<div class="isub">${WZ_HELP[f]}</div>` : ''}</td></tr>`; }).join('')}
+        ${head.map((hd, i) => { const f = fieldOf(i); return `<tr class="${f ? '' : 'off'}"><td><b translate="no">${esc(hd || 'Kolonne ' + (i + 1))}</b></td><td class="small muted" translate="no">${ex(i).map(esc).join(' · ') || '–'}</td><td><select data-wzcol="${i}">${WZ_FIELDS.map(([k, l]) => `<option value="${k}" ${f === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${WZ_HELP[f] ? `<div class="isub">${WZ_HELP[f]}</div>` : !f && wzIsPriceHead(hd) ? '<div class="isub">Priser hentes fra fakturaene.</div>' : ''}</td></tr>`; }).join('')}
         </tbody></table></div>
         ${m.bought != null && m.manual == null ? `<label class="f" style="max-width:340px">Hvor mange uker gjelder lista?<input type="text" inputmode="numeric" id="wzWeeks" value="${WZ.weeks > 0 ? WZ.weeks : ''}" placeholder="f.eks. 13 for et kvartal"><span class="small" style="font-weight:400">${WZ.weeksGuessed ? 'Foreslått ut fra datoer eller arknavn – rett om det er feil.' : 'Kjøpt antall deles på antall uker.'}</span></label>` : ''}
         ${m.sup == null ? `<label class="f" style="max-width:520px">Leverandør for alle varene i lista<select id="wzDefSup"><option value="">– velg –</option>${Object.keys(set.suppliers).map(c => `<option value="${esc(c)}" translate="no" ${WZ.defSup === c ? 'selected' : ''}>${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('')}</select><span class="small" style="font-weight:400">Lista har ingen leverandørkolonne, så alle varene knyttes til leverandøren du velger. Mangler den, går du tilbake til steg 1.</span></label>` : ''}
         ${warn.length ? `<div class="note warn small" style="margin:0"><div>${warn.join('<br>')}</div></div>` : ''}
-        <div class="small"><b>${SR.length}</b> varer funnet${SR.some(r => r.qty != null) ? ` · ${SR.filter(r => r.qty != null).length} med antall på lager` : ''}${SR.some(r => r.manual != null) ? ` · ${SR.filter(r => r.manual != null).length} med forbruk per uke` : ''}${SR.some(r => r.price) ? ` · ${SR.filter(r => r.price).length} med pris` : ''}</div>
+        <div class="small"><b>${SR.length}</b> varer funnet${SR.some(r => r.qty != null) ? ` · ${SR.filter(r => r.qty != null).length} med antall på lager` : ''}${SR.some(r => r.manual != null) ? ` · ${SR.filter(r => r.manual != null).length} med forbruk per uke` : ''}</div>
       </div>`;
     }
     if (WZ.invoices.length){
@@ -1067,9 +1073,9 @@ function vKomigang(){
     const RV = WZ.supF ? R.filter(r => r.sup === WZ.supF) : R;
     if (R.length){
       const sups = [...new Set(R.map(r => r.sup))].sort((a, b) => wzSupName(a).localeCompare(wzSupName(b), 'nb'));
-      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.</div></div><div class="row"><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
+      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.${R.some(r => r.on && !r.ex && !r.price) ? ` <b>${R.filter(r => r.on && !r.ex && !r.price).length} valgte varer har ingen pris ennå</b> – prisen legges inn fra leverandørfakturaene (last dem opp over, eller under Faktura senere).` : ''}</div></div><div class="row"><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
         ${sups.length > 1 ? `<div class="chips" style="padding:4px 16px 10px"><button class="chip ${!WZ.supF ? 'on' : ''}" data-wzsf="">Alle leverandører (${R.length})</button>${sups.map(c => `<button class="chip ${WZ.supF === c ? 'on' : ''}" data-wzsf="${esc(c)}"><span translate="no">${esc(c ? wzSupName(c) : 'Uten leverandør')}</span> (${R.filter(r => r.sup === c).length}${R.some(r => r.sup === c && r.on) ? ` · ${R.filter(r => r.sup === c && r.on).length} valgt` : ''})</button>`).join('')}</div>` : ''}
-        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td><input class="wz-price" inputmode="decimal" value="${r.price ? String(Math.round(r.price*100)/100).replace('.',',') : ''}" style="width:76px;text-align:right"></td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td class="n small">${r.price ? `<span title="Fra faktura ${esc(r.srcName || '')}">${kr2(r.price)}</span>` : '<span class="muted" title="Pris legges inn fra leverandørfakturaen">fra faktura</span>'}</td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
     }
     h += `<div class="row between"><button class="btn" id="wzBack">Tilbake</button><div class="row"><span class="small muted">${R.length ? '' : 'Du kan også hoppe over og legge inn varer senere.'}</span><button class="btn primary lg" id="wzNext" ${WZ.invoices.some(v => v.busy) ? 'disabled' : ''}>${R.length ? 'Neste: beholdning' : 'Hopp over'}</button></div></div>`;
   }
@@ -1134,7 +1140,7 @@ function vKomigang(){
 const wzKey = r => r.sup + '|' + (r.no ? normNo(r.no) : 'N:' + normName(r.name));
 function wzReadTable(){
   document.querySelectorAll('tr[data-wzr]').forEach(tr => { const r = WZ.rows[+tr.dataset.wzr]; if (!r) return; const g = c => tr.querySelector(c).value.trim();
-    WZ_EDITS[r.key0 || wzKey(r)] = {on: tr.querySelector('.wz-on').checked, no: g('.wz-no'), name: g('.wz-name'), unit: g('.wz-unit'), price: num(g('.wz-price')) ?? r.price, stor: g('.wz-stor'), ...splitCat(tr.querySelector('.wz-cat').value)}; });
+    WZ_EDITS[r.key0 || wzKey(r)] = {on: tr.querySelector('.wz-on').checked, no: g('.wz-no'), name: g('.wz-name'), unit: g('.wz-unit'), stor: g('.wz-stor'), ...splitCat(tr.querySelector('.wz-cat').value)}; });
 }
 function wzKeep(){ WZ.rows.forEach(r => { WZ_EDITS[r.key0 || wzKey(r)] = {...(WZ_EDITS[r.key0 || wzKey(r)] || {}), on: r.on}; }); }
 const _wzBuild = wzBuildRows;
