@@ -15,9 +15,9 @@ export async function aiTranslate(lang: UiLang, strings: string[]): Promise<Reco
         model: process.env.RESTOQ_AI_MODEL || "claude-haiku-5-5",
         max_tokens: 8000,
         system: `You translate the user interface of Restoq, a stock, ordering and invoice-control app for bars and restaurants, from Norwegian Bokmål to ${target}. Keep it short, natural and consistent with restaurant/kitchen terminology. Keep placeholders like {0} exactly, keep product names, brand names (Restoq, Tripletex), codes and emoji unchanged. "kr" is Norwegian kroner (NOK).`,
-        messages: [{ role: "user", content: `Translate each line. Return the translations in the same order with the save tool.\n${batch.map((s, n) => `[${n + 1}] ${s}`).join("\n")}` }],
-        tools: [{ name: "save", description: "Save the translations", input_schema: { type: "object", properties: { translations: { type: "array", items: { type: "string" } } }, required: ["translations"] } }],
-        tool_choice: { type: "tool", name: "save" },
+        messages: [{ role: "user", content: `Translate each line. Return the translations in the same order. Always answer by calling the save tool.\n${batch.map((s, n) => `[${n + 1}] ${s}`).join("\n")}` }],
+        tools: [{ name: "save", description: "Save the translations", input_schema: { type: "object", properties: { translations: { type: "array", items: { type: "string" } } }, required: ["translations"], additionalProperties: false }, strict: true }],
+        tool_choice: { type: "auto" },
       }),
       signal: AbortSignal.timeout(90_000),
     });

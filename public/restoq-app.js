@@ -1056,12 +1056,34 @@ async function loadUsers(){
   try {
     const j = await api('GET', '/api/users');
     box.className = '';
-    box.innerHTML = `<table><thead><tr><th>Navn</th><th>E-post</th><th>Rolle</th><th>Sist innlogget</th><th></th></tr></thead><tbody>${j.users.map(u => `<tr><td><span translate="no">${esc(u.name||'–')}</span>${u.me?' <span class="small muted">(deg)</span>':''}</td><td translate="no">${esc(u.email)}</td><td>${u.me ? (u.role==='owner'?'Administrator':'Ansatt') : `<select data-urole-set="${u.id}" style="width:auto;min-height:36px;padding:4px 8px"><option value="owner" ${u.role==='owner'?'selected':''}>Administrator</option><option value="staff" ${u.role!=='owner'?'selected':''}>Ansatt</option></select>`}${u.must_change_password?' <span class="pill p-tell">invitert</span>':''}</td><td>${u.last_login_at?fmtDL(String(u.last_login_at).slice(0,10)):'–'}</td><td class="n">${u.me?'':`<button class="btn sm" data-ureset="${esc(u.email)}" data-uname="${esc(u.name)}" data-urole="${u.role}">Nytt passord</button> <button class="btn sm danger" data-udel="${u.id}">Fjern</button>`}</td></tr>`).join('')}</tbody></table>`;
+    box.innerHTML = `<table><thead><tr><th>Navn</th><th>E-post</th><th>Rolle</th><th>Sist innlogget</th><th></th></tr></thead><tbody>${j.users.map(u => `<tr><td><span translate="no">${esc(u.name||'–')}</span>${u.me?' <span class="small muted">(deg)</span>':''}</td><td translate="no">${esc(u.email)}</td><td>${u.me ? (u.role==='owner'?'Administrator':'Ansatt') : `<select data-urole-set="${u.id}" style="width:auto;min-height:36px;padding:4px 8px"><option value="owner" ${u.role==='owner'?'selected':''}>Administrator</option><option value="staff" ${u.role!=='owner'?'selected':''}>Ansatt</option></select>`}${u.must_change_password?' <span class="pill p-tell">invitert</span>':''}</td><td>${u.last_login_at?fmtDL(String(u.last_login_at).slice(0,10)):'–'}</td><td class="n">${u.me?'':`<button class="btn sm" data-upw="${u.id}" data-uemail="${esc(u.email)}">Sett passord</button> <button class="btn sm" data-ureset="${esc(u.email)}" data-uname="${esc(u.name)}" data-urole="${u.role}">Send midlertidig</button> <button class="btn sm danger" data-udel="${u.id}">Fjern</button>`}</td></tr>`).join('')}</tbody></table>`;
     box.querySelectorAll('[data-udel]').forEach(b => b.onclick = () => confirmBox('Fjerne brukeren?', 'Brukeren mister tilgangen med en gang.', 'Fjern', async () => { try { await api('DELETE', '/api/users/' + b.dataset.udel); } catch(e){ toast(e.message || 'Kunne ikke fjerne.'); } loadUsers(); }));
     box.querySelectorAll('[data-ureset]').forEach(b => b.onclick = () => inviteUser({email:b.dataset.ureset, name:b.dataset.uname, role:b.dataset.urole}));
+    box.querySelectorAll('[data-upw]').forEach(b => b.onclick = () => setPasswordModal(b.dataset.upw, b.dataset.uemail));
     box.querySelectorAll('[data-urole-set]').forEach(s => s.onchange = async () => { try { await api('PATCH', '/api/users/' + s.dataset.uroleSet, {role: s.value}); toast(s.value === 'owner' ? 'Brukeren er nå administrator.' : 'Brukeren er nå ansatt.'); } catch(e){ toast(e.message || 'Kunne ikke endre rollen.'); } loadUsers(); });
   } catch(e){ box.textContent = 'Kunne ikke hente brukerne.'; }
   const add = $('#uAdd'); if (add) add.onclick = () => inviteUser(null);
+}
+function setPasswordModal(id, email){
+  modal(`<h3>Sett passord</h3>
+    <div class="muted" translate="no">${esc(email)}</div>
+    <div class="grid g2"><label class="f">Nytt passord<input type="password" id="spw1" autocomplete="new-password" minlength="10"></label><label class="f">Gjenta passord<input type="password" id="spw2" autocomplete="new-password" minlength="10"></label></div>
+    <label class="row" style="gap:8px;align-items:center"><input type="checkbox" id="spwMust" checked style="width:auto"> <span>Brukeren må velge eget passord ved innlogging</span></label>
+    <div class="small muted">Minst 10 tegn. Brukeren logges ut på alle enheter. Gi passordet til brukeren selv – det sendes ikke på e-post.</div><div id="spwRes"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary" id="spwOk">Sett passord</button></div>`, m => {
+    m.querySelector('#spwOk').onclick = async () => {
+      const b = m.querySelector('#spwOk'), res = m.querySelector('#spwRes');
+      const p1 = m.querySelector('#spw1').value, p2 = m.querySelector('#spw2').value;
+      if (p1.length < 10){ res.innerHTML = '<div class="note bad">Passordet må ha minst 10 tegn.</div>'; return; }
+      if (p1 !== p2){ res.innerHTML = '<div class="note bad">Passordene er ikke like.</div>'; return; }
+      b.disabled = true;
+      try {
+        const r = await api('POST', '/api/users/' + id + '/password', {password:p1, mustChange:m.querySelector('#spwMust').checked});
+        res.innerHTML = r.mustChange ? '<div class="note good">Passordet er satt. Brukeren velger eget passord ved neste innlogging.</div>' : '<div class="note good">Passordet er satt.</div>';
+        b.classList.add('hide'); loadUsers();
+      } catch(e){ res.innerHTML = `<div class="note bad">${esc(e.message || 'Noe gikk galt.')}</div>`; b.disabled = false; }
+    };
+  });
 }
 function inviteUser(pre){
   modal(`<h3>${pre ? 'Nytt passord' : 'Legg til ansatt'}</h3>

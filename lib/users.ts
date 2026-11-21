@@ -35,3 +35,19 @@ export async function inviteUser(opts: { orgId: number; email: string; name: str
   );
   return { tempPassword: sent ? null : pw, emailed: sent };
 }
+
+/**
+ * Administrator setter et passord for en bruker. Passordet logges aldri.
+ * mustChange = true: brukeren må velge eget passord ved neste innlogging (gjelder da i TEMP_PASSWORD_DAYS dager).
+ * Brukeren logges ut på alle enheter.
+ */
+export async function setUserPassword(userId: number, pw: string, mustChange: boolean) {
+  const p = await db();
+  await p.query(
+    `UPDATE users SET password_hash = $2, must_change_password = $3,
+       temp_password_expires_at = CASE WHEN $3 THEN now() + interval '${TEMP_PASSWORD_DAYS} days' ELSE NULL END
+     WHERE id = $1`,
+    [userId, await hashPassword(pw), mustChange],
+  );
+  await p.query("DELETE FROM sessions WHERE user_id = $1", [userId]);
+}

@@ -4,9 +4,9 @@ import path from "node:path";
 import { redirect } from "next/navigation";
 import { audit, db } from "@/lib/db";
 import { hashToken, requireAdmin, safeNext, sessionToken } from "@/lib/session";
-import { EMAIL_RE, inviteUser } from "@/lib/users";
+import { EMAIL_RE, inviteUser, setUserPassword } from "@/lib/users";
 import { putDoc } from "@/lib/invoices";
-import { hashPassword, tempPassword, TEMP_PASSWORD_DAYS } from "@/lib/password";
+import { hashPassword, passwordProblem, tempPassword, TEMP_PASSWORD_DAYS } from "@/lib/password";
 import { appUrl, mailEnabled, sendMail } from "@/lib/mail";
 import { buildBrand, dataUrlBuffer, getBrand, logoDataUrl, normalizeUrl, saveHero, uniqueSlug } from "@/lib/brand";
 
@@ -227,6 +227,21 @@ export async function resetPasswordAction(form: FormData) {
   await audit(me.email, "nullstilte passord", u.email, u.org_id);
   const sent = await sendMail(u.email, "Nytt midlertidig passord til Restoq", `Hei${u.name ? " " + u.name : ""}!\n\nDu har fått et nytt midlertidig passord til Restoq${u.org ? ` (${u.org})` : ""}.\n\nLogg inn: ${appUrl()}/login\nE-post: ${u.email}\nMidlertidig passord: ${pw}\n\nPassordet gjelder i ${TEMP_PASSWORD_DAYS} dager, og du velger eget passord når du logger inn.\n\nHilsen Restoq`);
   go(form, { ok: sent ? `Nytt passord er sendt til ${u.email}.` : `Nytt midlertidig passord for ${u.email}: ${pw} (gjelder i ${TEMP_PASSWORD_DAYS} dager).` });
+}
+
+export async function setPasswordAction(form: FormData) {
+  const me = await requireAdmin();
+  const u = await target(form);
+  if (u.is_root) go(form, { feil: "Hovedadministratorens passord styres av ADMIN_PASSWORD i Render." });
+  if (u.id === me.id) go(form, { feil: "Bytt ditt eget passord under «Bytt passord»." });
+  const pw = String(form.get("password") ?? "");
+  const problem = passwordProblem(pw);
+  if (problem) go(form, { feil: problem });
+  if (pw !== String(form.get("password2") ?? "")) go(form, { feil: "Passordene er ikke like." });
+  const mustChange = form.get("mustChange") === "1";
+  await setUserPassword(u.id, pw, mustChange);
+  await audit(me.email, mustChange ? "satte midlertidig passord" : "satte passord", u.email, u.org_id);
+  go(form, { ok: mustChange ? `Passordet for ${u.email} er satt. Brukeren velger eget passord ved neste innlogging.` : `Passordet for ${u.email} er satt.` });
 }
 
 export async function logoutUserAction(form: FormData) {

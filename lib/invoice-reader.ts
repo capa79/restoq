@@ -44,11 +44,13 @@ const SCHEMA = {
           category: { type: "string", description: "Kort kategori på norsk, f.eks. Meieri, Kjøtt, Fisk, Grønt, Tørrvarer, Drikke, Emballasje, Rengjøring" },
           shelfDays: { type: ["number", "null"], description: "Anslått typisk holdbarhet i dager for uåpnet vare" },
         },
+        additionalProperties: false,
         required: ["itemNo", "gtin", "description", "qty", "unit", "unitPrice", "lineTotal", "vatRate", "storage", "category", "shelfDays"],
       },
     },
     warnings: { type: "array", items: { type: "string" }, description: "Korte merknader på norsk om noe er uleselig, usikkert eller ikke stemmer (f.eks. sum av linjer ≠ total)" },
   },
+  additionalProperties: false,
   required: ["supplierName", "supplierOrgNo", "supplierAddress", "supplierPostalCode", "supplierCity", "supplierBankAccount", "supplierIban", "supplierBic", "supplierEmail", "supplierPhone", "supplierWebsite", "supplierContact", "customerNo", "invoiceNo", "invoiceDate", "dueDate", "kid", "orderRef", "currency", "amountExVat", "vat", "amount", "isCreditNote", "lines", "warnings"],
 };
 
@@ -65,26 +67,34 @@ export async function readInvoice(file: { mime: string; data: Buffer; name: stri
     content = [{ type: "text", text: `EHF/UBL-faktura (XML):\n${xml}` }];
   } else throw new Error("Filtypen kan ikke leses automatisk.");
 
-  const res = await fetch(`${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`, {
-    method: "POST",
-    headers: { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
-    body: JSON.stringify({
-      model: process.env.RESTOQ_INVOICE_MODEL || "claude-sonnet-5-5",
-      max_tokens: 16000,
-      system: "Du leser innkommende leverandørfakturaer for en norsk restaurant eller bar og henter ut opplysningene nøyaktig slik de står. Ikke gjett tall: er noe uleselig eller mangler, bruk null eller tom tekst og skriv en merknad. Beløp er tall med punktum som desimaltegn. Ta med alle varelinjer, også pant, frakt og gebyrer (som egne linjer). Leverandøren er selgeren, ikke kjøperen.",
-      messages: [{ role: "user", content: [...content, { type: "text", text: "Hent ut fakturaen med verktøyet save_invoice." }] }],
-      tools: [{ name: "save_invoice", description: "Lagre opplysningene fra fakturaen", input_schema: SCHEMA }],
-      tool_choice: { type: "tool", name: "save_invoice" },
-    }),
-    signal: AbortSignal.timeout(120_000),
-  });
-  if (!res.ok) {
-    const t = await res.text().catch(() => "");
-    throw new Error(res.status === 401 ? "ANTHROPIC_API_KEY er ugyldig." : res.status === 429 || res.status === 529 ? "Claude er opptatt akkurat nå. Prøv igjen om litt." : `Kunne ikke lese fakturaen (HTTP ${res.status}). ${t.slice(0, 120)}`);
+  // Claude Sonnet 5.5 godtar ikke tvungen verktøybruk (tool_choice "tool"/"any" gir HTTP 400).
+  // Vi bruker derfor tool_choice "auto" med strict: true og ber tydelig om verktøyet; mangler kallet, prøver vi én gang til.
+  const messages: unknown[] = [{ role: "user", content: [...content, { type: "text", text: "Hent ut fakturaen og lagre den med verktøyet save_invoice. Svar bare med verktøykallet." }] }];
+  let out: ReadInvoice | undefined;
+  for (let attempt = 0; attempt < 2 && !out; attempt++) {
+    const res = await fetch(`${process.env.ANTHROPIC_BASE_URL || "https://api.anthropic.com"}/v1/messages`, {
+      method: "POST",
+      headers: { "x-api-key": process.env.ANTHROPIC_API_KEY!, "anthropic-version": "2023-06-01", "content-type": "application/json" },
+      body: JSON.stringify({
+        model: process.env.RESTOQ_INVOICE_MODEL || "claude-sonnet-5-5",
+        max_tokens: 32000,
+        system: "Du leser innkommende leverandørfakturaer for en norsk restaurant eller bar og henter ut opplysningene nøyaktig slik de står. Bruk alltid verktøyet save_invoice til å levere resultatet. Ikke gjett tall: er noe uleselig eller mangler, bruk null eller tom tekst og skriv en merknad. Beløp er tall med punktum som desimaltegn. Ta med alle varelinjer, også pant, frakt og gebyrer (som egne linjer). Leverandøren er selgeren, ikke kjøperen.",
+        messages,
+        tools: [{ name: "save_invoice", description: "Lagre opplysningene fra fakturaen. Skal alltid kalles nøyaktig én gang.", input_schema: SCHEMA, strict: true }],
+        tool_choice: { type: "auto" },
+      }),
+      signal: AbortSignal.timeout(180_000),
+    });
+    if (!res.ok) throw new Error(await apiError(res));
+    const j = await res.json();
+    out = j?.content?.find((c: { type: string }) => c.type === "tool_use")?.input as ReadInvoice | undefined;
+    if (!out) {
+      if (j?.stop_reason === "max_tokens") throw new Error("Fakturaen er for lang til å leses på én gang. Del den opp eller legg inn linjene manuelt.");
+      if (j?.stop_reason === "refusal") throw new Error("Claude kunne ikke lese denne filen.");
+      messages.push({ role: "assistant", content: j?.content ?? [] }, { role: "user", content: "Lever resultatet med verktøyet save_invoice nå." });
+    }
   }
-  const j = await res.json();
-  const out = j?.content?.find((c: { type: string }) => c.type === "tool_use")?.input as ReadInvoice | undefined;
-  if (!out) throw new Error("Fant ingen fakturadata i svaret.");
+  if (!out) throw new Error("Fant ingen fakturadata i svaret. Prøv igjen, eller legg inn fakturaen manuelt.");
   // Rydding og kontroll av summer
   out.supplierOrgNo = String(out.supplierOrgNo ?? "").replace(/\D/g, "").slice(-9);
   out.supplierBankAccount = String(out.supplierBankAccount ?? "").replace(/\D/g, "");
@@ -95,4 +105,16 @@ export async function readInvoice(file: { mime: string; data: Buffer; name: stri
     out.warnings.push(`Sum av linjene (${sum.toFixed(2)}) avviker fra beløp eks. mva (${out.amountExVat.toFixed(2)}). Sjekk linjene.`);
   if (out.currency && out.currency !== "NOK") out.warnings.push(`Fakturaen er i ${out.currency}, ikke NOK.`);
   return out;
+}
+
+/** Lesbar feilmelding fra Claude API (uten rå JSON). */
+async function apiError(res: Response): Promise<string> {
+  const t = await res.text().catch(() => "");
+  let msg = "";
+  try { msg = JSON.parse(t)?.error?.message ?? ""; } catch { msg = t; }
+  if (res.status === 401) return "ANTHROPIC_API_KEY er ugyldig.";
+  if (res.status === 429 || res.status === 529) return "Claude er opptatt akkurat nå. Prøv igjen om litt.";
+  if (res.status === 413) return "Filen er for stor til å leses. Maks 32 MB og 100 sider.";
+  console.error("Claude API", res.status, msg.slice(0, 500));
+  return `Kunne ikke lese fakturaen (HTTP ${res.status}). ${msg.slice(0, 160)}`.trim();
 }

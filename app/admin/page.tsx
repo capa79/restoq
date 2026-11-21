@@ -2,7 +2,7 @@ import { LogoMark } from "../logo";
 import Link from "next/link";
 import {
   addUserAction, createOrgAction, deleteOrgAction, deleteUserAction, developerAction, editUserAction, leadAction, loadPilotAction,
-  logoutUserAction, openOrgAction, resetPasswordAction, testMailAction, toggleAdminAction, toggleDeveloperAction, updateOrgAction,
+  logoutUserAction, openOrgAction, resetPasswordAction, setPasswordAction, testMailAction, toggleAdminAction, toggleDeveloperAction, updateOrgAction,
 } from "./actions";
 import { logoutAction } from "../auth-actions";
 import { db } from "@/lib/db";
@@ -271,7 +271,19 @@ function UserList({ users, orgs, back, meId }: { users: URow[]; orgs: { id: numb
                 {!u.is_root && !self && (u.role === "admin" || !u.org_id) ? <form action={toggleAdminAction}>{hidden}{h("on", u.role === "admin" ? "0" : "1")}<button className="btn line sm">{u.role === "admin" ? "Fjern administratorrolle" : "Gjør til administrator"}</button></form> : null}
                 {!u.is_root && !self ? <form action={deleteUserAction}>{hidden}<button className="btn line sm danger-text">Slett bruker</button></form> : null}
               </div>
-              <p className="small muted" style={{ marginTop: 6 }}>Opprettet {d(u.created_at)}. Nytt passord logger brukeren ut overalt.</p>
+              {!u.is_root && !self ? (
+                <details className="pwset" style={{ marginTop: 10 }}>
+                  <summary className="small">Sett passord</summary>
+                  <form action={setPasswordAction} className="fbform" style={{ marginTop: 8 }}>
+                    {hidden}
+                    <label className="f">Nytt passord<input name="password" type="password" minLength={10} autoComplete="new-password" required /></label>
+                    <label className="f">Gjenta passord<input name="password2" type="password" minLength={10} autoComplete="new-password" required /></label>
+                    <label className="small" style={{ display: "flex", gap: 6, alignItems: "center", alignSelf: "end" }}><input type="checkbox" name="mustChange" value="1" defaultChecked style={{ width: "auto" }} /> Brukeren må velge eget passord ved innlogging</label>
+                    <div className="row" style={{ alignItems: "end" }}><button className="btn dark sm">Sett passord</button></div>
+                  </form>
+                </details>
+              ) : null}
+              <p className="small muted" style={{ marginTop: 6 }}>Opprettet {d(u.created_at)}. Nytt eller endret passord logger brukeren ut overalt. Minst 10 tegn.</p>
             </div>
           </details>
         );
