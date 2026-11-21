@@ -306,3 +306,12 @@ body:has(.venue) { margin: 0; }
 @media (min-width: 861px) { .venue-hero { position: sticky; top: 0; height: 100dvh; min-height: 0; } }
 .site .logo svg[role="img"] { width: auto; height: 34px; }
 .site .powered svg, .venue-powered svg { display: inline-block; vertical-align: -2px; }
+/* toppmeny på mobil: «Logg ut» skal alltid være synlig */
+.site .nav .btn { white-space: nowrap; }
+.site .nav .wrap > form { flex-shrink: 0; }
+@media (max-width: 600px) {
+  .site .nav .wrap { gap: 10px; }
+  .site .nav .navmail { display: none; }
+  .site .nav .logo { font-size: 18px; min-width: 0; white-space: nowrap; overflow: hidden; }
+  .site .nav .btn.sm { padding: 6px 10px; }
+}

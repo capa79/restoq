@@ -35,7 +35,7 @@ export default async function Utvikler({ searchParams }: { searchParams: Promise
       <header className="nav"><div className="wrap"><Link href="/" className="logo"><LogoMark size={26} />Restoq utvikler</Link><div style={{ flex: 1 }} />
         {dev.role === "admin" ? <Link className="btn ghost sm" href="/admin">Admin</Link> : null}
         {dev.org_id ? <Link className="btn ghost sm" href="/app">Appen</Link> : null}
-        <span className="small" style={{ opacity: 0.7 }}>{dev.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>
+        <span className="small navmail" style={{ opacity: 0.7 }}>{dev.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>
       <main className="admin">
         <nav className="devtabs" aria-label="Utvikler">
           <Link href="/utvikler" aria-current={fane === "tilbakemeldinger" ? "page" : undefined}>Tilbakemeldinger {newFb.rows[0].n ? <b>{newFb.rows[0].n} nye</b> : null}</Link>
