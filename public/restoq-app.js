@@ -1914,21 +1914,33 @@ function isoWeek(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), 
 /* ---------- dialoger, filer ---------- */
 /* ===== Innkjøpskategorier (hovedkategori › underkategori) ===== */
 const CAT_DEFAULT = [
-  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Frukt og grønnsaker', stor:'Kjøl'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
-  {name:'Drikke', stocked:true, account:'', subs:[{name:'Alkoholfritt', stor:'Romtemp.'},{name:'Øl og cider', stor:'Kjøl'},{name:'Vin', stor:'Romtemp.'},{name:'Brennevin', stor:'Romtemp.'},{name:'Kaffe og te', stor:'Tørr'}]},
+  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Frukt og grønnsaker', stor:'Kjøl'},{name:'Garnityr', stor:'Kjøl'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
+  {name:'Drikke', stocked:true, account:'', subs:[{name:'Alkoholfritt', stor:'Romtemp.'},{name:'Øl og cider', stor:'Kjøl'},{name:'Vin', stor:'Romtemp.'},{name:'Brennevin', stor:'Romtemp.'},{name:'Sirup & Mixers', stor:'Romtemp.'},{name:'Kaffe og te', stor:'Tørr'}]},
+  {name:'Barutstyr & Forbruksmateriell', stocked:true, account:'', subs:[{name:'Barutstyr & Forbruksmateriell', stor:'Tørr'}]},
   {name:'Emballasje', stocked:true, account:'', subs:[{name:'Take-away', stor:'Tørr'},{name:'Folie og film', stor:'Tørr'}]},
-  {name:'Rengjøring og hygiene', stocked:true, account:'', subs:[{name:'Vask og rengjøring', stor:'Tørr'},{name:'Papir og hygiene', stor:'Tørr'}]},
+  {name:'Rengjøring og hygiene', stocked:true, account:'', subs:[{name:'Renhold', stor:'Tørr'},{name:'Papir og hygiene', stor:'Tørr'}]},
   {name:'Driftsmateriell', stocked:true, account:'', subs:[{name:'Engangsutstyr', stor:'Tørr'},{name:'Småutstyr kjøkken og bar', stor:'Tørr'},{name:'Kontor', stor:'Tørr'}]},
-  {name:'Inventar', stocked:false, account:'', subs:[{name:'Maskiner og utstyr', stor:'Romtemp.'},{name:'Møbler', stor:'Romtemp.'},{name:'Servise og glass', stor:'Romtemp.'}]},
+  {name:'Inventar', stocked:false, account:'', subs:[{name:'Maskiner og utstyr', stor:'Romtemp.'},{name:'Møbler', stor:'Romtemp.'},{name:'Glass & Serveringsutstyr', stor:'Romtemp.'}]},
   {name:'Annet', stocked:true, account:'', subs:[{name:'Annet', stor:'Tørr'}]},
 ];
 const FG = 'Frukt og grønnsaker';
 const FG_OLD = ['Grønt', 'Frukt', 'Grønnsaker', 'Salat og urter', 'Poteter og rotgrønnsaker'];
 /** Eldre oppsett: Mat › Grønt (eller en egen hovedkategori «Frukt og grønnsaker») blir Mat › Frukt og grønnsaker. */
+// Endringer i standardkategoriene som legges inn én gang hos kunder med egne kategorier (merkes i settings.catsAdded).
+// Sletter eller endrer kunden dem etterpå, får de være.
+const NEW_GROUPS = [['Barutstyr & Forbruksmateriell', 'Drikke']];
+const NEW_SUBS = [['Drikke', 'Sirup & Mixers', 'Brennevin', 'Romtemp.'], ['Mat', 'Garnityr', FG, 'Kjøl']];
+const RENAMED_SUBS = [['Inventar', 'Servise og glass', 'Glass & Serveringsutstyr'], ['Rengjøring og hygiene', 'Vask og rengjøring', 'Renhold']];
+const CAT_CHANGES = () => [...NEW_GROUPS.map(x => x[0]), ...NEW_SUBS.map(x => x[1]), ...RENAMED_SUBS.map(x => x[2])];
 function catsMigrated(c){
   let out = c.filter(g => g.name !== FG).map(g => g.name === 'Mat' ? {...g, subs: g.subs.filter(x => x.name !== 'Fryst').map(x => x.name === 'Grønt' ? {...x, name: FG} : x)} : g);
   const mat = out.find(g => g.name === 'Mat');
   if (mat && !mat.subs.some(x => x.name === FG)){ const k = mat.subs.findIndex(x => x.name === 'Kjøtt og fisk'); mat.subs.splice(k >= 0 ? k + 1 : mat.subs.length, 0, {name: FG, stor: 'Kjøl'}); }
+  // Nye underkategorier legges til én gang hos kunder som har egne kategorier. Sletter kunden dem etterpå, blir de borte.
+  const seen = SET().catsAdded || [];
+  NEW_GROUPS.forEach(([grp, after]) => { if (seen.includes(grp) || out.some(x => x.name === grp)) return; const def = CAT_DEFAULT.find(x => x.name === grp); const i = out.findIndex(x => x.name === after); out.splice(i >= 0 ? i + 1 : out.length, 0, JSON.parse(JSON.stringify(def))); });
+  NEW_SUBS.forEach(([grp, sub, after, stor]) => { if (seen.includes(sub)) return; const g = out.find(x => x.name === grp); if (g && !g.subs.some(x => x.name === sub)){ const i = g.subs.findIndex(x => x.name === after); g.subs = g.subs.slice(); g.subs.splice(i >= 0 ? i + 1 : g.subs.length, 0, {name: sub, stor}); } });
+  RENAMED_SUBS.forEach(([grp, from, to]) => { if (seen.includes(to)) return; const g = out.find(x => x.name === grp); if (g && !g.subs.some(x => x.name === to)) g.subs = g.subs.map(x => x.name === from ? {...x, name: to} : x); });
   return out;
 }
 let _catsSrc = null, _catsOut = null;
@@ -1940,6 +1952,8 @@ const catOf = it => {
   // Mat › Fryst er fjernet (frys styres av lagertypen): ny kategori ut fra varenavnet
   if (it.cat === 'Fryst' && (!it.group || it.group === 'Mat') && !CATS().some(g => g.subs.some(x => x.name === 'Fryst'))){ const g = guessCat(it.name || '', ''); return g.group === 'Mat' ? g : {group: 'Mat', cat: 'Ferskt'}; }
   if (!it.cat) return {group: '', cat: ''};
+  const rn = RENAMED_SUBS.find(([g, from]) => it.cat === from && (!it.group || it.group === g));
+  if (rn && !CATS().some(g => g.name === rn[0] && g.subs.some(x => x.name === rn[1])) && CATS().some(g => g.name === rn[0] && g.subs.some(x => x.name === rn[2]))) return {group: rn[0], cat: rn[2]};
   return {group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat};
 };
 const catStocked = g => (CATS().find(x => x.name === g) || {stocked:true}).stocked !== false;
@@ -1952,15 +1966,18 @@ function catOptions(group, cat){
 }
 const splitCat = v => { if (!v) return {group: '', cat: ''}; const [group, cat] = String(v).split('|'); return {group: group || '', cat: cat || group || ''}; };
 const CAT_WORDS = [
+  [/rørepinne|sugerør|cocktailpinne|drinkparasoll|parasoll|tannpirker|cocktailserviett|drinkspyd|engangshansk|ispose|coaster|glassbrikke|barutstyr/i, 'Barutstyr & Forbruksmateriell', 'Barutstyr & Forbruksmateriell'],
+  [/\blime\b|sitron|appelsin|mynte|garnityr|cocktailbær|cocktailkirsebær|maraschino/i, 'Mat', 'Garnityr'],
+  [/sirup|syrup|monin|\bmixer|tonic|ginger ?(beer|ale)|soda ?water|club soda|grenadine|bitters?\b|angostura|sour ?mix|cordial|fruktpur[ée]|bærpur[ée]|\bpur[ée]e?(r|n)?\b/i, 'Drikke', 'Sirup & Mixers'],
   [/meieri|ost\b|melk|fløte|smør|yoghurt|rømme|egg/i, 'Mat', 'Meieri'], [/kjøtt|kylling|svin|storfe|lam|bacon|pølse|fisk|laks|reke|sjømat|torsk/i, 'Mat', 'Kjøtt og fisk'],
   [/grønt|grønnsak|frukt|eple|appelsin|sitron|lime|banan|drue|bær|mango|ananas|pære|melon|kiwi|salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|potet|gulrot|rotgrønnsak|kålrot|rødbet|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|asparges|purre/i, 'Mat', FG], 
   [/brød|bakst|bolle|brioche|bakeri|kake|baguette|surdeig/i, 'Mat', 'Brød og bakst'], [/tørr|mel\b|ris\b|pasta|sukker|krydder|olje|eddik|hermetikk|saus|nøtter|tørrvare/i, 'Mat', 'Tørrvarer'],
   [/øl\b|pils|\bipa\b|cider|lager ?øl|\bpilsner/i, 'Drikke', 'Øl og cider'], [/vin\b|rødvin|hvitvin|musserende|prosecco|champagne/i, 'Drikke', 'Vin'], [/vodka|gin\b|rom\b|whisk|likør|brennevin|tequila|akevitt/i, 'Drikke', 'Brennevin'],
   [/kaffe|espresso|\bte\b|kakao/i, 'Drikke', 'Kaffe og te'], [/drikke|brus|cola|juice|vann\b|mineralvann|energi|red bull|tonic|saft/i, 'Drikke', 'Alkoholfritt'],
   [/emballasje|take.?away|boks|beger|lokk|pose|kartong/i, 'Emballasje', 'Take-away'], [/folie|film|plastfolie|bakepapir/i, 'Emballasje', 'Folie og film'],
-  [/rengjør|vask|såpe|oppvask|desinfek|klut|svamp/i, 'Rengjøring og hygiene', 'Vask og rengjøring'], [/papir|serviett|tørkerull|toalett|håndkle/i, 'Rengjøring og hygiene', 'Papir og hygiene'],
+  [/rengjør|vask|såpe|oppvask|desinfek|klut|svamp/i, 'Rengjøring og hygiene', 'Renhold'], [/papir|serviett|tørkerull|toalett|håndkle/i, 'Rengjøring og hygiene', 'Papir og hygiene'],
   [/engangs|sugerør|hansker|pinner|bestikk.*engangs/i, 'Driftsmateriell', 'Engangsutstyr'], [/kontor|blekk|printer/i, 'Driftsmateriell', 'Kontor'],
-  [/maskin|ovn|kjøleskap|fryser|oppvaskmaskin|blender|kaffemaskin|utstyr/i, 'Inventar', 'Maskiner og utstyr'], [/møbel|stol|bord\b|sofa/i, 'Inventar', 'Møbler'], [/glass|servise|tallerken|kopp|bestikk/i, 'Inventar', 'Servise og glass'],
+  [/maskin|ovn|kjøleskap|fryser|oppvaskmaskin|blender|kaffemaskin|utstyr/i, 'Inventar', 'Maskiner og utstyr'], [/møbel|stol|bord\b|sofa/i, 'Inventar', 'Møbler'], [/glass|servise|tallerken|kopp|bestikk|mugge|shaker|jigger|barskje|cocktailsil/i, 'Inventar', 'Glass & Serveringsutstyr'],
 ];
 /** Foreslår kategori fra tekst (navn, Claude-kategori) og lagertype. Finnes kategorien i oppsettet, brukes den. */
 function guessCat(text, stor){
@@ -2017,7 +2034,7 @@ function categoriesModal(onSaved){
     draw(m);
     m.querySelector('#ctAdd').onclick = () => { m._read(); cats.push({name:'', stocked:true, account:'', subs:[{name:'', stor:''}]}); draw(m); };
     m.querySelector('#ctDef').onclick = () => { cats = JSON.parse(JSON.stringify(CAT_DEFAULT)); draw(m); };
-    m.querySelector('#ctOk').onclick = async () => { m._read(); if (!cats.length){ toast('Legg inn minst én kategori.'); return; } cats.forEach(g => { if (!g.subs.length) g.subs = [{name: g.name, stor:''}]; }); const s = JSON.parse(JSON.stringify(SET())); s.categories = cats; await saveSettings(s); closeModal(); toast('Kategoriene er lagret.'); onSaved ? onSaved() : render(); };
+    m.querySelector('#ctOk').onclick = async () => { m._read(); if (!cats.length){ toast('Legg inn minst én kategori.'); return; } cats.forEach(g => { if (!g.subs.length) g.subs = [{name: g.name, stor:''}]; }); const s = JSON.parse(JSON.stringify(SET())); s.categories = cats; s.catsAdded = [...new Set([...(s.catsAdded || []), ...CAT_CHANGES()])]; await saveSettings(s); closeModal(); toast('Kategoriene er lagret.'); onSaved ? onSaved() : render(); };
   });
 }
 
