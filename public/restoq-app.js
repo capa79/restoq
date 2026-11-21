@@ -95,11 +95,35 @@ function applyDocs(d){
   S.waste = d.waste || []; S.orders = d.orders || []; S.counts = d.counts || []; S.invoices = d.invoices || []; S.slips = d.slips || [];
   (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; });
 }
+/* ---- Koblinger til andre systemer: grønt lys når de er koblet til ---- */
+function integrationList(){
+  const I = S.integrations || {}; const out = [];
+  const ago = t => { if (!t) return ''; const h = (Date.now() - new Date(t)) / 36e5; return h < 1 ? 'nettopp' : h < 24 ? `${Math.round(h)} t siden` : `${Math.round(h / 24)} d siden`; };
+  const pd = I.planday || {};
+  out.push({key: 'planday', name: 'Planday', what: 'Omsetning og plan', state: pd.connected ? (pd.error ? 'err' : (pd.lastSync && (Date.now() - new Date(pd.lastSync)) > 36 * 36e5 ? 'warn' : 'ok')) : pd.available ? 'off' : 'na',
+    note: pd.connected ? (pd.error ? pd.error : pd.lastSync ? `Hentet ${ago(pd.lastSync)}` : 'Koblet til') : pd.available ? 'Ikke koblet til' : 'Ikke aktivert ennå'});
+  const ac = I.accounting || {};
+  out.push({key: 'accounting', name: 'Regnskap', what: ac.system || 'Tripletex', state: ac.connected ? 'ok' : ac.available ? 'off' : 'na', note: ac.connected ? 'Koblet til' : ac.available ? 'Ikke koblet til' : 'Venter på godkjent integrasjon'});
+  const pos = I.pos || {};
+  out.push({key: 'pos', name: 'Kassesystem', what: 'Salg fra kassen', state: pos.connected ? 'ok' : 'na', note: pos.connected ? 'Koblet til' : 'Kommer'});
+  const cl = I.claude || {};
+  out.push({key: 'claude', name: 'Fakturalesing', what: 'Claude', state: cl.connected ? 'ok' : 'na', note: cl.connected ? 'Aktiv' : 'Ikke aktivert'});
+  return out;
+}
+const dotHtml = st => `<span class="idot ${st}" aria-hidden="true"></span>`;
+const STATE_TXT = {ok: 'Koblet til', warn: 'Koblet til – ikke oppdatert', err: 'Feil', off: 'Ikke koblet til', na: 'Ikke tilgjengelig'};
+function integrationsStrip(){
+  const L = integrationList();
+  return `<div class="card integ"><div class="row between"><h3>Koblinger</h3>${S.canManage ? '<a class="small" href="#oppsett">Innstillinger</a>' : ''}</div><div class="integrow">${L.map(x => `<${S.canManage ? 'a href="#oppsett"' : 'div'} class="ichip ${x.state}" title="${esc(STATE_TXT[x.state])}"><span>${dotHtml(x.state)}</span><span class="ichip-t"><b>${esc(x.name)}</b><span class="small muted">${esc(x.note)}</span></span></${S.canManage ? 'a' : 'div'}>`).join('')}</div></div>`;
+}
+let plandayAutoTried = false;
 async function apiLoad(first){
   try {
     const j = await api('GET', '/api/data');
-    applyDocs(j.docs); S.me = j.me; S.features = j.features || {}; S.canManage = !!j.me.canManage; S.mode = 'shared'; S.ready = true;
+    applyDocs(j.docs); S.me = j.me; S.features = j.features || {}; S.integrations = j.integrations || {}; S.canManage = !!j.me.canManage; S.mode = 'shared'; S.ready = true;
   } catch(e){ if (e && e.code === 'auth') return; S.mode = 'error'; S.ready = true; }
+  const pdI = (S.integrations || {}).planday;
+  if (!plandayAutoTried && pdI && pdI.connected && (!pdI.lastSync || Date.now() - new Date(pdI.lastSync) > 6 * 36e5)){ plandayAutoTried = true; api('POST', '/api/planday/sync', {}).then(() => apiLoad(false)).catch(() => {}); }
   // Ikke tegn siden på nytt midt i skriving, i en dialog eller i innstillingene
   const ae = document.activeElement; const busy = !first && ((ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) || $('#layer').innerHTML || view === 'oppsett' || countDirty || countSaving);
   if (!busy) render(); else renderTabs(C ? C.items.filter(r => r.status === 'bestill').length : 0);
@@ -401,6 +425,7 @@ function vOversikt(){
     <button class="tile ${wr.length?'amber':'green'}" data-filter="svinn"><span class="lbl">Svinnrisiko</span><span class="big">${wr.length}</span><span class="small muted">går ut før det brukes opp</span></button>
     <button class="tile blue" data-go="varer"><span class="lbl">Lagerverdi nå</span><span class="big">${C.cur ? kr(value) : '–'}</span><span class="small muted">${C.cur ? 'beregnet, eks. mva' : 'krever telling'}</span></button>
   </div>`;
+  h += integrationsStrip();
   h += calHtml();
   // leverandørkort
   h += `<div class="grid g3">` + Object.keys(set.suppliers).map(code => {
@@ -906,8 +931,8 @@ function vOppsett(){
     <div class="grid g3" style="align-items:end"><label class="f">Uke starter (mandag)<input type="date" id="wkFrom" value="${addDays(C.today, -((pd(C.today).getDay()+6)%7) - 7)}"></label><label class="f">Matsalg (kr eks. mva)<input type="text" inputmode="numeric" id="wkSales"></label><button class="btn" id="wkAdd">Legg til uke</button></div>
     <div class="tblwrap" style="max-height:300px"><table><thead><tr><th>Uke</th><th>Fra</th><th class="n">Matsalg</th><th></th></tr></thead><tbody>${weeks.map(w=>`<tr><td>${w.wk}</td><td>${fmtDL(w.from)}</td><td class="n">${kr(w.sales)}</td><td class="n"><button class="btn sm danger" data-wkdel="${w.from}">Slett</button></td></tr>`).join('')}</tbody></table></div></div>`;
   h += `<div class="row" style="justify-content:flex-end"><button class="btn primary lg" id="sSave" ${roM()}>Lagre innstillinger</button></div>`;
-  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="pdCard"><h3>Planday</h3><div class="small muted">Omsetningsplan (budsjett) og faktisk omsetning per dag hentes fra Planday og vises i kalenderen på Oversikt.</div><div id="pdBody" class="muted small">Henter status …</div></div>`;
-  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="ttxCard"><h3>Regnskap</h3><div class="small muted">Regnskapssystem: Tripletex</div><div id="ttxBody" class="muted small">Henter status …</div></div>
+  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="pdCard"><h3 class="row" style="gap:8px">${(x => dotHtml(x.state) + '<span>Planday</span> <span class="small muted" style="font-weight:400">' + esc(STATE_TXT[x.state]) + '</span>')(integrationList()[0])}</h3><div class="small muted">Omsetningsplan (budsjett) og faktisk omsetning per dag hentes fra Planday og vises i kalenderen på Oversikt.</div><div id="pdBody" class="muted small">Henter status …</div></div>`;
+  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="ttxCard"><h3 class="row" style="gap:8px">${(x => dotHtml(x.state) + '<span>Regnskap</span> <span class="small muted" style="font-weight:400">' + esc(STATE_TXT[x.state]) + '</span>')(integrationList()[1])}</h3><div class="small muted">Regnskapssystem: Tripletex</div><div id="ttxBody" class="muted small">Henter status …</div></div>
     <div class="card grid" style="gap:12px" id="keysCard"><div class="row between"><h3>API-nøkler</h3><button class="btn sm" id="kAdd">+ Ny API-nøkkel</button></div><div class="small muted">For skannere, EDI og andre systemer som skal registrere fakturaer og pakksedler i Restoq. Se <a href="/api-dokumentasjon" target="_blank" rel="noopener">API-dokumentasjonen</a>.</div><div id="keysList" class="muted small">Henter …</div></div>`;
   if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="usersCard"><div class="row between"><h3>Brukere</h3><button class="btn sm" id="uAdd">+ Legg til ansatt</button></div><div class="small muted">Ansatte kan telle, bestille, ta imot varer og føre avskrivning. Administratorer kan i tillegg legge til og fjerne brukere, endre roller og endre innstillinger, varer, leverandører, logo og fakturaer. Det må alltid være minst én administrator.</div><div id="usersList" class="muted small">Henter brukere …</div></div>`;
   const B = BRAND();
@@ -1599,7 +1624,7 @@ async function loadPlanday(){
     const saveOpt = async () => { const set = JSON.parse(JSON.stringify(SET())); set.planday = {...(set.planday || {}), useForSales: $('#pdUse').checked, foodShare: Math.min(100, Math.max(1, num($('#pdShare').value) || 100))}; await saveSettings(set); toast('Lagret.'); };
     $('#pdUse').onchange = saveOpt; $('#pdShare').onchange = saveOpt;
     $('#pdSync').onclick = async () => { const b = $('#pdSync'); b.disabled = true; try { const r = await api('POST', '/api/planday/sync', {}); await apiLoad(true); toast(`Hentet omsetning for ${r.days} dager fra Planday.`); loadPlanday(); } catch(e){ toast(e.message || 'Kunne ikke hente.'); b.disabled = false; } };
-    $('#pdOff').onclick = () => confirmBox('Koble fra Planday?', 'Omsetning og plan hentes ikke lenger. Det som allerede er hentet, blir liggende.', 'Koble fra', async () => { await api('DELETE', '/api/planday'); loadPlanday(); });
+    $('#pdOff').onclick = () => confirmBox('Koble fra Planday?', 'Omsetning og plan hentes ikke lenger. Det som allerede er hentet, blir liggende.', 'Koble fra', async () => { await api('DELETE', '/api/planday'); await apiLoad(true); });
   } catch(e){ box.textContent = 'Kunne ikke hente status.'; }
 }
 async function loadTtx(){
@@ -1610,8 +1635,8 @@ async function loadTtx(){
     box.className = 'grid'; box.style.gap = '10px';
     box.innerHTML = s.connected ? `<div class="note good">Koblet til regnskap (Tripletex)${s.env==='test'?' (testmiljø)':''} siden ${fmtDL(String(s.info?.connectedAt||'').slice(0,10))}.</div><div class="row"><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
       : `<div class="small">Lag en API-nøkkel i Tripletex: <b>Brukerinnstillinger → API-tilgang → Ny nøkkel</b>, velg applikasjonen <b>Restoq</b> og tilgang til leverandørfaktura og bilag. Lim inn nøkkelen her. (Tilleggsmodulen «Integrasjoner» må være aktiv i Tripletex.)</div><div class="row" style="flex-wrap:nowrap"><input type="text" id="ttxTok" placeholder="Employee token fra Tripletex" autocomplete="off"><button class="btn primary" id="ttxOn">Koble til</button></div>`;
-    const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Regnskap er koblet til.'); loadTtx(); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
-    const off = $('#ttxOff'); if (off) off.onclick = () => confirmBox('Koble fra regnskap?', 'Restoq kan ikke lenger sende eller hente fakturaer før dere kobler til på nytt.', 'Koble fra', async () => { await api('DELETE', '/api/tripletex'); loadTtx(); });
+    const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Regnskap er koblet til.'); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
+    const off = $('#ttxOff'); if (off) off.onclick = () => confirmBox('Koble fra regnskap?', 'Restoq kan ikke lenger sende eller hente fakturaer før dere kobler til på nytt.', 'Koble fra', async () => { await api('DELETE', '/api/tripletex'); await apiLoad(true); });
   } catch(e){ box.textContent = 'Kunne ikke hente status.'; }
 }
 async function loadKeys(){

@@ -1310,3 +1310,22 @@ Planday hentet	Planday fetched	Planday abgerufen	Planday pobrano	Planday obtenid
 plan	plan	Plan	plan	plan
 Bestill innen denne dagen for levering {0}.	Order by this day for delivery {0}.	Bis zu diesem Tag bestellen für Lieferung {0}.	Zamów do tego dnia na dostawę {0}.	Pide antes de este día para la entrega {0}.
 {0} aktive varer mangler telling og står som «Tell». Tell dem neste gang, eller sett dem til «Ved behov» under Varer.	{0} active items have no count and show as “Count”. Count them next time, or set them to “As needed” under Items.	{0} aktive Artikel haben keine Inventur und stehen auf „Zählen“. Zählen Sie sie beim nächsten Mal oder setzen Sie sie unter Artikel auf „Bei Bedarf“.	{0} aktywnych towarów nie ma inwentaryzacji i mają status „Policz”. Policz je następnym razem lub ustaw „W razie potrzeby” w Towarach.	{0} artículos activos no tienen recuento y aparecen como «Contar». Cuéntalos la próxima vez o ponlos en «Según necesidad» en Artículos.
+Koblinger	Connections	Verbindungen	Połączenia	Conexiones
+Omsetning og plan	Revenue and plan	Umsatz und Plan	Obrót i plan	Facturación y plan
+Hentet {0}	Fetched {0}	Abgerufen {0}	Pobrano {0}	Obtenido {0}
+Hentet nettopp	Fetched just now	Gerade abgerufen	Pobrano przed chwilą	Obtenido ahora mismo
+Hentet {0} t siden	Fetched {0} h ago	Vor {0} Std. abgerufen	Pobrano {0} godz. temu	Obtenido hace {0} h
+Hentet {0} d siden	Fetched {0} d ago	Vor {0} T. abgerufen	Pobrano {0} dni temu	Obtenido hace {0} d
+Koblet til	Connected	Verbunden	Połączono	Conectado
+Ikke koblet til	Not connected	Nicht verbunden	Nie połączono	No conectado
+Ikke aktivert ennå	Not activated yet	Noch nicht aktiviert	Jeszcze nieaktywne	Aún no activado
+Venter på godkjent integrasjon	Awaiting approved integration	Wartet auf genehmigte Integration	Oczekuje na zatwierdzoną integrację	A la espera de integración aprobada
+Kassesystem	POS system	Kassensystem	System POS	Sistema TPV
+Salg fra kassen	Sales from the till	Umsatz aus der Kasse	Sprzedaż z kasy	Ventas de la caja
+Kommer	Coming soon	Demnächst	Wkrótce	Próximamente
+Fakturalesing	Invoice reading	Rechnungserkennung	Odczyt faktur	Lectura de facturas
+Aktiv	Active	Aktiv	Aktywne	Activo
+Ikke aktivert	Not activated	Nicht aktiviert	Nieaktywne	No activado
+Koblet til – ikke oppdatert	Connected – not updated	Verbunden – nicht aktualisiert	Połączono – nieaktualne	Conectado: sin actualizar
+Feil	Error	Fehler	Błąd	Error
+Ikke tilgjengelig	Not available	Nicht verfügbar	Niedostępne	No disponible
