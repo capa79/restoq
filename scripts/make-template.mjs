@@ -4,7 +4,7 @@ const wb = new ExcelJS.Workbook();
 wb.creator = "Restoq"; wb.created = new Date();
 const COLS = [
   ["Leverandør", 22, "Kode (f.eks. SG) eller navn (f.eks. Servicegrossisten). Ukjente leverandører opprettes.", "Ja", "Servicegrossisten"],
-  ["Varenr", 12, "Leverandørens varenummer, slik det står på fakturaen.", "Anbefalt", "545657"],
+  ["Varenr", 12, "Leverandørens varenummer, slik det står på fakturaen. Mangler det, får varen et eget Restoq-nummer (RE-000001 …).", "Anbefalt", "545657"],
   ["Varenavn", 38, "Navnet på varen, gjerne som på fakturaen. Ta med størrelse (500G, 1L, 24X250ML) – da kan Restoq sammenligne priser.", "Ja", "SMØR USALTET 500G"],
   ["Enhet", 9, "Enheten dere teller og bestiller i: stk, kg, l, krt, pk, fl, boks.", "Ja", "stk"],
   ["Pris per enhet", 14, "Innkjøpspris eks. mva per enhet. Brukes til lagerverdi og avskrivning.", "Anbefalt", 62.5],

@@ -704,6 +704,19 @@ function itemDrawer(id){
     const del = d.querySelector('#iDel'); if (del) del.onclick = async () => { const cfg = JSON.parse(JSON.stringify(S.itemcfg)); cfg.ov[id].removed = true; await saveItemCfg(cfg); closeLayer(); };
   });
 }
+/* ---- Restoq-varenummer: varer uten nummer fra leverandøren får RE-000001, RE-000002 … (unikt hos kunden) ---- */
+function reNoSeq(cfg){
+  let max = 0;
+  [...getItems(), ...Object.values(cfg?.ov || S.itemcfg?.ov || {})].forEach(i => { const m = String(i?.no || '').match(/^RE-(\d{6})$/i); if (m) max = Math.max(max, +m[1]); });
+  return () => 'RE-' + String(++max).padStart(6, '0');
+}
+/** Varenummer for en ny vare: leverandørens nummer, ellers samme vare (samme navn hos samme leverandør) sitt nummer, ellers nytt RE-nummer. */
+function itemNoFor(sup, no, name, cfg, next){
+  if (String(no || '').trim()) return String(no).trim();
+  const nn = normName(name);
+  const ex = [...Object.values(cfg?.ov || {}), ...getItems()].find(i => i && !i.removed && i.sup === sup && normName(i.name) === nn && i.no);
+  return ex ? ex.no : next();
+}
 function newItemModal(pre = {}, onAdded){
   const set = SET();
   modal(`<h3>Ny vare</h3><div class="small muted">For nye retter eller nye produkter. Siden varen ikke har innkjøpshistorikk, må du anslå forbruk per uke.</div>
@@ -719,10 +732,11 @@ function newItemModal(pre = {}, onAdded){
       const g = s => m.querySelector(s).value.trim(); const sup = g('#nSup'), no = g('#nNo'), name = g('#nName');
       if (!sup){ toast('Legg inn en leverandør først (Innstillinger → Leverandører).'); return; }
       if (!name){ toast('Fyll inn varenavn.'); return; }
-      const id = sup + '-' + (no ? no.replace(/[^A-Za-z0-9]/g,'') : 'M' + Date.now().toString(36).toUpperCase());
-      if (getItems().find(i => i.id === id)){ toast('Varen finnes allerede.'); return; }
+      const no2 = itemNoFor(sup, no, name, S.itemcfg, reNoSeq());
+      const id = sup + '-' + no2.replace(/[^A-Za-z0-9]/g,'');
+      if (getItems().find(i => i.id === id)){ toast('Varen finnes allerede.'); if (onAdded) { closeModal(); onAdded(id); } return; }
       const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
-      cfg.ov[id] = {id, custom:true, sup, no, name:name.toUpperCase(), unit:g('#nUnit')||'stk', price:num(g('#nPrice'))||0, stor:g('#nStor'), ...splitCat(g('#nCat')), active: catStocked(splitCat(g('#nCat')).group), area:'Kjøkken', manual:num(g('#nMan')), shelf:num(g('#nShelf')), pack:num(g('#nPack'))||1, h100:0, b13:0, b6:0, ndel:0, last:null};
+      cfg.ov[id] = {id, custom:true, sup, no: no2, name:name.toUpperCase(), unit:g('#nUnit')||'stk', price:num(g('#nPrice'))||0, stor:g('#nStor'), ...splitCat(g('#nCat')), active: catStocked(splitCat(g('#nCat')).group), area:'Kjøkken', manual:num(g('#nMan')), shelf:num(g('#nShelf')), pack:num(g('#nPack'))||1, h100:0, b13:0, b6:0, ndel:0, last:null};
       await saveItemCfg(cfg); closeModal(); toast('Varen er lagt til.'); if (onAdded) onAdded(id);
     };
   });
@@ -831,7 +845,7 @@ function parseCsv(text){
 }
 function normStore(s){ s = (s||'').toLowerCase(); if (/frys|frozen/.test(s)) return 'Frys'; if (/kjøl|kjol|fersk|chill/.test(s)) return 'Kjøl'; if (/rom|ambient/.test(s)) return 'Romtemp.'; return 'Tørr'; }
 function importItemsModal(){
-  modal(`<h3>Importer varer</h3><div class="small muted">Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad. Kolonner: <b>Leverandør, Varenr, Navn</b> (påkrevd), Enhet, Pris, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Finnes varen fra før (samme leverandør og varenr), oppdateres den.</div>
+  modal(`<h3>Importer varer</h3><div class="small muted">Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad. Kolonner: <b>Leverandør, Navn</b> (påkrevd), Varenr, Enhet, Pris, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Varer uten varenummer fra leverandøren får et eget Restoq-nummer (RE-000001, RE-000002 …). Finnes varen fra før (samme leverandør og varenr, eller samme navn), oppdateres den.</div>
     <div class="row"><label class="btn primary" style="cursor:pointer">Velg fil<input type="file" id="impFile" accept=".xlsx,.xlsm,.xls,.ods,.numbers,.csv,.txt,text/csv" class="hide"></label><a class="btn" href="/restoq-varemal.xlsx" download>Last ned mal (Excel)</a></div><div id="impRes"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary hide" id="impOk">Importer</button></div>`, m => {
     let parsed = [];
@@ -839,7 +853,7 @@ function importItemsModal(){
       const head = rows[0].map(h => h.trim().toLowerCase()); const idx = {}; IMPORT_COLS.forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0) idx[k] = i; });
       if (idx.sup == null || idx.no == null || idx.name == null){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ikke kolonnene Leverandør, Varenr og Navn i første rad.</div>'; return; }
       const g = (r,k) => idx[k] != null ? (r[idx[k]]||'').trim() : '';
-      parsed = rows.slice(1).map(r => ({sup:g(r,'sup').toUpperCase(), no:g(r,'no'), name:g(r,'name'), unit:g(r,'unit')||'stk', price:num(g(r,'price'))||0, stor:normStore(g(r,'stor')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack:num(g(r,'pack'))||1, shelf:num(g(r,'shelf')), manual:num(g(r,'manual'))})).filter(x => x.sup && x.no && x.name && !/^EKSEMPEL\b/i.test(x.name));
+      parsed = rows.slice(1).map(r => ({sup:g(r,'sup').toUpperCase(), no:g(r,'no'), name:g(r,'name'), unit:g(r,'unit')||'stk', price:num(g(r,'price'))||0, stor:normStore(g(r,'stor')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack:num(g(r,'pack'))||1, shelf:num(g(r,'shelf')), manual:num(g(r,'manual'))})).filter(x => x.sup && x.name && !/^EKSEMPEL\b/i.test(x.name));
       const sups = [...new Set(parsed.map(x => x.sup))]; const missing = sups.filter(s => !SET().suppliers[s]);
       m.querySelector('#impRes').innerHTML = `<div class="note good">${parsed.length} varer klare fra ${sups.length} leverandør${sups.length>1?'er':''}.${missing.length ? ' Nye leverandører opprettes: '+esc(missing.join(', '))+' (sjekk leveringsdager under Innstillinger etterpå).' : ''}</div>`;
       m.querySelector('#impOk').classList.toggle('hide', !parsed.length); };
@@ -848,7 +862,8 @@ function importItemsModal(){
       parsed.forEach(x => { if (!set.suppliers[x.sup]){ set.suppliers[x.sup] = {name:x.sup, wd:[], days:'Etter avtale', interval:7, lead:1, safety:2, notes:'', fees:''}; newSup = true; } });
       if (newSup) await saveSettings(set);
       const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
-      parsed.forEach(x => { const id = x.sup + '-' + x.no.replace(/[^A-Za-z0-9]/g,''); const prev = cfg.ov[id] || {}; cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:x.sup, no:x.no, name:x.name, unit:x.unit, price:x.price, stor:x.stor, group:x.group, cat:x.cat, area:prev.area||'Kjøkken', pack:x.pack, shelf:x.shelf, manual: x.manual ?? prev.manual ?? null, active: prev.active ?? true, h100: prev.h100 || 0, b13: prev.b13 || 0, b6: prev.b6 || 0}; });
+      const nextRe = reNoSeq(cfg);
+      parsed.forEach(x => { x.no = itemNoFor(x.sup, x.no, x.name, cfg, nextRe); const id = x.sup + '-' + x.no.replace(/[^A-Za-z0-9]/g,''); const prev = cfg.ov[id] || {}; cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:x.sup, no:x.no, name:x.name, unit:x.unit, price:x.price, stor:x.stor, group:x.group, cat:x.cat, area:prev.area||'Kjøkken', pack:x.pack, shelf:x.shelf, manual: x.manual ?? prev.manual ?? null, active: prev.active ?? true, h100: prev.h100 || 0, b13: prev.b13 || 0, b6: prev.b6 || 0}; });
       await saveItemCfg(cfg); closeModal(); toast(`${parsed.length} varer er importert.`);
     };
   });
@@ -1054,7 +1069,7 @@ function vKomigang(){
       const sups = [...new Set(R.map(r => r.sup))].sort((a, b) => wzSupName(a).localeCompare(wzSupName(b), 'nb'));
       h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.</div></div><div class="row"><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
         ${sups.length > 1 ? `<div class="chips" style="padding:4px 16px 10px"><button class="chip ${!WZ.supF ? 'on' : ''}" data-wzsf="">Alle leverandører (${R.length})</button>${sups.map(c => `<button class="chip ${WZ.supF === c ? 'on' : ''}" data-wzsf="${esc(c)}"><span translate="no">${esc(c ? wzSupName(c) : 'Uten leverandør')}</span> (${R.filter(r => r.sup === c).length}${R.some(r => r.sup === c && r.on) ? ` · ${R.filter(r => r.sup === c && r.on).length} valgt` : ''})</button>`).join('')}</div>` : ''}
-        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td><input class="wz-price" inputmode="decimal" value="${r.price ? String(Math.round(r.price*100)/100).replace('.',',') : ''}" style="width:76px;text-align:right"></td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${RV.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td><input class="wz-price" inputmode="decimal" value="${r.price ? String(Math.round(r.price*100)/100).replace('.',',') : ''}" style="width:76px;text-align:right"></td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><select class="wz-cat">${catOptions(r.group, r.cat)}</select></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
     }
     h += `<div class="row between"><button class="btn" id="wzBack">Tilbake</button><div class="row"><span class="small muted">${R.length ? '' : 'Du kan også hoppe over og legge inn varer senere.'}</span><button class="btn primary lg" id="wzNext" ${WZ.invoices.some(v => v.busy) ? 'disabled' : ''}>${R.length ? 'Neste: beholdning' : 'Hopp over'}</button></div></div>`;
   }
@@ -1133,11 +1148,11 @@ async function wzRun(){
     WZ.newSups.forEach(n => { if (used.has(n.code) && !set.suppliers[n.code]){ set.suppliers[n.code] = n.sup; sups++; } });
     if (sups) await saveSettings(set);
     const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
-    let items = 0, prices = 0; const idFor = {};
+    let items = 0, prices = 0; const idFor = {}; const nextRe = reNoSeq(cfg);
     WZ.rows.forEach(r => {
       if (r.ex){ idFor[r.id] = r.ex.id; if (r.on && r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005)){ const o = cfg.ov[r.ex.id] || {}; cfg.ov[r.ex.id] = {...o, price: Math.round(r.price*100)/100, priceHist: [...(o.priceHist || [{d:'', p:r.ex.price}]), {d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}].slice(-12)}; prices++; } return; }
       if (!r.on || !r.sup || !r.name) return;
-      const no = r.no || normName(r.name).replace(/\s/g,'').slice(0,14);
+      const no = itemNoFor(r.sup, r.no, r.name, cfg, nextRe);
       const id = r.sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
       const prev = cfg.ov[id] || {};
       cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:r.sup, no, name:r.name, unit:r.unit || 'stk', price: Math.round((r.price || 0)*100)/100, stor:r.stor, group: r.group || '', cat:r.cat || 'Annet', area: prev.area || 'Kjøkken', pack: r.pack || 1, shelf: r.shelf ?? null, manual: r.manual ?? prev.manual ?? null, active: catStocked(r.group), h100:0, b13:0, b6:0, ndel:0, last: r.srcDate || null, gtin: r.gtin || '', source: r.src === 'liste' ? 'import' : 'faktura', priceHist: r.price ? [{d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}] : []};
@@ -1674,7 +1689,7 @@ function reviewItemsModal(sup, inv, onDone){
   if (!S.canManage){ toast(`Fakturaen har ${nNew.length} nye varer og ${nChg.length} prisendringer. Be en leder opprette dem under Varer.`); onDone && onDone(); return; }
   const set = SET();
   modal(`<h3>Varer fra fakturaen</h3><div class="small muted">${esc(set.suppliers[sup]?.name || sup)}${inv.invoiceNo?' · faktura '+esc(inv.invoiceNo):''}. ${nNew.length} nye varer, ${nChg.length} prisendringer${nSame.length?`, ${nSame.length} uendret`:''}. Sjekk og juster før du lagrer – lager, kategori og holdbarhet er forslag.</div>
-    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px">${altNote({id:'_new', sup, name:r.l.description, unit:(r.l.unit||'stk').toLowerCase(), pack:1, gtin:r.l.gtin, price:r.price}, r.price) || ''}</td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td><select class="rv-stor">${STORES.map(s => `<option ${(r.l.storage||normStore(r.l.category))===s?'selected':''}>${s}</option>`).join('')}</select></td><td><select class="rv-cat">${(() => { const gc = guessCat((r.l.category||'') + ' ' + (r.l.description||''), r.l.storage); return catOptions(gc.group, gc.cat); })()}</select></td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
+    ${nNew.length ? `<div class="tblwrap"><table class="rvtbl"><thead><tr><th></th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Holdbarhet</th><th class="n">Pakning</th></tr></thead><tbody>${nNew.map(r => `<tr data-rv="${r.i}"><td><input type="checkbox" class="rv-on" ${r.fee?'':'checked'} style="width:20px;height:20px"></td><td><input class="rv-no" value="${esc(r.l.itemNo||'')}" placeholder="RE-…" title="Uten varenummer fra leverandøren får varen et eget Restoq-nummer (RE-000001 …)" style="width:90px"></td><td><input class="rv-name" value="${esc((r.l.description||'').toUpperCase())}" style="min-width:200px">${altNote({id:'_new', sup, name:r.l.description, unit:(r.l.unit||'stk').toLowerCase(), pack:1, gtin:r.l.gtin, price:r.price}, r.price) || ''}</td><td><input class="rv-unit" value="${esc((r.l.unit||'stk').toLowerCase())}" style="width:60px"></td><td><input class="rv-price" inputmode="decimal" value="${r.price!=null?String(Math.round(r.price*100)/100).replace('.',','):''}" style="width:80px;text-align:right"></td><td><select class="rv-stor">${STORES.map(s => `<option ${(r.l.storage||normStore(r.l.category))===s?'selected':''}>${s}</option>`).join('')}</select></td><td><select class="rv-cat">${(() => { const gc = guessCat((r.l.category||'') + ' ' + (r.l.description||''), r.l.storage); return catOptions(gc.group, gc.cat); })()}</select></td><td><input class="rv-shelf" inputmode="numeric" value="${r.l.shelfDays??''}" style="width:60px;text-align:right"></td><td><input class="rv-pack" inputmode="decimal" value="1" style="width:55px;text-align:right"></td></tr>`).join('')}</tbody></table></div>${rows.some(r => !r.ex && r.fee) ? '<div class="small muted">Frakt, pant, gebyrer og kreditlinjer er ikke krysset av.</div>' : ''}` : ''}
     ${nChg.length ? `<h3 style="margin-top:6px">Nye priser</h3><div class="tblwrap"><table><thead><tr><th></th><th>Vare</th><th class="n">Nå</th><th class="n">På fakturaen</th><th class="n">Endring</th></tr></thead><tbody>${nChg.map(r => { const d = (r.price - r.ex.price) / (r.ex.price || 1) * 100; return `<tr data-rc="${r.i}"><td><input type="checkbox" class="rc-on" checked style="width:20px;height:20px"></td><td><div class="iname">${esc(r.ex.name)}</div>${altNote(r.ex, r.price)}<div class="isub">${esc(r.ex.no)} · ${esc(r.ex.unit)}${r.l.unit && normName(r.l.unit) !== normName(r.ex.unit) ? ` · <b style="color:var(--amber)">fakturert i ${esc(r.l.unit)}</b>` : ''}</div></td><td class="n">${kr(r.ex.price)}</td><td class="n"><b>${kr(r.price)}</b></td><td class="n" style="color:${d>0?'var(--red)':'var(--green)'}">${d>0?'+':''}${nf1.format(d)} %</td></tr>`; }).join('')}</tbody></table></div>` : ''}
     <div class="row" style="justify-content:flex-end"><button class="btn" id="rvSkip">Hopp over</button><button class="btn primary" id="rvOk">Lagre varer og priser</button></div>`, m => {
     bindCatStor(m, '.rv-cat', '.rv-stor');
@@ -1682,12 +1697,12 @@ function reviewItemsModal(sup, inv, onDone){
     m.querySelector('#rvOk').onclick = async () => {
       const b = m.querySelector('#rvOk'); b.disabled = true;
       const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
-      const all = getItems(); let created = 0, updated = 0;
+      const all = getItems(); let created = 0, updated = 0; const nextRe = reNoSeq(cfg);
       m.querySelectorAll('tr[data-rv]').forEach(tr => {
         if (!tr.querySelector('.rv-on').checked) return;
         const g = c => tr.querySelector(c).value.trim();
         const name = g('.rv-name'); if (!name) return;
-        const no = g('.rv-no') || normName(name).replace(/\s/g,'').slice(0,14);
+        const no = itemNoFor(sup, g('.rv-no'), name, cfg, nextRe);
         const id = sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
         if (all.find(i => i.id === id && !cfg.ov[id]?.removed) && !cfg.ov[id]?.custom) return;
         const prev = cfg.ov[id] || {};
