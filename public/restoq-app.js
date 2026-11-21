@@ -66,16 +66,16 @@ async function api(method, path, body){
   return j;
 }
 /** Kjører en forespørsel som endrer noe i et annet system (Tripletex, Planday). Krever serveren passord, spør vi og prøver igjen. */
-function withPassword(run){
+function withPassword(run, opts = {}){
   return run(undefined).catch(e => {
     if (!e || !e.needPassword || e.locked) throw e;
     return new Promise((resolve, reject) => {
       const ask = (msg, first) => modal(`<h3>Bekreft med passord</h3>
-        <div class="small muted">Dette endrer data i et annet system${e.what ? ` (${esc(e.what)})` : ''}. Skriv inn passordet ditt til Restoq for å godkjenne.</div>
+        ${opts.sign ? `<div class="small muted"><span>Signer med passordet ditt til Restoq. Endringen logges med navnet ditt og tidspunkt.</span>${e.what ? ` <span translate="no">(${esc(e.what)})</span>` : ''}</div>` : `<div class="small muted">Dette endrer data i et annet system${e.what ? ` (${esc(e.what)})` : ''}. Skriv inn passordet ditt til Restoq for å godkjenne.</div>`}
         ${first ? '' : `<div class="note bad small"><div>${esc(msg)}</div></div>`}
         <label class="f">Passord<input type="password" id="pwConfirm" autocomplete="current-password"></label>
         <div class="small muted">Logger du inn med Google og har ikke eget passord? <a href="/bytt-passord">Velg et passord</a>.</div>
-        <div class="row" style="justify-content:flex-end"><button class="btn" id="pwCancel">Avbryt</button><button class="btn primary" id="pwOk">Godkjenn og send</button></div>`, m => {
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="pwCancel">Avbryt</button><button class="btn primary" id="pwOk">${opts.sign ? 'Signer' : 'Godkjenn og send'}</button></div>`, m => {
           const inp = m.querySelector('#pwConfirm'); setTimeout(() => inp.focus(), 0);
           const go = async () => { const b = m.querySelector('#pwOk'); b.disabled = true; try { const r = await run(inp.value); closeModal(); resolve(r); } catch(err){ if (err && err.needPassword && !err.locked){ ask(err.message, false); } else { closeModal(); reject(err); } } };
           m.querySelector('#pwOk').onclick = go; inp.onkeydown = ev => { if (ev.key === 'Enter') go(); };
@@ -112,7 +112,7 @@ function handleWriteErr(e){
   else toast('Kunne ikke lagre. Sjekk nettet og prøv igjen.');
 }
 function applyDocs(d){
-  S.waste = d.waste || []; S.orders = d.orders || []; S.counts = d.counts || []; S.invoices = d.invoices || []; S.slips = d.slips || [];
+  S.waste = d.waste || []; S.orders = d.orders || []; S.counts = d.counts || []; S.invoices = d.invoices || []; S.slips = d.slips || []; S.adjust = d.adjust || [];
   (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; if (id === 'ttxinbox') S.ttxinbox = data; if (id === 'accounting') S.accounting = data; });
 }
 /* ---- Koblinger til andre systemer: grønt lys når de er koblet til ---- */
@@ -258,11 +258,15 @@ function compute(){
   }));
   const sumIn = (arr, id, after, upTo) => arr.reduce((s,x) => s + ((x.id === id || x.itemId === id) && x.date > after && (!upTo || x.date <= upTo) ? (x.qty||0) : 0), 0);
   const wasteArr = S.waste.map(w => ({id:w.itemId, date:w.date, qty:w.qty}));
+  // Siste manuelle bestandsendring per vare (signert med passord). Brukes som utgangspunkt hvis den er nyere enn tellingen.
+  const lastAdj = {}; (S.adjust || []).forEach(a => { const o = lastAdj[a.itemId]; if (!o || a.date > o.date || (a.date === o.date && (a.ts||0) > (o.ts||0))) lastAdj[a.itemId] = a; });
   const res = getItems().map(it => {
     const sp = set.suppliers[it.sup] || {interval:7, lead:1, safety:2};
     const cl = cur && cur.lines ? cur.lines[it.id] : null;
     const counted = cl && cl.q != null && cl.q !== '';
     const r = {...it, countDate: counted ? cur.date : null, stockAtCount: counted ? cl.q : 0, expiry: counted && cl.exp ? cl.exp : null};
+    const adj = lastAdj[it.id];
+    if (adj && (!counted || adj.date > cur.date || (adj.date === cur.date && (adj.ts||0) > (cur.ts||0)))){ r.countDate = adj.date; r.stockAtCount = Number(adj.qty) || 0; r.adjusted = adj; }
     // faktisk forbruk mellom de to siste tellingene
     r.actual100 = null;
     if (counted && prev && prev.lines && prev.lines[it.id] && prev.lines[it.id].q != null && prev.lines[it.id].q !== '' && cur.sales > 0){
@@ -858,6 +862,39 @@ function vVarer(){
 }
 function bindItemRows(){ document.querySelectorAll('[data-item]').forEach(el => el.onclick = e => { if (e.target.closest('button,input')) return; itemDrawer(el.dataset.item); }); }
 
+/* ---- Manuell bestandsendring: bare leder, signeres med passord og logges ---- */
+function adjustCardHtml(r){
+  const list = (S.adjust || []).filter(a => a.itemId === r.id).sort((a, b) => (b.ts||0) - (a.ts||0));
+  if (!S.canManage && !list.length) return '';
+  return `<div class="card grid" style="gap:10px"><div class="row between"><h3>Manuell bestand</h3>${S.canManage && S.canWrite ? '<button class="btn" id="iAdj">Endre bestand</button>' : ''}</div>
+    <div class="small muted">Brukes når bestanden er feil og det ikke passer å telle hele lageret. Endringen signeres med passordet ditt og logges. Den nye bestanden gjelder fram til neste telling.</div>
+    ${list.length ? `<div class="tblwrap" style="max-height:220px"><table><thead><tr><th>Dato</th><th class="n">Fra</th><th class="n">Til</th><th>Hvorfor</th><th>Signert av</th></tr></thead><tbody>${list.map(a => `<tr><td>${fmtDL(a.date)}</td><td class="n">${a.prev != null ? q(a.prev) : '–'}</td><td class="n"><b>${q(a.qty)}</b></td><td>${esc(a.reason)}</td><td class="small" translate="no">${esc(a.byName || a.by)}<div class="isub">${new Date(a.at).toLocaleString('nb-NO', {dateStyle: 'short', timeStyle: 'short'})}</div></td></tr>`).join('')}</tbody></table></div>` : ''}</div>`;
+}
+function adjustModal(id){
+  const r = C.items.find(x => x.id === id); if (!r) return;
+  const cur = r.countDate ? Math.round(r.stockNow * 100) / 100 : null;
+  modal(`<h3>Endre bestand</h3>
+    <div><b translate="no">${esc(r.name)}</b> <span class="muted small" translate="no">· ${esc(r.sup)} · ${esc(r.no)}</span></div>
+    <div class="small"><span>Beregnet bestand nå:</span> <b>${cur != null ? q(cur) + ' ' + esc(r.unit) : '–'}</b></div>
+    <div class="grid g2"><label class="f"><span>Ny bestand</span> (${esc(r.unit)})<input type="text" inputmode="decimal" id="adjQty" autocomplete="off"></label><label class="f">Gjelder fra<input type="date" id="adjDate" value="${C.today}" max="${C.today}"></label></div>
+    <label class="f">Hvorfor endres bestanden?<input type="text" id="adjWhy" maxlength="500" placeholder="F.eks. funnet på kjølelager, feil i telling"></label>
+    <div class="note small"><div>Når du lagrer, ber Restoq om passordet ditt. Endringen logges med navn, tidspunkt, gammel og ny bestand.</div></div>
+    <div id="adjMsg"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="adjOk">Signer og lagre</button></div>`, m => {
+    setTimeout(() => m.querySelector('#adjQty').focus(), 50);
+    m.querySelector('#adjOk').onclick = async () => {
+      const qty = num(m.querySelector('#adjQty').value.replace(/\s/g, '')), why = m.querySelector('#adjWhy').value.trim(), date = m.querySelector('#adjDate').value || C.today;
+      const msg = t => m.querySelector('#adjMsg').innerHTML = `<div class="note warn small"><div>${esc(t)}</div></div>`;
+      if (qty == null || qty < 0){ msg('Skriv inn ny bestand (0 eller mer).'); return; }
+      if (why.length < 3){ msg('Skriv hvorfor bestanden endres.'); return; }
+      const b = m.querySelector('#adjOk'); b.disabled = true;
+      try {
+        const res = await withPassword(password => api('POST', '/api/stock-adjust', {itemId: r.id, name: r.name, unit: r.unit, qty, prev: cur, reason: why, date, password}), {sign: true});
+        (S.adjust = S.adjust || []).push(res.adjust); closeModal(); render(); itemDrawer(id); toast('Bestanden er endret og signert.');
+      } catch(e){ if (document.body.contains(m)) { msg(e.message || 'Kunne ikke lagre.'); b.disabled = false; } else toast(e.message || 'Kunne ikke lagre.'); }
+    };
+  });
+}
 function itemDrawer(id){
   const r = C.items.find(x => x.id === id); if (!r) return;
   const set = SET(); const sp = set.suppliers[r.sup] || {};
@@ -866,7 +903,7 @@ function itemDrawer(id){
     <div class="row">${pill(r.status)}${r.wasteRisk?'<span class="pill p-svinn">Svinnrisiko</span>':''}<span class="muted small">${esc(catLabel(catOf(r).group, catOf(r).cat))} · ${esc(r.stor)} · ${esc(r.area)}</span></div>
     <div class="grid g2"><div class="tile"><span class="lbl">Har nå (beregnet)</span><span class="big">${r.countDate?q(r.stockNow):'–'} <span style="font-size:16px">${esc(r.unit)}</span></span></div><div class="tile"><span class="lbl">Holder</span><span class="big">${r.countDate?coverTxt(r):'–'}</span><span class="small muted">${r.runsOut&&r.countDate?'tom ca. '+fmtDL(r.runsOut):''}</span></div></div>
     <div class="card"><h3 style="margin-bottom:8px">Slik er tallet regnet</h3>${r.countDate ? `<div class="calc">
-      <span>Talt ${fmtDL(r.countDate)}</span><span class="num">${q(r.stockAtCount)}</span>
+      ${r.adjusted ? `<span><span>Satt manuelt</span> ${fmtDL(r.countDate)} <span translate="no">(${esc(r.adjusted.byName || r.adjusted.by)})</span></span>` : `<span>Talt ${fmtDL(r.countDate)}</span>`}<span class="num">${q(r.stockAtCount)}</span>
       <span>− Avskrevet siden telling</span><span class="num">${q(r.wasteSince)}</span>
       <span>− Forbruk ${r.daysSince} dager (${q(r.usageWeek)}/uke)</span><span class="num">${q(r.usedSince)}</span>
       <span>+ Mottatt siden telling</span><span class="num">${q(r.rcvSince)}</span>
@@ -876,6 +913,7 @@ function itemDrawer(id){
       <div class="small muted" style="margin-top:10px">Forbruk/uke bygger på ${srcTxt}${r.usageSource!=='manuell'?`, skalert til forventet matsalg ${kr(C.sales)}/uke`:''}. ${esc(r.stor)} fylles opp hver ${q(r.cycle)}. dag (${esc(FREQ_TXT[r.stor]||'')}${r.cycle > r.freq ? ', begrenset av leverandørens leveringsrytme' : ''}). Varen kommer på forslag når tilgjengelig er under ${q(r.reorderPoint)} (forbruk fram til neste levering + sikkerhet). Da bestilles det opp til mållageret: forbruk per dag × ${q(r.horizon)} dager (${q(r.cycle)} syklus + ${sp.lead} ledetid + ${sp.safety} sikkerhet${r.shelf && r.shelf < (r.cycle+sp.lead+sp.safety) ? ', begrenset av holdbarhet '+r.shelf+' d' : ''}) = ${q(r.target)}, rundet opp til pakning ${q(r.pack)}. Forslag nå: <b>${q(r.sugg)}</b>.</div></div>
     <div class="card"><dl class="kv"><dt>Pris</dt><dd>${kr(r.price)} per ${esc(r.unit)} eks. mva</dd><dt>Kjøpt 13 uker</dt><dd>${q(r.b13)} ${esc(r.unit)} · ${r.ndel||0} leveranser</dd><dt>Sist levert</dt><dd>${fmtDL(r.last)}</dd><dt>Tidligste utløp</dt><dd>${r.expiry?fmtDL(r.expiry)+' ('+r.daysToExp+' d)':'–'}</dd></dl></div>
     ${altsFor(r).length ? `<div class="card"><h3 style="margin-bottom:8px">Samme vare hos andre leverandører</h3><table><tbody>${altsFor(r).map(o => { const c = comparePrice(r, r.price, o); const d = c.d; return `<tr><td><div class="iname">${esc(o.name)}</div><div class="isub" translate="no">${esc(set.suppliers[o.sup]?.name||o.sup)} · ${esc(o.no)}</div></td><td class="n"><b>${kr(o.price)}</b>/${esc(o.unit)}${c.note?`<div class="isub">${c.note}</div>`:''}${d!=null&&Math.abs(d)>=0.5?`<div class="isub" style="color:${d<0?'var(--green)':'var(--red)'}">${d>0?'+':''}${nf1.format(d)} %</div>`:''}</td><td class="n"><button class="btn sm" data-notsame="${esc(o.id)}" ${roM()}>Ikke samme vare</button></td></tr>`; }).join('')}</tbody></table><div class="small muted" style="margin-top:6px">Funnet automatisk ut fra varenavn, størrelse og strekkode.</div></div>` : ''}
+    ${adjustCardHtml(r)}
     <div class="card grid" style="gap:12px"><h3>Innstillinger for varen</h3>
       <div class="grid g2"><label class="f">Pakningsstørrelse (minste bestilling)<input type="text" inputmode="decimal" id="iPack" value="${String(r.pack).replace('.',',')}"></label><label class="f">Holdbarhet (dager)<input type="text" inputmode="numeric" id="iShelf" value="${r.shelf??''}"></label></div>
       <label class="f">Manuelt forbruk per uke (${esc(r.unit)}) – tomt = automatisk<input type="text" inputmode="decimal" id="iMan" value="${r.manual!=null&&r.manual!==''?String(r.manual).replace('.',','):''}" placeholder="Bruk ved ny rett, event o.l."></label>
@@ -883,6 +921,7 @@ function itemDrawer(id){
       <label class="row" style="gap:10px;font-weight:600"><input type="checkbox" id="iAct" ${r.active?'checked':''} style="width:22px;height:22px"> Aktiv i planlegging (får bestillingsforslag)</label>
       <div class="row" style="justify-content:flex-end">${r.custom?`<button class="btn danger" id="iDel" ${roM()}>Fjern vare</button>`:''}<button class="btn primary" id="iSave" ${roM()}>Lagre endringer</button></div></div>`;
   drawer(html, d => {
+    const ab = d.querySelector('#iAdj'); if (ab) ab.onclick = () => adjustModal(id);
     bindCatStor(d, '#iCat', '#iStor');
     d.querySelector('#iSave').onclick = async () => {
       const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};

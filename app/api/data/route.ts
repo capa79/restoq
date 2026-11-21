@@ -10,7 +10,7 @@ export async function GET(req: Request) {
   if (u instanceof Response) return u;
   const p = await db();
   const { rows } = await p.query("SELECT col, id, data, extract(epoch from updated_at)*1000 AS ts FROM docs WHERE org_id = $1", [u.org_id]);
-  const out: Record<string, unknown[]> = { waste: [], orders: [], counts: [], config: [], invoices: [], slips: [] };
+  const out: Record<string, unknown[]> = { waste: [], orders: [], counts: [], config: [], invoices: [], slips: [], adjust: [] };
   for (const r of rows) (out[r.col] ??= []).push({ ...r.data, id: r.id });
   // Status for koblinger til andre systemer (grønt lys i appen). Ingen hemmeligheter sendes.
   const integ = (await p.query("SELECT provider, info, created_at FROM integrations WHERE org_id = $1", [u.org_id])).rows;

@@ -1,8 +1,8 @@
 import { NextResponse } from "next/server";
 import { getCurrentUser, sameOrigin, type CurrentUser } from "./session";
 
-export const COLLECTIONS = ["waste", "orders", "counts", "config", "invoices", "slips"] as const;
-/** Samlinger appen kan skrive direkte i. Fakturaer og pakksedler endres via egne API-er (matching, godkjenning). */
+export const COLLECTIONS = ["waste", "orders", "counts", "config", "invoices", "slips", "adjust"] as const;
+/** Samlinger appen kan skrive direkte i. Fakturaer og pakksedler endres via egne API-er (matching, godkjenning). Manuelle bestandsendringer (adjust) krever passord via /api/stock-adjust. */
 export const CLIENT_WRITABLE = ["waste", "orders", "counts", "config"];
 export type Col = (typeof COLLECTIONS)[number];
 export const isCol = (c: string): c is Col => (COLLECTIONS as readonly string[]).includes(c);
