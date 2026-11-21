@@ -152,7 +152,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
             {sp.feil === "mange" ? <div className="note bad">For mange henvendelser på kort tid. Prøv igjen om litt.</div> : null}
             <div className="two"><label className="f">Navn<input name="name" required autoComplete="name" /></label><label className="f">Firma / sted<input name="company" autoComplete="organization" /></label></div>
             <div className="two"><label className="f">E-post<input name="email" type="email" required autoComplete="email" /></label><label className="f">Telefon<input name="phone" type="tel" autoComplete="tel" /></label></div>
-            <label className="f">Antall utsalgssteder<select name="venues" defaultValue="1"><option>1</option><option>2–5</option><option>6–20</option><option>Flere enn 20</option></select></label>
+            <label className="f">Antall utsalgssteder<select name="venues" defaultValue="1"><option value="1">1</option><option value="2–5">2–5</option><option value="6–20">6–20</option><option value="Flere enn 20">Flere enn 20</option></select></label>
             <label className="f">Melding<textarea name="message" rows={4} placeholder="F.eks. hvilke leverandører dere bruker og hva dere vil ha kontroll på" /></label>
             <div className="hp" aria-hidden="true"><label>Nettside<input name="website" tabIndex={-1} autoComplete="off" /></label></div>
             <button className="btn red" type="submit">Book en demo</button>
