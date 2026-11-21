@@ -197,3 +197,4 @@ header.top > *{flex-shrink:0} header.top .hname{flex:0 1 auto} header.top .sp{fl
 .wzopt input[type=radio]{width:20px;height:20px;margin-top:2px;flex-shrink:0}
 .rvtbl tr.off td:not(:first-child){opacity:.45}
 .wzbanner{align-items:center;justify-content:space-between;gap:12px}
+header.top .powered svg{display:inline-block;vertical-align:-2px;margin:0 1px}

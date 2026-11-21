@@ -1,3 +1,4 @@
+import { LogoMark } from "../logo";
 import Script from "next/script";
 import { redirect } from "next/navigation";
 import { requireUser } from "@/lib/session";
@@ -25,7 +26,7 @@ export default async function AppPage() {
           <img id="hLogo" className="hide" alt="" />
           <div className="hname">
             <div className="title" id="hTitle" translate="no">{me.org_name ?? "Restoq"}</div>
-            <div className="powered hide" id="hSub" translate="no">powered by <b>Restoq</b></div>
+            <div className="powered hide" id="hSub" translate="no">powered by <LogoMark size={13} /> <b>Restoq</b></div>
           </div>
           <div className="sp" />
           <LangSwitch current={lang} />

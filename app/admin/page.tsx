@@ -1,3 +1,4 @@
+import { LogoMark } from "../logo";
 import Link from "next/link";
 import {
   addUserAction, createOrgAction, deleteOrgAction, deleteUserAction, developerAction, editUserAction, leadAction, loadPilotAction,
@@ -35,7 +36,7 @@ export default async function Admin({ searchParams }: { searchParams: Promise<SP
   )).rows[0];
   return (
     <div className="site" data-no-translate>
-      <header className="nav"><div className="wrap"><Link href="/" className="logo">Restoq admin</Link><div style={{ flex: 1 }} />
+      <header className="nav"><div className="wrap"><Link href="/" className="logo"><LogoMark size={26} />Restoq admin</Link><div style={{ flex: 1 }} />
         <Link className="btn ghost sm" href="/utvikler">Utvikler{badge.fb ? ` (${badge.fb})` : ""}</Link>
         <span className="small" style={{ opacity: 0.7 }}>{me.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>
       <main className="admin">

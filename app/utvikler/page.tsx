@@ -1,3 +1,4 @@
+import { LogoMark } from "../logo";
 import Link from "next/link";
 import { db } from "@/lib/db";
 import { requireDeveloper } from "@/lib/session";
@@ -30,7 +31,7 @@ export default async function Utvikler({ searchParams }: { searchParams: Promise
   ]);
   return (
     <div className="site" data-no-translate>
-      <header className="nav"><div className="wrap"><Link href="/" className="logo">Restoq utvikler</Link><div style={{ flex: 1 }} />
+      <header className="nav"><div className="wrap"><Link href="/" className="logo"><LogoMark size={26} />Restoq utvikler</Link><div style={{ flex: 1 }} />
         {dev.role === "admin" ? <Link className="btn ghost sm" href="/admin">Admin</Link> : null}
         {dev.org_id ? <Link className="btn ghost sm" href="/app">Appen</Link> : null}
         <span className="small" style={{ opacity: 0.7 }}>{dev.email}</span><form action={logoutAction}><button className="btn ghost sm">Logg ut</button></form></div></header>

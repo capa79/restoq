@@ -1,3 +1,4 @@
+import { LogoMark } from "../../logo";
 import type { Metadata, Viewport } from "next";
 import { notFound, redirect } from "next/navigation";
 import { loginAction } from "../../auth-actions";
@@ -97,7 +98,7 @@ export default async function Venue({ params, searchParams }: P) {
         </div>
         <footer className="venue-foot">
           {v.website ? <a href={v.website} target="_blank" rel="noopener noreferrer" translate="no">{new URL(v.website).hostname.replace(/^www\./, "")}</a> : <span />}
-          <a href="https://restoq.no" className="venue-powered" translate="no">powered by <b>Restoq</b></a>
+          <a href="https://restoq.no" className="venue-powered" translate="no">powered by <LogoMark size={16} /> <b>Restoq</b></a>
         </footer>
       </section>
     </div>

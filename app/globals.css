@@ -304,3 +304,5 @@ html.i18n-wait body { visibility: hidden; }
 body:has(.venue) { margin: 0; }
 .venue, .venue *, .venue *::before, .venue *::after { box-sizing: border-box; }
 @media (min-width: 861px) { .venue-hero { position: sticky; top: 0; height: 100dvh; min-height: 0; } }
+.site .logo svg[role="img"] { width: auto; height: 34px; }
+.site .powered svg, .venue-powered svg { display: inline-block; vertical-align: -2px; }

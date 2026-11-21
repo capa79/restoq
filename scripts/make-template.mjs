@@ -37,6 +37,16 @@ for (let r = 2; r <= N; r++) {
   ws.getCell(`L${r}`).dataValidation = { type: "date", operator: "greaterThan", allowBlank: true, formulae: [new Date(2020, 0, 1)], showErrorMessage: true, errorTitle: "Dato", error: "Skriv en dato, f.eks. 2026-12-15." };
   ws.getCell(`E${r}`).numFmt = "#,##0.00"; ws.getCell(`L${r}`).numFmt = "yyyy-mm-dd";
 }
+// To eksempellinjer, tydelig merket. Restoq hopper over rader der varenavnet starter med «EKSEMPEL».
+const EX = [
+  ["Servicegrossisten", "545657", "EKSEMPEL: SMØR USALTET 500G", "stk", 62.5, "Kjøl", "Meieri", 1, 30, 10, 4, new Date(2026, 11, 15)],
+  ["Odd Langdalen", "1009", "EKSEMPEL: AGURK NORSK", "stk", 12.9, "Kjøl", "Grønt", 12, 10, 24, null, null],
+];
+EX.forEach((vals, i) => {
+  const row = ws.getRow(2 + i); row.values = vals;
+  row.eachCell({ includeEmpty: true }, (c, col) => { if (col > 12) return; c.font = { italic: true, color: { argb: "FF8A938F" } }; c.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFF6F6F4" } }; });
+});
+ws.getCell("C2").note = { texts: [{ text: "Eksempel – blir ikke importert. Skriv over eller slett eksempelradene, og fyll inn deres egne varer fra rad 4." }] };
 ws.autoFilter = { from: "A1", to: "L1" };
 // Ark 2: Veiledning
 const g = wb.addWorksheet("Veiledning", { properties: { tabColor: { argb: INK } } });
@@ -64,7 +74,7 @@ ex.forEach((vals, i) => { const row = g.getRow(y + i); row.values = vals; if (i 
 y += ex.length + 1;
 const tips = [
   "Tips",
-  "• Eksempelradene her blir ikke importert – bare arket «Varer».",
+  "• Eksempelradene (de grå radene merket «EKSEMPEL:» i arket «Varer», og radene her) blir ikke importert. Dere kan slette dem eller skrive over dem.",
   "• Har dere allerede en vareliste i Excel, kan dere også laste den opp direkte. Restoq kjenner igjen vanlige kolonnenavn, og du kan velge kolonnene selv.",
   "• Mangler leverandørkolonnen, velger du én leverandør for hele lista ved opplasting.",
   "• Varer som finnes fra før (samme leverandør og varenr), oppdateres ikke dobbelt – de vises som «finnes».",
