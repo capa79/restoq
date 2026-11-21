@@ -7,7 +7,7 @@ import { db } from "./db";
 import { decrypt, encrypt } from "./crypto";
 
 export const tripletexBase = () =>
-  (process.env.TRIPLETEX_ENV === "prod" ? "https://tripletex.no/v2" : "https://api-test.tripletex.tech/v2").replace(/\/$/, "");
+  (process.env.TRIPLETEX_BASE || (process.env.TRIPLETEX_ENV === "prod" ? "https://tripletex.no/v2" : "https://api-test.tripletex.tech/v2")).replace(/\/$/, "");
 export const tripletexConfigured = () => Boolean(process.env.TRIPLETEX_CONSUMER_TOKEN && (process.env.SECRET_KEY ?? "").length >= 32);
 
 export class TripletexError extends Error {
@@ -131,4 +131,35 @@ export async function addSupplierPayment(orgId: number, ttxId: number, opts: { p
   if (opts.amount) q.set("amount", String(opts.amount));
   if (opts.paymentDate) q.set("paymentDate", opts.paymentDate);
   return ttx(orgId, "POST", `/supplierInvoice/${ttxId}/:addPayment?${q}`);
+}
+
+/** Henter rått innhold (PDF, bilde, EHF-XML) fra Tripletex. */
+export async function ttxBinary(orgId: number, path: string): Promise<{ data: Buffer; mime: string }> {
+  const token = await sessionFor(orgId);
+  const res = await fetch(`${tripletexBase()}${path}`, { headers: { Authorization: "Basic " + Buffer.from(`0:${token}`).toString("base64"), Accept: "*/*" }, signal: AbortSignal.timeout(60_000) });
+  if (!res.ok) throw new TripletexError(`Tripletex: HTTP ${res.status}`, res.status);
+  const buf = Buffer.from(await res.arrayBuffer());
+  if (buf.length > 15 * 1024 * 1024) throw new TripletexError("Vedlegget er for stort.");
+  return { data: buf, mime: (res.headers.get("content-type") ?? "application/octet-stream").split(";")[0].trim() };
+}
+
+export type TtxVoucher = {
+  id: number; date?: string; description?: string; vendorInvoiceNumber?: string; externalVoucherNumber?: string;
+  attachment?: { id: number; fileName?: string; mimeType?: string; size?: number } | null;
+  ediDocument?: { id: number; fileName?: string; mimeType?: string } | null;
+  postings?: { supplier?: { id: number; name?: string; organizationNumber?: string } | null }[];
+};
+
+/** Bilag som ligger i bilagsmottaket (ikke bokført ennå). */
+export async function listVoucherReception(orgId: number, dateFrom: string, dateTo: string): Promise<TtxVoucher[]> {
+  const out: TtxVoucher[] = [];
+  const fields = "id,date,description,vendorInvoiceNumber,externalVoucherNumber,attachment(id,fileName,mimeType,size),ediDocument(id,fileName,mimeType),postings(supplier(id,name,organizationNumber))";
+  for (let from = 0; from < 2000; from += 100) {
+    const q = new URLSearchParams({ dateFrom, dateTo, from: String(from), count: "100", fields });
+    const j = await ttx(orgId, "GET", `/ledger/voucher/>voucherReception?${q}`);
+    const vals = (j?.values ?? []) as TtxVoucher[];
+    out.push(...vals);
+    if (vals.length < 100) break;
+  }
+  return out;
 }

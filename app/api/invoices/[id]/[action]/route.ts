@@ -32,6 +32,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     } else if (action === "send") {
       // Til bilagsmottaket i Tripletex for bokføring. Fakturaer som allerede ligger i Tripletex (EHF) sendes ikke på nytt.
       if (inv.ttx.supplierInvoiceId) return json({ error: "Fakturaen ligger allerede i regnskapet." }, 400);
+      if (inv.ttx.inbox && inv.ttx.voucherIds?.length) return json({ error: "Fakturaen ligger allerede i bilagsmottaket i regnskapet." }, 400);
       if (!inv.ttx.approvedAt) return json({ error: "Godkjenn fakturaen før den sendes til regnskap." }, 400);
       if (!inv.fileId) return json({ error: "Last opp fakturaen (PDF/bilde) før den sendes til regnskap." }, 400);
       const f = await readFile(orgId, inv.fileId);

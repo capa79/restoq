@@ -137,3 +137,11 @@ Oppsett:
 
 Valg hos kunden: hvilke avdelinger som tas med, og om omsetningsplanen for de neste 7 dagene (× matandel) skal brukes som forventet salg i bestillingsforslagene.
 For testing kan `PLANDAY_API_BASE` og `PLANDAY_TOKEN_URL` overstyres.
+
+## Henting fra bilagsmottaket i Tripletex
+
+Restoq henter leverandørfakturaer som ligger i bilagsmottaket i Tripletex (`GET /ledger/voucher/>voucherReception`), men bare fra leverandører som er registrert i Restoq. Står leverandøren på bilaget, sjekkes den først; ellers lastes vedlegget (`GET /document/{id}/content`, PDF/bilde/EHF) ned og leses med Claude. Fakturaen opprettes i Restoq med varelinjer og vedlegg og matches mot bestilling og varemottak. Hvert bilag behandles én gang (status i `config/ttxinbox`); høyst 10 lesinger per henting. Fakturaer fra ukjente leverandører listes under Innstillinger → Regnskap med «Opprett leverandør». Slike fakturaer sendes ikke tilbake til regnskapet ved godkjenning.
+
+## Planlagt henting (to ganger om dagen)
+
+`GET /api/cron` med `Authorization: Bearer <CRON_SECRET>` henter fra bilagsmottaket i Tripletex og omsetning fra Planday for alle kunder. GitHub Actions (`.github/workflows/henting.yml`) kaller den kl. 05 og 13 UTC. Sett samme tilfeldige `CRON_SECRET` (minst 16 tegn) i Render og som Actions-hemmelighet i GitHub. I tillegg henter appen selv når dataene er eldre enn 12 timer og noen åpner den.

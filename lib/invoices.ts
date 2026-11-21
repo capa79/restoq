@@ -20,7 +20,7 @@ export type Invoice = {
   lines: Line[];
   source: "app" | "api" | "tripletex";
   status: "kontroll" | "avvik" | "matchet" | "godkjent" | "sendt" | "betalt" | "avvist";
-  ttx?: { supplierInvoiceId?: number; voucherIds?: number[]; approvedAt?: string; paymentAt?: string };
+  ttx?: { supplierInvoiceId?: number; voucherIds?: number[]; approvedAt?: string; paymentAt?: string; inbox?: boolean };
   match?: Match;
   history: { ts: string; by: string; action: string; note?: string }[];
   createdAt: string;

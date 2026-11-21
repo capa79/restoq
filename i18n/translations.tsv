@@ -1329,3 +1329,26 @@ Ikke aktivert	Not activated	Nicht aktiviert	Nieaktywne	No activado
 Koblet til – ikke oppdatert	Connected – not updated	Verbunden – nicht aktualisiert	Połączono – nieaktualne	Conectado: sin actualizar
 Feil	Error	Fehler	Błąd	Error
 Ikke tilgjengelig	Not available	Nicht verfügbar	Niedostępne	No disponible
+Plan	Plan	Plan	Plan	Plan
+Faktisk	Actual	Ist	Rzeczywisty	Real
+1 uke	1 week	1 Woche	1 tydzień	1 semana
+Bestillingsfrister og leveranser, og omsetning fra Planday (plan og faktisk).	Order deadlines and deliveries, and revenue from Planday (plan and actual).	Bestellfristen und Lieferungen sowie Umsatz aus Planday (Plan und Ist).	Terminy zamówień i dostawy oraz obrót z Planday (plan i rzeczywisty).	Plazos de pedido y entregas, y facturación de Planday (plan y real).
+Hent fra bilagsmottak	Fetch from voucher inbox	Aus dem Belegeingang abrufen	Pobierz ze skrzynki dokumentów	Obtener de la bandeja de justificantes
+Henter nye leverandørfakturaer fra bilagsmottaket i regnskapet	Fetches new supplier invoices from the voucher inbox in accounting	Ruft neue Lieferantenrechnungen aus dem Belegeingang der Buchhaltung ab	Pobiera nowe faktury dostawców ze skrzynki dokumentów w księgowości	Obtiene facturas nuevas de proveedores de la bandeja de justificantes de contabilidad
+fra bilagsmottak	from voucher inbox	aus dem Belegeingang	ze skrzynki dokumentów	de la bandeja de justificantes
+Hent fakturaer fra bilagsmottaket automatisk (fra leverandører som er registrert i Restoq)	Fetch invoices from the voucher inbox automatically (from suppliers registered in Restoq)	Rechnungen automatisch aus dem Belegeingang abrufen (von in Restoq erfassten Lieferanten)	Automatycznie pobieraj faktury ze skrzynki dokumentów (od dostawców zarejestrowanych w Restoq)	Obtener facturas de la bandeja automáticamente (de proveedores registrados en Restoq)
+Ikke hentet ennå.	Not fetched yet.	Noch nicht abgerufen.	Jeszcze nie pobrano.	Aún no obtenido.
+Fakturaer i bilagsmottaket fra leverandører som ikke er registrert:	Invoices in the voucher inbox from suppliers that are not registered:	Rechnungen im Belegeingang von nicht erfassten Lieferanten:	Faktury w skrzynce dokumentów od niezarejestrowanych dostawców:	Facturas en la bandeja de proveedores no registrados:
+Når leverandøren er opprettet, hentes fakturaene deres ved neste henting.	Once the supplier is created, their invoices are fetched at the next run.	Sobald der Lieferant angelegt ist, werden seine Rechnungen beim nächsten Abruf geholt.	Po utworzeniu dostawcy jego faktury zostaną pobrane przy następnym pobieraniu.	Cuando se cree el proveedor, sus facturas se obtendrán en la próxima obtención.
+↻ Hent fra bilagsmottak nå	↻ Fetch from voucher inbox now	↻ Jetzt aus dem Belegeingang abrufen	↻ Pobierz teraz ze skrzynki dokumentów	↻ Obtener ahora de la bandeja
+{0} nye fakturaer fra bilagsmottaket i regnskapet.	{0} new invoices from the voucher inbox in accounting.	{0} neue Rechnungen aus dem Belegeingang der Buchhaltung.	{0} nowych faktur ze skrzynki dokumentów w księgowości.	{0} facturas nuevas de la bandeja de justificantes de contabilidad.
+{0} bilag sjekket	{0} vouchers checked	{0} Belege geprüft	Sprawdzono {0} dokumentów	{0} justificantes revisados
+{0} nye fakturaer	{0} new invoices	{0} neue Rechnungen	{0} nowych faktur	{0} facturas nuevas
+{0} koblet til eksisterende	{0} linked to existing	{0} mit bestehenden verknüpft	{0} połączono z istniejącymi	{0} vinculadas a existentes
+{0} fra leverandører som ikke er registrert	{0} from unregistered suppliers	{0} von nicht erfassten Lieferanten	{0} od niezarejestrowanych dostawców	{0} de proveedores no registrados
+{0} gjenstår (hentes neste gang)	{0} remaining (fetched next time)	{0} verbleibend (beim nächsten Mal)	{0} pozostało (następnym razem)	{0} pendientes (la próxima vez)
+{0} kunne ikke leses	{0} could not be read	{0} konnten nicht gelesen werden	{0} nie udało się odczytać	{0} no se pudieron leer
+Kunne ikke hente fra bilagsmottaket.	Could not fetch from the voucher inbox.	Abruf aus dem Belegeingang fehlgeschlagen.	Nie udało się pobrać ze skrzynki dokumentów.	No se pudo obtener de la bandeja de justificantes.
+Fakturaen ligger allerede i bilagsmottaket i regnskapet.	The invoice is already in the voucher inbox in accounting.	Die Rechnung liegt bereits im Belegeingang der Buchhaltung.	Faktura jest już w skrzynce dokumentów w księgowości.	La factura ya está en la bandeja de justificantes de contabilidad.
+hentet fra bilagsmottaket	fetched from the voucher inbox	aus dem Belegeingang abgerufen	pobrano ze skrzynki dokumentów	obtenida de la bandeja de justificantes
+koblet til bilag i bilagsmottaket	linked to voucher in the voucher inbox	mit Beleg im Belegeingang verknüpft	połączono z dokumentem w skrzynce	vinculada a justificante de la bandeja

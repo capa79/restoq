@@ -93,7 +93,7 @@ function handleWriteErr(e){
 }
 function applyDocs(d){
   S.waste = d.waste || []; S.orders = d.orders || []; S.counts = d.counts || []; S.invoices = d.invoices || []; S.slips = d.slips || [];
-  (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; });
+  (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; if (id === 'ttxinbox') S.ttxinbox = data; });
 }
 /* ---- Koblinger til andre systemer: grønt lys når de er koblet til ---- */
 function integrationList(){
@@ -116,14 +116,16 @@ function integrationsStrip(){
   const L = integrationList();
   return `<div class="card integ"><div class="row between"><h3>Koblinger</h3>${S.canManage ? '<a class="small" href="#oppsett">Innstillinger</a>' : ''}</div><div class="integrow">${L.map(x => `<${S.canManage ? 'a href="#oppsett"' : 'div'} class="ichip ${x.state}" title="${esc(STATE_TXT[x.state])}"><span>${dotHtml(x.state)}</span><span class="ichip-t"><b>${esc(x.name)}</b><span class="small muted">${esc(x.note)}</span></span></${S.canManage ? 'a' : 'div'}>`).join('')}</div></div>`;
 }
-let plandayAutoTried = false;
+let plandayAutoTried = false, inboxAutoTried = false;
 async function apiLoad(first){
   try {
     const j = await api('GET', '/api/data');
     applyDocs(j.docs); S.me = j.me; S.features = j.features || {}; S.integrations = j.integrations || {}; S.canManage = !!j.me.canManage; S.mode = 'shared'; S.ready = true;
   } catch(e){ if (e && e.code === 'auth') return; S.mode = 'error'; S.ready = true; }
+  const acI = (S.integrations || {}).accounting;
+  if (!inboxAutoTried && acI && acI.connected && acI.inboxAuto !== false && (!acI.lastInbox || Date.now() - new Date(acI.lastInbox) > 12 * 36e5)){ inboxAutoTried = true; api('POST', '/api/tripletex/inbox', {}).then(r => { if (r && (r.imported || r.linked)){ toast(`${r.imported} nye fakturaer fra bilagsmottaket i regnskapet.`); apiLoad(false); } }).catch(() => {}); }
   const pdI = (S.integrations || {}).planday;
-  if (!plandayAutoTried && pdI && pdI.connected && (!pdI.lastSync || Date.now() - new Date(pdI.lastSync) > 6 * 36e5)){ plandayAutoTried = true; api('POST', '/api/planday/sync', {}).then(() => apiLoad(false)).catch(() => {}); }
+  if (!plandayAutoTried && pdI && pdI.connected && (!pdI.lastSync || Date.now() - new Date(pdI.lastSync) > 12 * 36e5)){ plandayAutoTried = true; api('POST', '/api/planday/sync', {}).then(() => apiLoad(false)).catch(() => {}); }
   // Ikke tegn siden på nytt midt i skriving, i en dialog eller i innstillingene
   const ae = document.activeElement; const busy = !first && ((ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) || $('#layer').innerHTML || view === 'oppsett' || countDirty || countSaving);
   if (!busy) render(); else renderTabs(C ? C.items.filter(r => r.status === 'bestill').length : 0);
@@ -370,14 +372,15 @@ function calHtml(){
   const set = SET(); const today = C.today;
   const monday = d => addDays(d, -((pd(d).getDay() + 6) % 7));
   if (!UI.calStart) UI.calStart = monday(today);
+  if (!UI.calWeeks){ try { UI.calWeeks = +localStorage.getItem('restoq-calweeks') || 2; } catch(e){ UI.calWeeks = 2; } }
   const weeks = UI.calWeeks || 2; const from = UI.calStart, to = addDays(from, weeks * 7 - 1);
   const ev = calData(from, to);
   const hasRev = Object.values(ev).some(e => e.plan != null || e.actual != null);
   const pl = set.planday || {}; const connected = !!(S.planday && S.planday.syncedAt);
   const kk = v => v == null ? '' : nf0.format(Math.round(v / 100) * 100) + ' kr';
   const weekNo = d => { const t = pd(d); const x = new Date(Date.UTC(t.getFullYear(), t.getMonth(), t.getDate())); const dn = (x.getUTCDay() + 6) % 7; x.setUTCDate(x.getUTCDate() - dn + 3); const fy = new Date(Date.UTC(x.getUTCFullYear(), 0, 4)); return 1 + Math.round(((x - fy) / 864e5 - 3 + ((fy.getUTCDay() + 6) % 7)) / 7); };
-  let h = `<div class="card cal"><div class="row between"><div><h3>Kalender</h3><div class="small muted">Bestillingsfrister og leveranser${hasRev || connected ? ', og omsetning fra Planday (faktisk / plan)' : ''}.</div></div>
-    <div class="row" style="gap:6px"><button class="btn sm" data-calnav="-1" aria-label="Forrige">‹</button><button class="btn sm" data-calnav="0">I dag</button><button class="btn sm" data-calnav="1" aria-label="Neste">›</button><button class="btn sm" id="calWeeks">${weeks === 2 ? '4 uker' : '2 uker'}</button>${connected ? `<button class="btn sm" id="calSync" title="Hent omsetning og plan fra Planday">↻ Planday</button>` : ''}</div></div>
+  let h = `<div class="card cal"><div class="row between"><div><h3>Kalender</h3><div class="small muted">Bestillingsfrister og leveranser${hasRev || connected ? ', og omsetning fra Planday (plan og faktisk)' : ''}.</div></div>
+    <div class="row" style="gap:6px"><button class="btn sm" data-calnav="-1" aria-label="Forrige">‹</button><button class="btn sm" data-calnav="0">I dag</button><button class="btn sm" data-calnav="1" aria-label="Neste">›</button><span class="segsm">${[1, 2, 4].map(n => `<button class="btn sm ${weeks === n ? 'on' : ''}" data-calweeks="${n}">${n === 1 ? '1 uke' : n + ' uker'}</button>`).join('')}</span>${connected ? `<button class="btn sm" id="calSync" title="Hent omsetning og plan fra Planday">↻ Planday</button>` : ''}</div></div>
     <div class="calgrid"><div class="calhead">${[1,2,3,4,5,6,0].map(d => `<div>${cap(WD[d])}</div>`).join('')}</div>`;
   for (let w = 0; w < weeks; w++){
     const ws = addDays(from, w * 7); let wPlan = 0, wAct = 0, wPlanAct = 0, wHasP = false, wHasA = false;
@@ -387,12 +390,12 @@ function calHtml(){
       if (e.plan != null){ wPlan += e.plan; wHasP = true; } if (e.actual != null){ wAct += e.actual; wHasA = true; if (e.plan != null) wPlanAct += e.plan; }
       const pct = e.plan && e.actual != null ? Math.round((e.actual / e.plan - 1) * 100) : null;
       h += `<div class="calday ${d === today ? 'today' : ''} ${past ? 'past' : ''}"><div class="cd-h"><span class="cd-wd">${cap(WD[pd(d).getDay()])}</span> <b>${pd(d).getDate()}.</b>${pd(d).getDate() === 1 || (w === 0 && i === 0) ? ` <span class="muted small">${['jan','feb','mar','apr','mai','jun','jul','aug','sep','okt','nov','des'][pd(d).getMonth()]}</span>` : ''}</div>
-        ${e.actual != null || e.plan != null ? `<div class="cd-rev">${e.actual != null ? `<b>${kk(e.actual)}</b>` : ''}${e.plan != null ? `<span class="muted">${e.actual != null ? ' / ' : '<span>plan</span> '}<span>${kk(e.plan)}</span></span>` : ''}${pct != null ? ` <span class="${pct < 0 ? 'neg' : 'pos'}">${pct > 0 ? '+' : ''}${pct} %</span>` : ''}</div>` : ''}
+        ${e.actual != null || e.plan != null ? `<div class="cd-rev">${e.plan != null ? `<div class="muted"><span>Plan</span> <span>${kk(e.plan)}</span></div>` : ''}${e.actual != null ? `<div><span>Faktisk</span> <b>${kk(e.actual)}</b>${pct != null ? ` <span class="${pct < 0 ? 'neg' : 'pos'}">${pct > 0 ? '+' : ''}${pct} %</span>` : ''}</div>` : ''}</div>` : ''}
         ${e.ord.map(o => `<button class="cchip ord" data-go="bestill" data-sup="${esc(o.sup)}" title="Bestill innen denne dagen for levering ${fmtD(o.del)}">🛒 Bestill <span translate="no">${esc(o.sup)}</span></button>`).join('')}
         ${e.del.map(x => `<span class="cchip del ${x.kind}" title="${x.kind === 'bestilt' ? 'Bestilt levering' : x.kind === 'mottatt' ? 'Mottatt' : 'Mulig leveringsdag'}">${x.kind === 'mottatt' ? '✓' : '📦'} <span translate="no">${esc(x.sup)}</span></span>`).join('')}
       </div>`;
     }
-    h += `${wHasP || wHasA ? `<div class="calwsum small"><span>Uke ${weekNo(ws)}</span>: ${wHasA ? `<span>faktisk</span> <b>${kk(wAct)}</b>` : ''}${wHasP ? `${wHasA ? ' · ' : ''}<span>plan</span> <span>${kk(wPlan)}</span>` : ''}${wHasP && wHasA && wPlanAct ? ` · <span>${wAct >= wPlanAct ? '+' : ''}${Math.round((wAct / wPlanAct - 1) * 100)} %</span> <span>mot plan</span>${wPlanAct < wPlan ? ' <span>hittil</span>' : ''}` : ''}</div>` : ''}</div>`;
+    h += `${wHasP || wHasA ? `<div class="calwsum small"><span>Uke ${weekNo(ws)}</span>: ${wHasP ? `<span>Plan</span> <span>${kk(wPlan)}</span>` : ''}${wHasA ? `${wHasP ? ' · ' : ''}<span>Faktisk</span> <b>${kk(wAct)}</b>` : ''}${wHasP && wHasA && wPlanAct ? ` · <span>${wAct >= wPlanAct ? '+' : ''}${Math.round((wAct / wPlanAct - 1) * 100)} %</span> <span>mot plan</span>${wPlanAct < wPlan ? ' <span>hittil</span>' : ''}` : ''}</div>` : ''}</div>`;
   }
   h += `</div><div class="small muted callegend"><span class="cchip ord">🛒 Bestill</span><span>siste dag å bestille til neste levering</span> · <span class="cchip del bestilt">📦</span><span>bestilt levering</span> · <span class="cchip del mulig">📦</span><span>mulig leveringsdag</span> · <span class="cchip del mottatt">✓</span><span>mottatt</span>${connected ? ` · <span>Planday hentet</span> <span translate="no">${new Date(S.planday.syncedAt).toLocaleString('nb-NO', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'})}</span>` : S.canManage ? ' · <a href="#oppsett">Koble til Planday</a> <span>for omsetningsplan og faktisk omsetning</span>' : ''}</div></div>`;
   return h;
@@ -400,7 +403,7 @@ function calHtml(){
 function bindCal(){
   const today = C.today; const monday = d => addDays(d, -((pd(d).getDay() + 6) % 7));
   document.querySelectorAll('[data-calnav]').forEach(b => b.onclick = () => { const n = +b.dataset.calnav; UI.calStart = n === 0 ? monday(today) : addDays(UI.calStart, n * 7 * (UI.calWeeks || 2)); render(); });
-  const cw = $('#calWeeks'); if (cw) cw.onclick = () => { UI.calWeeks = (UI.calWeeks || 2) === 2 ? 4 : 2; render(); };
+  document.querySelectorAll('[data-calweeks]').forEach(b => b.onclick = () => { UI.calWeeks = +b.dataset.calweeks; try { localStorage.setItem('restoq-calweeks', UI.calWeeks); } catch(e){} render(); });
   const cs = $('#calSync'); if (cs) cs.onclick = async () => { cs.disabled = true; try { const r = await api('POST', '/api/planday/sync', {}); await apiLoad(true); toast(`Hentet omsetning for ${r.days} dager fra Planday.`); } catch(e){ toast(e.message || 'Kunne ikke hente fra Planday.'); cs.disabled = false; } };
 }
 function vOversikt(){
@@ -1462,13 +1465,13 @@ function vFaktura(){
   const cnt = s => S.invoices.filter(i => i.status === s).length;
   const sumOpen = S.invoices.filter(i => ['kontroll','avvik','matchet','godkjent'].includes(i.status)).reduce((s,i) => s + (i.amount || i.amountExVat || 0), 0);
   let h = `<div class="row between"><div><h2>Fakturaer og pakksedler</h2><div class="muted">Fakturaen kontrolleres mot bestilling og varemottak før den godkjennes, sendes til regnskap for bokføring og legges til betaling.</div></div>
-    <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxSync">Hent fra regnskap</button>' : ''}</div></div>`;
+    <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxInbox" title="Henter nye leverandørfakturaer fra bilagsmottaket i regnskapet">Hent fra bilagsmottak</button><button class="btn" id="ttxSync">Hent fra regnskap</button>' : ''}</div></div>`;
   h += `<div class="grid g4"><button class="tile blue" data-fs="kontroll"><span class="lbl">Til kontroll</span><span class="big">${cnt('kontroll')}</span><span class="small muted">mangler bestilling</span></button>
     <button class="tile red" data-fs="avvik"><span class="lbl">Avvik</span><span class="big">${cnt('avvik')}</span><span class="small muted">mengde eller pris stemmer ikke</span></button>
     <button class="tile green" data-fs="matchet"><span class="lbl">Klar til godkjenning</span><span class="big">${cnt('matchet')}</span><span class="small muted">stemmer med varemottak</span></button>
     <div class="tile"><span class="lbl">Åpne fakturaer</span><span class="big">${kr(sumOpen)}</span><span class="small muted">ikke sendt til regnskap</span></div></div>`;
   h += `<div class="chips">${[['aktive','Aktive'],['kontroll','Til kontroll'],['avvik','Avvik'],['matchet','Matchet'],['godkjent','Godkjent'],['sendt','Sendt til regnskap'],['betalt','Til betaling'],['avvist','Avvist'],['alle','Alle']].map(([k,l]) => `<button class="chip ${f===k?'on':''}" data-fs="${k}">${l}</button>`).join('')}</div>`;
-  h += `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Leverandør</th><th>Faktura</th><th>Dato</th><th>Forfall</th><th class="n">Beløp</th><th>Bestilling</th><th>Status</th></tr></thead><tbody>${rows.map(i => { const o = S.orders.find(x => x.id === i.orderId); return `<tr class="click" data-inv="${esc(i.id)}"><td translate="no"><b>${esc(i.supplier)}</b> <span class="isub">${esc(set.suppliers[i.supplier]?.name||'')}</span></td><td>${esc(i.invoiceNo)}${i.fileId?' 📎':''}${i.source==='tripletex'?' <span class="isub">fra regnskap</span>':i.source==='api'?' <span class="isub">via API</span>':''}</td><td>${fmtDL(i.invoiceDate)}</td><td>${i.dueDate?fmtDL(i.dueDate):'–'}</td><td class="n">${i.amount!=null?kr(i.amount):i.amountExVat!=null?kr(i.amountExVat)+' eks.':'–'}</td><td>${o?fmtD(o.deliveryDate)+' · '+o.lines.length+' varer':'<span class="muted">–</span>'}</td><td>${invPill(i.status)}${i.match&&i.match.issues&&i.match.issues.length?` <span class="isub">${i.match.issues.length} avvik</span>`:''}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty">Ingen fakturaer her. Registrer en faktura, eller hent fra regnskap.</div></td></tr>'}</tbody></table></div></div>`;
+  h += `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Leverandør</th><th>Faktura</th><th>Dato</th><th>Forfall</th><th class="n">Beløp</th><th>Bestilling</th><th>Status</th></tr></thead><tbody>${rows.map(i => { const o = S.orders.find(x => x.id === i.orderId); return `<tr class="click" data-inv="${esc(i.id)}"><td translate="no"><b>${esc(i.supplier)}</b> <span class="isub">${esc(set.suppliers[i.supplier]?.name||'')}</span></td><td>${esc(i.invoiceNo)}${i.fileId?' 📎':''}${i.source==='tripletex'?(i.ttx && i.ttx.inbox ? ' <span class="isub">fra bilagsmottak</span>' : ' <span class="isub">fra regnskap</span>'):i.source==='api'?' <span class="isub">via API</span>':''}</td><td>${fmtDL(i.invoiceDate)}</td><td>${i.dueDate?fmtDL(i.dueDate):'–'}</td><td class="n">${i.amount!=null?kr(i.amount):i.amountExVat!=null?kr(i.amountExVat)+' eks.':'–'}</td><td>${o?fmtD(o.deliveryDate)+' · '+o.lines.length+' varer':'<span class="muted">–</span>'}</td><td>${invPill(i.status)}${i.match&&i.match.issues&&i.match.issues.length?` <span class="isub">${i.match.issues.length} avvik</span>`:''}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty">Ingen fakturaer her. Registrer en faktura, eller hent fra regnskap.</div></td></tr>'}</tbody></table></div></div>`;
   const slips = [...S.slips].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,15);
   h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Siste pakksedler</h3></div>${slips.length ? `<table><thead><tr><th>Dato</th><th>Leverandør</th><th>Pakkseddel</th><th class="n">Linjer</th><th>Bestilling</th></tr></thead><tbody>${slips.map(s => `<tr><td>${fmtDL(s.date)}</td><td>${esc(s.supplier)}</td><td>${esc(s.slipNo)}${s.fileId?` <a href="/api/files/${esc(s.fileId)}" target="_blank" rel="noopener">📎</a>`:''}</td><td class="n">${s.lines.length}</td><td>${s.orderId?(s.received?'<span class="pill p-ok">mottak registrert</span>':'koblet'):'<span class="muted">ikke funnet</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Ingen pakksedler ennå.</div>'}</div>`;
   $('#view').innerHTML = h;
@@ -1476,6 +1479,7 @@ function vFaktura(){
   document.querySelectorAll('[data-inv]').forEach(r => r.onclick = () => invoiceDrawer(r.dataset.inv));
   $('#invNew').onclick = () => invoiceModal();
   $('#slipNew').onclick = () => slipModal();
+  const ib = $('#ttxInbox'); if (ib) ib.onclick = async () => { ib.disabled = true; ib.textContent = 'Henter …'; try { const r = await api('POST', '/api/tripletex/inbox', {force: true}); await apiLoad(true); toast(inboxSummary(r)); } catch(e){ toast(e.message || 'Kunne ikke hente fra bilagsmottaket.'); ib.disabled = false; ib.textContent = 'Hent fra bilagsmottak'; } };
   const sy = $('#ttxSync'); if (sy) sy.onclick = async () => { sy.disabled = true; try { const r = await api('POST', '/api/tripletex/sync', {}); toast(`Hentet ${r.fetched} fra regnskap: ${r.created} nye, ${r.linked} koblet${r.unknown?`, ${r.unknown} med ukjent leverandør`:''}.`); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke hente.'); } sy.disabled = false; };
 }
 async function uploadFile(input){
@@ -1627,15 +1631,38 @@ async function loadPlanday(){
     $('#pdOff').onclick = () => confirmBox('Koble fra Planday?', 'Omsetning og plan hentes ikke lenger. Det som allerede er hentet, blir liggende.', 'Koble fra', async () => { await api('DELETE', '/api/planday'); await apiLoad(true); });
   } catch(e){ box.textContent = 'Kunne ikke hente status.'; }
 }
+/** Etter at en leverandør er opprettet: bilag fra «ukjente» leverandører vurderes på nytt ved neste henting. */
+async function forgetUnknownInbox(){
+  const st = S.ttxinbox; if (!st || !st.seen) return;
+  const s2 = JSON.parse(JSON.stringify(st)); Object.keys(s2.seen).forEach(k => { if (s2.seen[k].s === 'ukjent') delete s2.seen[k]; }); delete s2.lastRun; delete s2.id;
+  try { await store.put('config', 'ttxinbox', s2); } catch(e){}
+}
+function inboxSummary(r){
+  if (!r) return '';
+  const parts = [`${r.checked || 0} bilag sjekket`, `${r.imported || 0} nye fakturaer`];
+  if (r.linked) parts.push(`${r.linked} koblet til eksisterende`);
+  if (r.unknown) parts.push(`${r.unknown} fra leverandører som ikke er registrert`);
+  if (r.remaining) parts.push(`${r.remaining} gjenstår (hentes neste gang)`);
+  if (r.errors) parts.push(`${r.errors} kunne ikke leses`);
+  return parts.join(' · ');
+}
 async function loadTtx(){
   const box = $('#ttxBody'); if (!box) return;
   try {
     const s = await api('GET', '/api/tripletex');
     if (!s.available){ box.innerHTML = 'Koblingen til regnskap er ikke aktivert på serveren ennå (Restoq må ha godkjent integrasjon hos Tripletex).'; return; }
     box.className = 'grid'; box.style.gap = '10px';
-    box.innerHTML = s.connected ? `<div class="note good">Koblet til regnskap (Tripletex)${s.env==='test'?' (testmiljø)':''} siden ${fmtDL(String(s.info?.connectedAt||'').slice(0,10))}.</div><div class="row"><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
+    const ib = S.ttxinbox || {}; const unk = Object.values(ib.seen || {}).filter(x => x.s === 'ukjent' && x.name).reduce((m, x) => { const k = (x.orgnr || '') + '|' + x.name; m[k] = m[k] || {...x, n: 0}; m[k].n++; return m; }, {});
+    box.innerHTML = s.connected ? `<div class="note good">Koblet til regnskap (Tripletex)${s.env==='test'?' (testmiljø)':''} siden ${fmtDL(String(s.info?.connectedAt||'').slice(0,10))}.</div>
+      <label class="row small" style="gap:8px"><input type="checkbox" id="ttxAuto" ${s.info?.inboxAuto === false ? '' : 'checked'} style="width:20px;height:20px"> <span>Hent fakturaer fra bilagsmottaket automatisk (fra leverandører som er registrert i Restoq)</span></label>
+      <div class="small muted">${ib.lastRun ? `<span>Sist hentet</span> <span translate="no">${new Date(ib.lastRun).toLocaleString('nb-NO')}</span>${ib.lastResult ? ' · ' + esc(inboxSummary(ib.lastResult)) : ''}` : 'Ikke hentet ennå.'}</div>
+      ${Object.keys(unk).length ? `<div class="small"><b>Fakturaer i bilagsmottaket fra leverandører som ikke er registrert:</b><div class="grid" style="gap:6px;margin-top:6px">${Object.values(unk).map(x => `<div class="row between"><span translate="no">${esc(x.name)}${x.orgnr ? ' · ' + esc(fmtOrg(x.orgnr)) : ''} (${x.n})</span><button class="btn sm" data-ttxnewsup="${esc(x.name)}" data-orgnr="${esc(x.orgnr || '')}">Opprett leverandør</button></div>`).join('')}</div><div class="small muted" style="margin-top:4px">Når leverandøren er opprettet, hentes fakturaene deres ved neste henting.</div></div>` : ''}
+      <div class="row"><button class="btn" id="ttxInbox2">↻ Hent fra bilagsmottak nå</button><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
       : `<div class="small">Lag en API-nøkkel i Tripletex: <b>Brukerinnstillinger → API-tilgang → Ny nøkkel</b>, velg applikasjonen <b>Restoq</b> og tilgang til leverandørfaktura og bilag. Lim inn nøkkelen her. (Tilleggsmodulen «Integrasjoner» må være aktiv i Tripletex.)</div><div class="row" style="flex-wrap:nowrap"><input type="text" id="ttxTok" placeholder="Employee token fra Tripletex" autocomplete="off"><button class="btn primary" id="ttxOn">Koble til</button></div>`;
     const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Regnskap er koblet til.'); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
+    const au = $('#ttxAuto'); if (au) au.onchange = async () => { try { await api('POST', '/api/tripletex', {inboxAuto: au.checked}); toast('Lagret.'); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); } };
+    const ib2 = $('#ttxInbox2'); if (ib2) ib2.onclick = async () => { ib2.disabled = true; try { const r = await api('POST', '/api/tripletex/inbox', {force: true}); await apiLoad(true); toast(inboxSummary(r)); } catch(e){ toast(e.message || 'Kunne ikke hente.'); ib2.disabled = false; } };
+    box.querySelectorAll('[data-ttxnewsup]').forEach(b => b.onclick = () => supplierEditModal(null, {name: b.dataset.ttxnewsup, orgnr: b.dataset.orgnr}, async () => { await forgetUnknownInbox(); await apiLoad(true); }));
     const off = $('#ttxOff'); if (off) off.onclick = () => confirmBox('Koble fra regnskap?', 'Restoq kan ikke lenger sende eller hente fakturaer før dere kobler til på nytt.', 'Koble fra', async () => { await api('DELETE', '/api/tripletex'); await apiLoad(true); });
   } catch(e){ box.textContent = 'Kunne ikke hente status.'; }
 }

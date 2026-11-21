@@ -18,7 +18,7 @@ export async function GET(req: Request) {
   const pd = one("planday"), tx = one("tripletex"), pos = one("pos");
   const integrations = {
     planday: { available: plandayConfigured(), connected: !!pd, since: pd?.info?.connectedAt ?? null, lastSync: pd?.info?.lastSync ?? null, error: pd?.info?.lastError ?? null },
-    accounting: { available: tripletexConfigured(), connected: !!tx, since: tx?.info?.connectedAt ?? null, system: "Tripletex" },
+    accounting: { available: tripletexConfigured(), connected: !!tx, since: tx?.info?.connectedAt ?? null, system: "Tripletex", lastInbox: tx?.info?.lastInbox ?? null, inboxAuto: tx?.info?.inboxAuto !== false },
     pos: { available: false, connected: !!pos, since: pos?.info?.connectedAt ?? null },
     claude: { available: invoiceReaderEnabled(), connected: invoiceReaderEnabled() },
   };

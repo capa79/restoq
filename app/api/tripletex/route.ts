@@ -1,4 +1,4 @@
-import { audit } from "@/lib/db";
+import { audit, db } from "@/lib/db";
 import { apiUser, canManage, json } from "@/lib/api-auth";
 import { connectTripletex, disconnectTripletex, tripletexStatus } from "@/lib/tripletex";
 
@@ -12,6 +12,11 @@ export async function POST(req: Request) {
   if (u instanceof Response) return u;
   if (!canManage(u)) return json({ error: "Bare leder kan koble til regnskap." }, 403);
   const b = await req.json().catch(() => ({}));
+  if (typeof b.inboxAuto === "boolean") {
+    const p = await db();
+    await p.query("UPDATE integrations SET info = info || $2 WHERE org_id = $1 AND provider = 'tripletex'", [u.org_id, JSON.stringify({ inboxAuto: b.inboxAuto })]);
+    return json(await tripletexStatus(u.org_id!));
+  }
   const token = String(b.employeeToken ?? "").trim();
   if (token.length < 10) return json({ error: "Lim inn API-nøkkelen (employee token) fra Tripletex." }, 400);
   try {

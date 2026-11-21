@@ -268,3 +268,8 @@ button.cchip{cursor:pointer}
 .ichip-t{display:flex;flex-direction:column;line-height:1.25;min-width:0}
 .ichip-t .small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
 a.ichip:hover{border-color:var(--brand)}
+.segsm{display:inline-flex;border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.segsm .btn{border:0;border-radius:0;box-shadow:none}
+.segsm .btn+.btn{border-left:1px solid var(--line)}
+.segsm .btn.on{background:var(--ink,#141a18);color:#fff}
+.cal .cd-rev>div{white-space:nowrap}
