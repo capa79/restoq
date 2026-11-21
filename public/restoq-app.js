@@ -860,7 +860,7 @@ function inviteUser(pre){
   });
 }
 /* ================= FAKTURA ================= */
-const INV_STATUS = {kontroll:['Til kontroll','p-tell'], avvik:['Avvik','p-bestill'], matchet:['Matchet','p-ok'], godkjent:['Godkjent','p-ok'], sendt:['Sendt til Tripletex','p-behov'], betalt:['Til betaling','p-behov'], avvist:['Avvist','p-behov']};
+const INV_STATUS = {kontroll:['Til kontroll','p-tell'], avvik:['Avvik','p-bestill'], matchet:['Matchet','p-ok'], godkjent:['Godkjent','p-ok'], sendt:['Sendt til regnskap','p-behov'], betalt:['Til betaling','p-behov'], avvist:['Avvist','p-behov']};
 const invPill = s => `<span class="pill ${(INV_STATUS[s]||['',''])[1]}">${esc((INV_STATUS[s]||[s])[0])}</span>`;
 UI.fStatus = 'aktive';
 function vFaktura(){
@@ -870,13 +870,13 @@ function vFaktura(){
   const rows = list.filter(i => f === 'alle' ? true : f === 'aktive' ? ['kontroll','avvik','matchet','godkjent'].includes(i.status) : i.status === f);
   const cnt = s => S.invoices.filter(i => i.status === s).length;
   const sumOpen = S.invoices.filter(i => ['kontroll','avvik','matchet','godkjent'].includes(i.status)).reduce((s,i) => s + (i.amount || i.amountExVat || 0), 0);
-  let h = `<div class="row between"><div><h2>Fakturaer og pakksedler</h2><div class="muted">Fakturaen kontrolleres mot bestilling og varemottak før den godkjennes, sendes til Tripletex for bokføring og legges til betaling.</div></div>
+  let h = `<div class="row between"><div><h2>Fakturaer og pakksedler</h2><div class="muted">Fakturaen kontrolleres mot bestilling og varemottak før den godkjennes, sendes til regnskap for bokføring og legges til betaling.</div></div>
     <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxSync">Hent fra Tripletex</button>' : ''}</div></div>`;
   h += `<div class="grid g4"><button class="tile blue" data-fs="kontroll"><span class="lbl">Til kontroll</span><span class="big">${cnt('kontroll')}</span><span class="small muted">mangler bestilling</span></button>
     <button class="tile red" data-fs="avvik"><span class="lbl">Avvik</span><span class="big">${cnt('avvik')}</span><span class="small muted">mengde eller pris stemmer ikke</span></button>
     <button class="tile green" data-fs="matchet"><span class="lbl">Klar til godkjenning</span><span class="big">${cnt('matchet')}</span><span class="small muted">stemmer med varemottak</span></button>
-    <div class="tile"><span class="lbl">Åpne fakturaer</span><span class="big">${kr(sumOpen)}</span><span class="small muted">ikke sendt til Tripletex</span></div></div>`;
-  h += `<div class="chips">${[['aktive','Aktive'],['kontroll','Til kontroll'],['avvik','Avvik'],['matchet','Matchet'],['godkjent','Godkjent'],['sendt','Sendt til Tripletex'],['betalt','Til betaling'],['avvist','Avvist'],['alle','Alle']].map(([k,l]) => `<button class="chip ${f===k?'on':''}" data-fs="${k}">${l}</button>`).join('')}</div>`;
+    <div class="tile"><span class="lbl">Åpne fakturaer</span><span class="big">${kr(sumOpen)}</span><span class="small muted">ikke sendt til regnskap</span></div></div>`;
+  h += `<div class="chips">${[['aktive','Aktive'],['kontroll','Til kontroll'],['avvik','Avvik'],['matchet','Matchet'],['godkjent','Godkjent'],['sendt','Sendt til regnskap'],['betalt','Til betaling'],['avvist','Avvist'],['alle','Alle']].map(([k,l]) => `<button class="chip ${f===k?'on':''}" data-fs="${k}">${l}</button>`).join('')}</div>`;
   h += `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Leverandør</th><th>Faktura</th><th>Dato</th><th>Forfall</th><th class="n">Beløp</th><th>Bestilling</th><th>Status</th></tr></thead><tbody>${rows.map(i => { const o = S.orders.find(x => x.id === i.orderId); return `<tr class="click" data-inv="${esc(i.id)}"><td translate="no"><b>${esc(i.supplier)}</b> <span class="isub">${esc(set.suppliers[i.supplier]?.name||'')}</span></td><td>${esc(i.invoiceNo)}${i.fileId?' 📎':''}${i.source==='tripletex'?' <span class="isub">fra Tripletex</span>':i.source==='api'?' <span class="isub">via API</span>':''}</td><td>${fmtDL(i.invoiceDate)}</td><td>${i.dueDate?fmtDL(i.dueDate):'–'}</td><td class="n">${i.amount!=null?kr(i.amount):i.amountExVat!=null?kr(i.amountExVat)+' eks.':'–'}</td><td>${o?fmtD(o.deliveryDate)+' · '+o.lines.length+' varer':'<span class="muted">–</span>'}</td><td>${invPill(i.status)}${i.match&&i.match.issues&&i.match.issues.length?` <span class="isub">${i.match.issues.length} avvik</span>`:''}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty">Ingen fakturaer her. Registrer en faktura, eller hent fra Tripletex.</div></td></tr>'}</tbody></table></div></div>`;
   const slips = [...S.slips].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,15);
   h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Siste pakksedler</h3></div>${slips.length ? `<table><thead><tr><th>Dato</th><th>Leverandør</th><th>Pakkseddel</th><th class="n">Linjer</th><th>Bestilling</th></tr></thead><tbody>${slips.map(s => `<tr><td>${fmtDL(s.date)}</td><td>${esc(s.supplier)}</td><td>${esc(s.slipNo)}${s.fileId?` <a href="/api/files/${esc(s.fileId)}" target="_blank" rel="noopener">📎</a>`:''}</td><td class="n">${s.lines.length}</td><td>${s.orderId?(s.received?'<span class="pill p-ok">mottak registrert</span>':'koblet'):'<span class="muted">ikke funnet</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Ingen pakksedler ennå.</div>'}</div>`;
@@ -989,7 +989,7 @@ function invoiceDrawer(id){
       <label class="f">Kommentar${inv.status==='avvik'?' (påkrevd for å godkjenne med avvik)':''}<input type="text" id="dvNote" placeholder="f.eks. kreditnota avtalt for manglende vare"></label>
       <div class="row">
         ${['kontroll','avvik','matchet'].includes(inv.status) ? `<button class="btn primary" data-act="approve" ${can?'':'disabled'}>${inv.status==='avvik'?'Godkjenn med avvik':'Godkjenn'}</button><button class="btn danger" data-act="reject" ${can?'':'disabled'}>Avvis</button>` : ''}
-        ${inv.status==='godkjent' && !t.supplierInvoiceId ? `<button class="btn primary" data-act="send" ${can?'':'disabled'}>Send til Tripletex</button>` : ''}
+        ${inv.status==='godkjent' && !t.supplierInvoiceId ? `<button class="btn primary" data-act="send" ${can?'':'disabled'}>Send til regnskap</button>` : ''}
         ${(inv.status==='godkjent' || inv.status==='sendt') && t.supplierInvoiceId && !t.paymentAt ? `<button class="btn primary" data-act="pay" ${can?'':'disabled'}>Send til betaling</button>` : ''}
         ${inv.status==='avvist' ? `<button class="btn" data-act="reopen" ${can?'':'disabled'}>Åpne igjen</button>` : ''}
         ${!['sendt','betalt'].includes(inv.status) ? `<button class="btn danger" data-act="delete" ${can?'':'disabled'}>Slett</button>` : ''}
