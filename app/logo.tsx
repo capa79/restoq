@@ -3,7 +3,7 @@ export const LOGO_RED = "#D2372B";
 /** Bare merket. Farge følger tekstfargen (currentColor); den røde stolpen er alltid rød. */
 export function LogoMark({ size = 30, title }: { size?: number; title?: string }) {
   return (
-    <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden={title ? undefined : true} role={title ? "img" : undefined} dangerouslySetInnerHTML={{ __html: (title ? `<title>${title}</title>` : "") + '<path d="M51.97 38.49A21 21 0 1 1 44.93 15.45" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round"/><path d="M49.57 19.08L38.14 18.27L46.02 8.19Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="21.6" y="34" width="5.6" height="8" rx="1.6" fill="currentColor"/><rect x="29.2" y="28" width="5.6" height="14" rx="1.6" fill="currentColor"/><rect x="36.8" y="22" width="5.6" height="20" rx="1.6" fill="#D2372B"/>' }} />
+    <svg viewBox="0 0 64 64" width={size} height={size} aria-hidden={title ? undefined : true} role={title ? "img" : undefined} dangerouslySetInnerHTML={{ __html: (title ? `<title>${title.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!)}</title>` : "") + '<path d="M51.97 38.49A21 21 0 1 1 44.93 15.45" fill="none" stroke="currentColor" stroke-width="5.6" stroke-linecap="round"/><path d="M49.57 19.08L38.14 18.27L46.02 8.19Z" fill="currentColor" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><rect x="21.6" y="34" width="5.6" height="8" rx="1.6" fill="currentColor"/><rect x="29.2" y="28" width="5.6" height="14" rx="1.6" fill="currentColor"/><rect x="36.8" y="22" width="5.6" height="20" rx="1.6" fill="#D2372B"/>' }} />
   );
 }
 /** Merke + ordmerket «restoq» som kurver. */

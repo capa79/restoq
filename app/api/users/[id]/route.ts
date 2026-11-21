@@ -8,7 +8,7 @@ export async function DELETE(req: Request, ctx: { params: Promise<{ id: string }
   const id = Number((await ctx.params).id);
   if (id === u.id) return json({ error: "Du kan ikke fjerne deg selv." }, 400);
   const p = await db();
-  const t = (await p.query("SELECT email, role FROM users WHERE id = $1 AND org_id = $2", [id, u.org_id])).rows[0];
+  const t = (await p.query("SELECT email, role FROM users WHERE id = $1 AND org_id = $2 AND role IN ('owner','staff') AND NOT is_root", [id, u.org_id])).rows[0];
   if (!t) return json({ error: "Fant ikke brukeren." }, 404);
   if (t.role === "owner") {
     const n = Number((await p.query("SELECT count(*) FROM users WHERE org_id = $1 AND role = 'owner'", [u.org_id])).rows[0].count);
@@ -29,7 +29,7 @@ export async function PATCH(req: Request, ctx: { params: Promise<{ id: string }>
   const role = b.role === "owner" ? "owner" : b.role === "staff" ? "staff" : null;
   if (!role) return json({ error: "Ugyldig rolle." }, 400);
   const p = await db();
-  const t = (await p.query("SELECT email, role FROM users WHERE id = $1 AND org_id = $2", [id, u.org_id])).rows[0];
+  const t = (await p.query("SELECT email, role FROM users WHERE id = $1 AND org_id = $2 AND role IN ('owner','staff') AND NOT is_root", [id, u.org_id])).rows[0];
   if (!t) return json({ error: "Fant ikke brukeren." }, 404);
   if (t.role === "owner" && role === "staff") {
     const n = Number((await p.query("SELECT count(*) FROM users WHERE org_id = $1 AND role = 'owner'", [u.org_id])).rows[0].count);

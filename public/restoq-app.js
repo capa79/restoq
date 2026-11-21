@@ -333,7 +333,7 @@ const TABS = [
   ['faktura','Faktura','<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8zm-1 7V3.5L18.5 9zM8 13h8v2H8zm0 4h8v2H8z"/>'],
 ].filter(t => t[0] !== 'faktura' || MODE_API);
 let view = (location.hash || '#oversikt').slice(1);
-if (!TABS.find(t => t[0] === view) && view !== 'oppsett') view = 'oversikt';
+if (!TABS.find(t => t[0] === view) && !['oppsett', 'leverandorer', 'komigang'].includes(view)) view = 'oversikt';
 function go(v){ view = v; if (location.hash !== '#'+v) history.replaceState(null,'','#'+v); $('#main').scrollTop = 0; render(); }
 document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('#hHome'); if (!a) return; e.preventDefault(); try { if (typeof closeModal === 'function') closeModal(); if (typeof closeDrawer === 'function') closeDrawer(); } catch(_){} go('oversikt'); });
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== view){ view = v; render(); } });
