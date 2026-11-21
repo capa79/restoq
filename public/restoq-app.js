@@ -62,8 +62,28 @@ async function api(method, path, body){
   const res = await fetch(path, {method, headers: body !== undefined ? {'Content-Type':'application/json'} : {}, body: body !== undefined ? JSON.stringify(body) : undefined, credentials:'same-origin'});
   if (res.status === 401){ location.href = '/login?next=/app'; throw {code:'auth'}; }
   const j = await res.json().catch(() => ({}));
-  if (!res.ok) throw {code: res.status === 403 ? 'forbidden' : 'http', message: j.error || 'Kunne ikke lagre.'};
+  if (!res.ok) throw {code: res.status === 403 ? 'forbidden' : 'http', status: res.status, message: j.error || 'Kunne ikke lagre.', needPassword: !!j.needPassword, locked: !!j.locked, what: j.what || ''};
   return j;
+}
+/** Kjører en forespørsel som endrer noe i et annet system (Tripletex, Planday). Krever serveren passord, spør vi og prøver igjen. */
+function withPassword(run){
+  return run(undefined).catch(e => {
+    if (!e || !e.needPassword || e.locked) throw e;
+    return new Promise((resolve, reject) => {
+      const ask = (msg, first) => modal(`<h3>Bekreft med passord</h3>
+        <div class="small muted">Dette endrer data i et annet system${e.what ? ` (${esc(e.what)})` : ''}. Skriv inn passordet ditt til Restoq for å godkjenne.</div>
+        ${first ? '' : `<div class="note bad small"><div>${esc(msg)}</div></div>`}
+        <label class="f">Passord<input type="password" id="pwConfirm" autocomplete="current-password"></label>
+        <div class="small muted">Logger du inn med Google og har ikke eget passord? <a href="/bytt-passord">Velg et passord</a>.</div>
+        <div class="row" style="justify-content:flex-end"><button class="btn" id="pwCancel">Avbryt</button><button class="btn primary" id="pwOk">Godkjenn og send</button></div>`, m => {
+          const inp = m.querySelector('#pwConfirm'); setTimeout(() => inp.focus(), 0);
+          const go = async () => { const b = m.querySelector('#pwOk'); b.disabled = true; try { const r = await run(inp.value); closeModal(); resolve(r); } catch(err){ if (err && err.needPassword && !err.locked){ ask(err.message, false); } else { closeModal(); reject(err); } } };
+          m.querySelector('#pwOk').onclick = go; inp.onkeydown = ev => { if (ev.key === 'Enter') go(); };
+          m.querySelector('#pwCancel').onclick = () => { closeModal(); reject({message: 'Avbrutt – ingenting ble sendt.'}); };
+        });
+      ask('', true);
+    });
+  });
 }
 const store = {
   async put(col, id, data){
@@ -1600,7 +1620,7 @@ function invoiceDrawer(id){
     d.querySelectorAll('[data-addcharge]').forEach(b => b.onclick = async () => { b.disabled = true; try { const set2 = JSON.parse(JSON.stringify(SET())); if (!set2.suppliers[inv.supplier]) return; mergeCharges(set2.suppliers[inv.supplier], [{kind: chargeKind(b.dataset.addcharge), name: b.dataset.addcharge, amount: num(b.dataset.amt), date: inv.invoiceDate || C.today, src: inv.invoiceNo || ''}]); await saveSettings(set2); await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: inv.orderId || null}); await apiLoad(true); invoiceDrawer(id); toast('Gebyret er lagt til på leverandøren.'); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); b.disabled = false; } });
     d.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
       const act = b.dataset.act; const note = d.querySelector('#dvNote').value;
-      const go2 = async () => { b.disabled = true; try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/${act}`, {note}); await apiLoad(true); if (act === 'delete') closeLayer(); else invoiceDrawer(id); toast({approve:'Fakturaen er godkjent.', send:'Fakturaen er sendt til bilagsmottaket i regnskapet.', pay:'Fakturaen er lagt til betaling i regnskapet.', reject:'Fakturaen er avvist.', reopen:'Fakturaen er åpnet igjen.', delete:'Fakturaen er slettet.'}[act]); } catch(e){ toast(e.message || 'Noe gikk galt.'); b.disabled = false; } };
+      const go2 = async () => { b.disabled = true; try { await withPassword(password => api('POST', `/api/invoices/${encodeURIComponent(id)}/${act}`, {note, password})); await apiLoad(true); if (act === 'delete') closeLayer(); else invoiceDrawer(id); toast({approve:'Fakturaen er godkjent.', send:'Fakturaen er sendt til bilagsmottaket i regnskapet.', pay:'Fakturaen er lagt til betaling i regnskapet.', reject:'Fakturaen er avvist.', reopen:'Fakturaen er åpnet igjen.', delete:'Fakturaen er slettet.'}[act]); } catch(e){ toast(e.message || 'Noe gikk galt.'); b.disabled = false; } };
       if (act === 'pay') confirmBox('Sende til betaling?', `${inv.amount!=null?kr(inv.amount):'Beløpet'} til ${set.suppliers[inv.supplier]?.name||inv.supplier}${inv.dueDate?' med forfall '+fmtDL(inv.dueDate):''} legges til betaling i regnskapet.`, 'Send til betaling', go2);
       else if (act === 'delete') confirmBox('Slette fakturaen?', 'Registreringen fjernes fra Restoq.', 'Slett', go2);
       else go2();
@@ -1660,7 +1680,7 @@ async function loadTtx(){
       <div class="small muted">${ib.lastRun ? `<span>Sist hentet</span> <span translate="no">${new Date(ib.lastRun).toLocaleString('nb-NO')}</span>${ib.lastResult ? ' · ' + esc(inboxSummary(ib.lastResult)) : ''}` : 'Ikke hentet ennå.'}</div>
       ${Object.keys(unk).length ? `<div class="small"><b>Fakturaer i bilagsmottaket fra leverandører som ikke er registrert:</b><div class="grid" style="gap:6px;margin-top:6px">${Object.values(unk).map(x => `<div class="row between"><span translate="no">${esc(x.name)}${x.orgnr ? ' · ' + esc(fmtOrg(x.orgnr)) : ''} (${x.n})</span><button class="btn sm" data-ttxnewsup="${esc(x.name)}" data-orgnr="${esc(x.orgnr || '')}">Opprett leverandør</button></div>`).join('')}</div><div class="small muted" style="margin-top:4px">Når leverandøren er opprettet, hentes fakturaene deres ved neste henting.</div></div>` : ''}
       <div class="row"><button class="btn" id="ttxInbox2">↻ Hent fra bilagsmottak nå</button><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
-      : `<div class="small">Lag en nøkkel i Tripletex: enten <b>Selskap → API-tokens → Nytt token</b>, eller <b>Min profil → API-tilgang → Ny nøkkel</b> med applikasjonen <b>Restoq</b> og tilgang til leverandørfaktura og bilag. Lim inn nøkkelen her. (Tilleggsmodulen «Integrasjoner» må være aktiv i Tripletex.)</div><div class="row" style="flex-wrap:nowrap"><input type="text" id="ttxTok" placeholder="Employee token fra Tripletex" autocomplete="off"><button class="btn primary" id="ttxOn">Koble til</button></div>`;
+      : `<div class="small">Lag en API-nøkkel i Tripletex: <b>Brukerinnstillinger → API-tilgang → Ny nøkkel</b>, velg applikasjonen <b>Restoq</b> og tilgang til leverandørfaktura og bilag. Lim inn nøkkelen her. (Tilleggsmodulen «Integrasjoner» må være aktiv i Tripletex.)</div><div class="row" style="flex-wrap:nowrap"><input type="text" id="ttxTok" placeholder="Employee token fra Tripletex" autocomplete="off"><button class="btn primary" id="ttxOn">Koble til</button></div>`;
     const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Regnskap er koblet til.'); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
     const au = $('#ttxAuto'); if (au) au.onchange = async () => { try { await api('POST', '/api/tripletex', {inboxAuto: au.checked}); toast('Lagret.'); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); } };
     const ib2 = $('#ttxInbox2'); if (ib2) ib2.onclick = async () => { ib2.disabled = true; try { const r = await api('POST', '/api/tripletex/inbox', {force: true}); await apiLoad(true); toast(inboxSummary(r)); } catch(e){ toast(e.message || 'Kunne ikke hente.'); ib2.disabled = false; } };

@@ -3,6 +3,7 @@ import { apiUser, canManage, ID_RE, json } from "@/lib/api-auth";
 import { getDoc, putDoc, rematch, type Invoice } from "@/lib/invoices";
 import { readFile } from "@/lib/files";
 import { addSupplierPayment, approveSupplierInvoice, importDocument, TripletexError } from "@/lib/tripletex";
+import { requirePassword } from "@/lib/reauth";
 
 const iso = () => new Date().toISOString();
 
@@ -22,10 +23,16 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     const note = String(b.note ?? "").slice(0, 300);
     const log = (action: string, n?: string) => (inv.history = [...(inv.history ?? []), { ts: iso(), by: u.email, action, note: n || undefined }]);
     inv.ttx = inv.ttx ?? {};
+    // Endringer i regnskapssystemet krever bekreftelse med passord (sjekkes rett før kallet, etter vanlige kontroller)
+    const confirm = (what: string) => requirePassword(u, b.password, what);
 
     if (action === "approve") {
       if (inv.status === "avvik" && !note) return json({ error: "Fakturaen har avvik. Skriv en kommentar om hvorfor den godkjennes likevel." }, 400);
-      if (inv.ttx.supplierInvoiceId) await approveSupplierInvoice(orgId, inv.ttx.supplierInvoiceId, note);
+      if (inv.ttx.supplierInvoiceId) {
+        const stop = await confirm("fakturaen godkjennes i regnskapet");
+        if (stop) return stop;
+        await approveSupplierInvoice(orgId, inv.ttx.supplierInvoiceId, note);
+      }
       inv.ttx.approvedAt = iso();
       if (!["sendt", "betalt"].includes(inv.status)) inv.status = "godkjent";
       log(inv.ttx.supplierInvoiceId ? "godkjent (også i regnskap)" : "godkjent", note);
@@ -37,6 +44,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
       if (!inv.fileId) return json({ error: "Last opp fakturaen (PDF/bilde) før den sendes til regnskap." }, 400);
       const f = await readFile(orgId, inv.fileId);
       if (!f) return json({ error: "Fant ikke fakturafilen." }, 404);
+      const stop = await confirm("fakturaen sendes til regnskap");
+      if (stop) return stop;
       const ids = await importDocument(orgId, f, `${inv.supplier} faktura ${inv.invoiceNo} – godkjent i Restoq${inv.orderId ? " (bestilling " + inv.orderId + ")" : ""}`);
       inv.ttx.voucherIds = ids;
       inv.status = "sendt";
@@ -44,6 +53,8 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
     } else if (action === "pay") {
       if (!inv.ttx.supplierInvoiceId) return json({ error: "Fakturaen må være bokført i regnskapet først. Trykk «Hent fra regnskap» når bilaget er bokført." }, 400);
       if (!inv.ttx.approvedAt) return json({ error: "Godkjenn fakturaen først." }, 400);
+      const stopPay = await confirm("fakturaen sendes til betaling i regnskapet");
+      if (stopPay) return stopPay;
       await addSupplierPayment(orgId, inv.ttx.supplierInvoiceId, { amount: inv.amount, paymentDate: inv.dueDate });
       inv.ttx.paymentAt = iso();
       inv.status = "betalt";

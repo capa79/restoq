@@ -146,3 +146,7 @@ Restoq henter leverandørfakturaer som ligger i bilagsmottaket i Tripletex (`GET
 ## Planlagt henting (to ganger om dagen)
 
 `GET /api/cron` med `Authorization: Bearer <CRON_SECRET>` henter fra bilagsmottaket i Tripletex og omsetning fra Planday for alle kunder. GitHub Actions (`.github/workflows/henting.yml`) kaller den kl. 05 og 13 UTC. Sett samme tilfeldige `CRON_SECRET` (minst 16 tegn) i Render og som Actions-hemmelighet i GitHub. I tillegg henter appen selv når dataene er eldre enn 12 timer og noen åpner den.
+
+## Bekreftelse med passord før endringer i andre systemer
+
+Alt som endrer data i Tripletex (send til bilagsmottak, godkjenning av leverandørfaktura i Tripletex, send til betaling) krever at brukeren skriver inn passordet sitt. Serveren svarer 428 med `needPassword: true` hvis passord mangler eller er feil; appen spør og prøver igjen. Maks 5 feil forsøk per 15 minutter. Bekreftelser og feil forsøk logges i hendelsesloggen. Planday brukes bare til lesing; eventuell skriving senere skal bruke `requirePassword()` i `lib/reauth.ts`.

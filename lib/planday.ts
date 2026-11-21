@@ -2,6 +2,7 @@
 // Restoq har én Planday-app (PLANDAY_CLIENT_ID). Kunden kobler appen til sin Planday-portal
 // (Innstillinger → API-tilgang → Koble til app, med Restoqs app-ID) og limer inn tokenet (refresh token) i Restoq.
 // Tilgangstoken hentes fra https://id.planday.com/connect/token (gyldig 1 time). Hvert kall sender X-ClientId + Bearer.
+// Restoq skriver ikke til Planday. Kommer det skriving senere, må den kreve requirePassword() (lib/reauth.ts) før den sendes.
 // Restoq leser bare: daglige omsetningsbudsjetter (GET /revenue/v1.0/budgets) og daglig omsetning (GET /revenue/v1.0/revenue).
 import { db } from "./db";
 import { decrypt, encrypt } from "./crypto";
