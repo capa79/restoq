@@ -207,3 +207,7 @@ header.top .powered svg{display:inline-block;vertical-align:-2px;margin:0 1px}
 .wzinvtbl select{width:auto;max-width:280px;min-height:36px;padding:4px 8px}
 .wzinvtbl tr.off td{opacity:.6}
 .wzinvtbl tr.off td:last-child{opacity:1}
+.wzmaptbl td{vertical-align:top}
+.wzmaptbl td:first-child{white-space:nowrap}
+.wzmaptbl select{width:100%;max-width:380px;min-height:38px;padding:4px 8px;font-size:14px}
+.wzmaptbl tr.off td:not(:last-child){opacity:.55}

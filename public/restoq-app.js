@@ -856,7 +856,9 @@ function importItemsModal(){
 let WZ_EDITS = {};
 /* ===== Kom i gang-veiviser ===== */
 const WZ_COLS = [...IMPORT_COLS, ['qty',['beholdning (antall)','antall','beholdning','på lager','telling','talt','lagerbeholdning','qty','quantity','stock','antall på lager']], ['exp',['utløp','utløpsdato','best før','holdbar til','expiry']]];
-const WZ_FIELDS = [['', '– ikke bruk –'], ['sup','Leverandør'], ['no','Varenr.'], ['name','Varenavn'], ['unit','Enhet'], ['price','Pris per enhet'], ['stor','Lager'], ['cat','Kategori'], ['pack','Pakning'], ['shelf','Holdbarhet (dager)'], ['manual','Forbruk per uke'], ['qty','Beholdning (antall)'], ['exp','Utløpsdato']];
+const WZ_FIELDS = [['', '– Ikke bruk –'], ['name','Varenavn (må velges)'], ['no','Varenummer hos leverandøren'], ['sup','Leverandør (navn eller kode)'], ['unit','Enhet (stk, kg, l, kartong …)'], ['price','Pris per enhet (kr eks. mva)'], ['total','Beløp totalt (kr) – Restoq regner ut pris per enhet'], ['qty','Antall på lager nå – blir første telling'], ['bought','Kjøpt antall i perioden – gir forbruk per uke'], ['date','Dato (levering eller faktura)'], ['stor','Lager (kjøl, frys, tørr)'], ['cat','Kategori'], ['pack','Pakningsstørrelse'], ['shelf','Holdbarhet (dager)'], ['manual','Forbruk per uke'], ['exp','Utløpsdato']];
+/** Hjelpetekst som vises under valget */
+const WZ_HELP = {name:'Navnet slik det står på fakturaen.', qty:'Det dere har på lager i dag. Brukes som første varetelling i steg 3.', bought:'Hvor mye som er kjøpt inn i perioden lista gjelder. Restoq deler på antall uker og får forbruk per uke.', total:'Sum i kroner for varen. Pris per enhet = beløp ÷ antall.', price:'Pris for én enhet, ikke en sum av flere priser.', date:'Brukes til å finne hvor lang perioden er.'};
 let WZ = null;
 function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: ''}; }
 async function readSheetFile(f){
@@ -869,13 +871,51 @@ async function readSheetFile(f){
   return [{name: f.name, rows: parseCsv(await f.text())}];
 }
 /** Finn overskriftsraden (første rad med en navnekolonne) og foreslå kolonner. */
+/** Gjett hva en kolonne inneholder ut fra overskriften. Returnerer felt og poeng (høyest vinner). */
+function wzFieldFor(head){
+  const h = searchNorm(head).replace(/\s+/g, ' ').trim(); if (!h) return null;
+  const has = (...w) => w.some(x => new RegExp(`(^| )${x}( |$)`).test(h) || h.includes(x));
+  const isSum = has('sum', 'summer', 'totalt', 'total');
+  if (has('utlop', 'best for', 'holdbar til', 'expiry')) return ['exp', 9];
+  if (has('holdbarhet', 'shelf')) return ['shelf', 8];
+  if (has('forbruk', 'usage')) return ['manual', 8];
+  if (has('pakning', 'pack')) return ['pack', 7];
+  if (has('kategori', 'category', 'varegruppe')) return ['cat', 7];
+  if (has('lagertype', 'storage', 'oppbevaring')) return ['stor', 7];
+  if (has('belop', 'amount', 'linjesum', 'sum kr', 'nok')) return ['total', 8];
+  if (has('antall', 'qty', 'quantity', 'mengde', 'stk antall')){
+    if (has('kjopt', 'levert', 'fakturert', 'solgt', 'bestilt', 'innkjop') || isSum) return ['bought', 8];
+    return ['qty', 7];
+  }
+  if (has('beholdning', 'pa lager', 'telling', 'talt', 'stock', 'lagerbeholdning')) return ['qty', 9];
+  if (has('pris', 'price', 'a pris', 'enhetspris', 'nettopris')) return isSum ? null : ['price', 7];
+  if (has('dato', 'date')) return ['date', 6];
+  if (has('enhet', 'unit', 'enh')) return ['unit', 7];
+  if (has('varenr', 'vare nr', 'varenummer', 'artikkelnr', 'art nr', 'artnr', 'item no', 'sku', 'produktnr')) return ['no', 9];
+  if (has('varenavn', 'navn', 'beskrivelse', 'description', 'produkt', 'item name', 'artikkel', 'tekst')) return ['name', 8];
+  if (h === 'vare' || h === 'item' || h === 'product') return ['name', 7];
+  if (has('leverandor', 'supplier', 'lev navn')) return ['sup', 8];
+  if (h === 'lev' ) return ['sup', 5];
+  if (h === 'nr' || h === 'no') return ['no', 4];
+  return null;
+}
 function wzGuess(rows){
   for (let r = 0; r < Math.min(rows.length, 15); r++){
-    const head = rows[r].map(h => String(h||'').trim().toLowerCase());
-    const map = {}; WZ_COLS.forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0 && !Object.values(map).includes(i)) map[k] = i; });
-    if (map.name != null) return {headRow: r, map};
+    const cand = rows[r].map((hd, i) => { const g = wzFieldFor(hd); return g ? {f: g[0], score: g[1], i} : null; }).filter(Boolean).sort((a, b) => b.score - a.score);
+    const map = {}; cand.forEach(c => { if (map[c.f] == null) map[c.f] = c.i; });
+    if (map.name != null){ return {headRow: r, map, weeks: wzWeeksGuess(rows, r, map)}; }
   }
   return {headRow: 0, map: {}};
+}
+/** Periodelengde i uker: fra datokolonnen, eller fra arknavn som «07-09.26» (juli–sept.). */
+function wzWeeksGuess(rows, headRow, map, sheetName){
+  if (map.date != null){
+    const ds = rows.slice(headRow + 1).map(r => String(r[map.date] || '')).map(v => /^\d{4}-\d{2}-\d{2}/.test(v) ? v.slice(0,10) : (v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/) ? (m => `${m[3].length === 2 ? '20' + m[3] : m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`)(v.match(/^(\d{1,2})\.(\d{1,2})\.(\d{2,4})$/)) : '')).filter(Boolean).sort();
+    if (ds.length > 1){ const d = (new Date(ds[ds.length-1]) - new Date(ds[0])) / 86400000; if (d >= 6) return Math.max(1, Math.round((d + 1) / 7)); }
+  }
+  const m = String(sheetName || '').match(/\b(\d{1,2})\s*[-–]\s*(\d{1,2})[.\/](\d{2,4})\b/);
+  if (m && +m[1] >= 1 && +m[2] <= 12 && +m[2] >= +m[1]) return Math.round((+m[2] - +m[1] + 1) * 4.345);
+  return null;
 }
 const supNorm = s => normName(s).replace(/\b(AS|ASA|AB|DA|ANS|NORGE|NORWAY)\b/g,'').replace(/\s+/g,' ').trim();
 const sameSupName = (a, b) => { const x = supNorm(a), y = supNorm(b); return !!x && !!y && (x === y || (Math.min(x.length, y.length) > 3 && (x.includes(y) || y.includes(x)))); };
@@ -899,7 +939,9 @@ function wzSheetRows(){
   const s = WZ.sheet; if (!s) return [];
   const rows = s.sheets[s.idx].rows.slice(s.headRow + 1); const m = WZ.map;
   const g = (r, k) => m[k] != null && m[k] !== '' ? String(r[m[k]] ?? '').trim() : '';
-  return rows.map(r => ({src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: num(g(r,'price')) || 0, stor: normStore(g(r,'stor') || g(r,'cat')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')), qty: num(g(r,'qty')), exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null})).filter(x => x.name && !/^EKSEMPEL\b/i.test(x.name));
+  const weeks = WZ.weeks > 0 ? WZ.weeks : null;
+  return rows.map(r => { const qty = num(g(r,'qty')), bought = num(g(r,'bought')), total = num(g(r,'total')), per = bought ?? qty;
+    return {src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: num(g(r,'price')) || (total && per ? Math.round(total / per * 100) / 100 : 0), bought, srcDate: /^\d{4}-\d{2}-\d{2}/.test(g(r,'date')) ? g(r,'date').slice(0,10) : null, stor: normStore(g(r,'stor') || g(r,'cat')), ...wzCatFrom(g(r,'cat'), g(r,'name'), g(r,'stor')), pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')) ?? (bought != null && weeks ? Math.round(bought / weeks * 10) / 10 : null), qty, exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null}; }).filter(x => x.name && !/^EKSEMPEL\b/i.test(x.name) && !/^(sum|totalt?|grand total|totalsum)\b/i.test(x.name));
 }
 /** Slår sammen kandidater fra liste og fakturaer, og markerer varer som finnes. */
 function wzBuildRows(){
@@ -967,15 +1009,36 @@ function vKomigang(){
       <div class="card grid" style="gap:10px"><h3>Vareliste eller lagerliste</h3><div class="small muted">Excel (.xlsx) eller CSV med én vare per rad. Har lista antall på lager, kan de brukes som første telling i neste steg. <a href="/restoq-varemal.xlsx" download>Last ned Excel-mal</a></div>
         <div class="row"><label class="btn ${s ? '' : 'primary'}" style="cursor:pointer">📄 Velg fil<input type="file" id="wzSheet" accept=".xlsx,.xlsm,.xls,.ods,.numbers,.csv,.txt" class="hide"></label><span class="small muted" translate="no">${s ? esc(s.file) : ''}</span>${s ? '<button class="btn sm" id="wzSheetDel">Fjern</button>' : ''}</div>
         ${s ? `${s.sheets.length > 1 ? `<label class="f">Ark<select id="wzSheetIdx">${s.sheets.map((x, i) => `<option value="${i}" ${i === s.idx ? 'selected' : ''} translate="no">${esc(x.name)}</option>`).join('')}</select></label>` : ''}
-          <div class="small" style="font-weight:600">Kolonner (sjekk at de stemmer)</div>
-          <div class="wzmap">${(s.sheets[s.idx].rows[s.headRow] || []).map((hd, i) => `<label class="f"><span translate="no">${esc(hd || 'Kolonne ' + (i+1))}</span><select data-wzcol="${i}">${WZ_FIELDS.map(([k, l]) => `<option value="${k}" ${String(Object.keys(WZ.map).find(f => WZ.map[f] === i) || '') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}</div>
-          ${WZ.map.sup == null ? `<label class="f">Leverandør for alle varene i lista<select id="wzDefSup"><option value="">– velg –</option>${Object.keys(set.suppliers).map(c => `<option value="${esc(c)}" translate="no" ${WZ.defSup === c ? 'selected' : ''}>${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('')}</select><span class="small" style="font-weight:400">Lista har ingen leverandørkolonne. Mangler leverandøren, oppretter du den i steg 1.</span></label>` : ''}
-          <div class="small muted">${wzSheetRows().length} varer funnet${wzSheetRows().some(r => r.qty != null) ? `, ${wzSheetRows().filter(r => r.qty != null).length} med antall` : ''}.</div>` : ''}
+          <div class="small muted">${wzSheetRows().length} varer funnet – velg hva kolonnene inneholder under.</div>` : ''}
       </div>
       <div class="card grid" style="gap:10px"><h3>Leverandørfakturaer</h3><div class="small muted">${S.features?.readInvoice ? 'Last opp én eller flere fakturaer (PDF, bilde eller EHF). Restoq leser varelinjer og priser, og finner leverandøren – eller foreslår å opprette den.' : 'Automatisk lesing av fakturaer er ikke satt opp (ANTHROPIC_API_KEY). Bruk varelista, eller legg inn varer manuelt.'}</div>
         ${S.features?.readInvoice ? `<div class="row"><label class="btn ${WZ.invoices.length ? '' : 'primary'}" style="cursor:pointer">📎 Velg fakturaer<input type="file" id="wzInv" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.xml" multiple class="hide"></label></div>` : ''}
         ${WZ.invoices.length ? `<div class="small muted">${WZ.invoices.length} ${WZ.invoices.length === 1 ? 'faktura' : 'fakturaer'} lastet opp – se oversikten under.</div>` : ''}
       </div></div>`;
+    if (s){
+      const head = s.sheets[s.idx].rows[s.headRow] || []; const data = s.sheets[s.idx].rows.slice(s.headRow + 1);
+      const fieldOf = i => Object.keys(WZ.map).find(f => WZ.map[f] === i) || '';
+      const ex = i => [...new Set(data.map(r => String(r[i] ?? '').trim()).filter(Boolean))].slice(0, 3);
+      const SR = wzSheetRows(); const m = WZ.map;
+      const warn = [];
+      if (m.name == null) warn.push('Velg hvilken kolonne som har <b>varenavnet</b>.');
+      if (m.qty != null && /sum|summer|totalt|total|kjøpt|levert|fakturert/i.test(head[m.qty] || '')) warn.push(`Kolonnen «<span translate="no">${esc(head[m.qty])}</span>» ser ut som kjøpt mengde, ikke det som står på lager nå. Velg i så fall «Kjøpt antall i perioden».`);
+      if (m.bought != null && !(WZ.weeks > 0) && m.manual == null) warn.push('Skriv inn hvor mange uker lista gjelder, så Restoq kan regne ut forbruk per uke.');
+      h += `<div class="card grid" style="gap:12px"><div><h3>Hva inneholder kolonnene i lista?</h3>
+        <div class="small muted">Restoq har gjettet ut fra overskriftene. Se på eksemplene og rett der det er feil. Bare <b>varenavn</b> må være med – resten er valgfritt.</div></div>
+        <ul class="wtips small" style="margin:0">
+          <li><b>Antall på lager nå</b> blir første varetelling. Er lista en innkjøpsoversikt (f.eks. «Totalt antall» for en periode), velg heller <b>Kjøpt antall i perioden</b> – da regner Restoq ut forbruk per uke.</li>
+          <li>Har lista bare <b>beløp i kroner</b> (summer), velg <b>Beløp totalt</b>, så regnes pris per enhet ut som beløp ÷ antall. «Summer av pris» er en sum av mange priser og bør ikke brukes.</li>
+          <li>Kolonner du ikke trenger, lar du stå på <b>Ikke bruk</b>.</li></ul>
+        <div class="tblwrap"><table class="wzmaptbl"><thead><tr><th>Kolonne i fila</th><th>Eksempler fra fila</th><th>Hva er dette?</th></tr></thead><tbody>
+        ${head.map((hd, i) => { const f = fieldOf(i); return `<tr class="${f ? '' : 'off'}"><td><b translate="no">${esc(hd || 'Kolonne ' + (i + 1))}</b></td><td class="small muted" translate="no">${ex(i).map(esc).join(' · ') || '–'}</td><td><select data-wzcol="${i}">${WZ_FIELDS.map(([k, l]) => `<option value="${k}" ${f === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select>${WZ_HELP[f] ? `<div class="isub">${WZ_HELP[f]}</div>` : ''}</td></tr>`; }).join('')}
+        </tbody></table></div>
+        ${m.bought != null && m.manual == null ? `<label class="f" style="max-width:340px">Hvor mange uker gjelder lista?<input type="text" inputmode="numeric" id="wzWeeks" value="${WZ.weeks > 0 ? WZ.weeks : ''}" placeholder="f.eks. 13 for et kvartal"><span class="small" style="font-weight:400">${WZ.weeksGuessed ? 'Foreslått ut fra datoer eller arknavn – rett om det er feil.' : 'Kjøpt antall deles på antall uker.'}</span></label>` : ''}
+        ${m.sup == null ? `<label class="f" style="max-width:520px">Leverandør for alle varene i lista<select id="wzDefSup"><option value="">– velg –</option>${Object.keys(set.suppliers).map(c => `<option value="${esc(c)}" translate="no" ${WZ.defSup === c ? 'selected' : ''}>${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('')}</select><span class="small" style="font-weight:400">Lista har ingen leverandørkolonne, så alle varene knyttes til leverandøren du velger. Mangler den, går du tilbake til steg 1.</span></label>` : ''}
+        ${warn.length ? `<div class="note warn small" style="margin:0"><div>${warn.join('<br>')}</div></div>` : ''}
+        <div class="small"><b>${SR.length}</b> varer funnet${SR.some(r => r.qty != null) ? ` · ${SR.filter(r => r.qty != null).length} med antall på lager` : ''}${SR.some(r => r.manual != null) ? ` · ${SR.filter(r => r.manual != null).length} med forbruk per uke` : ''}${SR.some(r => r.price) ? ` · ${SR.filter(r => r.price).length} med pris` : ''}</div>
+      </div>`;
+    }
     if (WZ.invoices.length){
       const dupN = WZ.invoices.filter(v => v.dup).length, errN = WZ.invoices.filter(v => v.err).length;
       const vis = WZ.invoices.map((v, i) => ({v, i})).filter(({v}) => !WZ.supF || v.supCode === WZ.supF);
@@ -1027,9 +1090,10 @@ function vKomigang(){
   }
   if (WZ.step === 2){
     const wc = $('#wzCats'); if (wc) wc.onclick = () => { wzReadTable(); categoriesModal(() => render()); };
-    const sf = $('#wzSheet'); if (sf) sf.onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const sheets = await readSheetFile(f); if (!sheets.length) throw new Error('Fant ingen rader i filen.'); const idx = Math.max(0, sheets.findIndex(s => s.name === 'Varer')); const g = wzGuess(sheets[idx].rows); WZ.sheet = {file: f.name, sheets, idx, headRow: g.headRow}; WZ.map = g.map; if (g.map.name == null) toast('Fant ikke kolonnen for varenavn. Velg kolonnene under.'); } catch(err){ toast(err.message || 'Kunne ikke lese filen.'); } render(); };
+    const sf = $('#wzSheet'); if (sf) sf.onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const sheets = await readSheetFile(f); if (!sheets.length) throw new Error('Fant ingen rader i filen.'); const idx = Math.max(0, sheets.findIndex(s => s.name === 'Varer')); const g = wzGuess(sheets[idx].rows); WZ.sheet = {file: f.name, sheets, idx, headRow: g.headRow}; WZ.map = g.map; WZ.weeks = wzWeeksGuess(sheets[idx].rows, g.headRow, g.map, sheets[idx].name); WZ.weeksGuessed = !!WZ.weeks; if (g.map.name == null) toast('Fant ikke kolonnen for varenavn. Velg kolonnene under.'); } catch(err){ toast(err.message || 'Kunne ikke lese filen.'); } render(); };
     const sd = $('#wzSheetDel'); if (sd) sd.onclick = () => { WZ.sheet = null; WZ.map = {}; render(); };
-    const si = $('#wzSheetIdx'); if (si) si.onchange = () => { WZ.sheet.idx = +si.value; const g = wzGuess(WZ.sheet.sheets[WZ.sheet.idx].rows); WZ.sheet.headRow = g.headRow; WZ.map = g.map; render(); };
+    const si = $('#wzSheetIdx'); if (si) si.onchange = () => { WZ.sheet.idx = +si.value; const sh = WZ.sheet.sheets[WZ.sheet.idx]; const g = wzGuess(sh.rows); WZ.sheet.headRow = g.headRow; WZ.map = g.map; WZ.weeks = wzWeeksGuess(sh.rows, g.headRow, g.map, sh.name); WZ.weeksGuessed = !!WZ.weeks; render(); };
+    const wk = $('#wzWeeks'); if (wk) wk.onchange = () => { wzReadTable(); WZ.weeks = num(wk.value) || null; WZ.weeksGuessed = false; render(); };
     document.querySelectorAll('[data-wzcol]').forEach(sel => sel.onchange = () => { const i = +sel.dataset.wzcol; Object.keys(WZ.map).forEach(k => { if (WZ.map[k] === i) delete WZ.map[k]; }); if (sel.value){ WZ.map[sel.value] = i; } wzReadTable(); render(); });
     const ds = $('#wzDefSup'); if (ds) ds.onchange = () => { wzReadTable(); WZ.defSup = ds.value; render(); };
     const fi = $('#wzInv'); if (fi) fi.onchange = e => { wzReadTable(); wzReadInvoices([...e.target.files].slice(0, 20)); };
