@@ -947,3 +947,49 @@ Pakning	Pack size	Packungsgröße	Opakowanie	Envase
 Beholdning (antall)	Stock (quantity)	Bestand (Menge)	Stan (ilość)	Existencias (cantidad)
 Utløpsdato	Expiry date	Ablaufdatum	Data ważności	Fecha de caducidad
 Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad.	Use the Excel template, or an Excel or CSV file with column names in the first row.	Verwenden Sie die Excel-Vorlage oder eine Excel- bzw. CSV-Datei mit Spaltennamen in der ersten Zeile.	Użyj szablonu Excel lub pliku Excel/CSV z nazwami kolumn w pierwszym wierszu.	Usa la plantilla Excel o un archivo Excel o CSV con los nombres de columna en la primera fila.
+Kategorier	Categories	Kategorien	Kategorie	Categorías
+Kategorier for innkjøp	Purchase categories	Einkaufskategorien	Kategorie zakupów	Categorías de compra
+Tilpass kategorier	Customize categories	Kategorien anpassen	Dostosuj kategorie	Personalizar categorías
+Lagre kategorier	Save categories	Kategorien speichern	Zapisz kategorie	Guardar categorías
+Kategoriene er lagret.	The categories have been saved.	Die Kategorien wurden gespeichert.	Kategorie zostały zapisane.	Las categorías se han guardado.
+Hovedkategori	Main category	Hauptkategorie	Kategoria główna	Categoría principal
++ Hovedkategori	+ Main category	+ Hauptkategorie	+ Kategoria główna	+ Categoría principal
++ Underkategori	+ Subcategory	+ Unterkategorie	+ Podkategoria	+ Subcategoría
+Tilbakestill til standard	Reset to default	Auf Standard zurücksetzen	Przywróć domyślne	Restablecer valores predeterminados
+Konto i regnskap (valgfritt)	Accounting account (optional)	Buchhaltungskonto (optional)	Konto księgowe (opcjonalnie)	Cuenta contable (opcional)
+Telles og bestilles	Counted and ordered	Wird gezählt und bestellt	Liczone i zamawiane	Se cuenta y se pide
+telles ikke	not counted	wird nicht gezählt	nie liczone	no se cuenta
+– lager –	– storage –	– Lager –	– magazyn –	– almacén –
+Alle kategorier	All categories	Alle Kategorien	Wszystkie kategorie	Todas las categorías
+📎 Les leverandør fra faktura	📎 Read supplier from invoice	📎 Lieferant aus Rechnung lesen	📎 Odczytaj dostawcę z faktury	📎 Leer proveedor de la factura
+Se over og opprett	Review and create	Prüfen und anlegen	Sprawdź i utwórz	Revisar y crear
+Opprett alle nye	Create all new	Alle neuen anlegen	Utwórz wszystkie nowe	Crear todos los nuevos
+finnes allerede	already exists	existiert bereits	już istnieje	ya existe
+Ingen detaljer funnet	No details found	Keine Angaben gefunden	Nie znaleziono szczegółów	No se encontraron datos
+Last opp en eller flere fakturaer, så leser Restoq navn, org.nr., adresse, kontonummer og kontaktperson. Varelinjene fra fakturaene følger med til neste steg.	Upload one or more invoices and Restoq reads the name, org. no., address, account number and contact person. The item lines from the invoices carry over to the next step.	Laden Sie eine oder mehrere Rechnungen hoch, dann liest Restoq Name, Org.-Nr., Adresse, Kontonummer und Ansprechpartner. Die Artikelzeilen werden in den nächsten Schritt übernommen.	Prześlij jedną lub więcej faktur, a Restoq odczyta nazwę, nr org., adres, numer konta i osobę kontaktową. Pozycje z faktur przejdą do następnego kroku.	Sube una o varias facturas y Restoq leerá el nombre, n.º org., dirección, número de cuenta y persona de contacto. Las líneas pasan al siguiente paso.
+Varene sorteres i hovedkategorier og underkategorier. Restoq foreslår kategori for hver vare. Standardoppsettet:	Items are sorted into main categories and subcategories. Restoq suggests a category for each item. The default setup:	Artikel werden in Haupt- und Unterkategorien sortiert. Restoq schlägt für jeden Artikel eine Kategorie vor. Standardeinstellung:	Towary są sortowane w kategoriach głównych i podkategoriach. Restoq proponuje kategorię dla każdego towaru. Ustawienia domyślne:	Los artículos se ordenan en categorías y subcategorías. Restoq sugiere una categoría para cada artículo. Configuración predeterminada:
+Mat	Food	Lebensmittel	Żywność	Comida
+Emballasje	Packaging	Verpackung	Opakowania	Envases
+Rengjøring og hygiene	Cleaning and hygiene	Reinigung und Hygiene	Sprzątanie i higiena	Limpieza e higiene
+Driftsmateriell	Operating supplies	Betriebsmaterial	Materiały eksploatacyjne	Material de operación
+Inventar	Fixtures and equipment	Inventar	Wyposażenie	Mobiliario y equipamiento
+Ferskt	Fresh	Frisch	Świeże	Fresco
+Kjøtt og fisk	Meat and fish	Fleisch und Fisch	Mięso i ryby	Carne y pescado
+Grønt	Produce	Obst und Gemüse	Warzywa i owoce	Frutas y verduras
+Fryst	Frozen	Tiefgekühlt	Mrożone	Congelado
+Tørrvarer	Dry goods	Trockenware	Towary suche	Productos secos
+Brød og bakst	Bread and bakery	Brot und Backwaren	Pieczywo	Pan y bollería
+Alkoholfritt	Non-alcoholic	Alkoholfrei	Bezalkoholowe	Sin alcohol
+Øl og cider	Beer and cider	Bier und Cider	Piwo i cydr	Cerveza y sidra
+Brennevin	Spirits	Spirituosen	Alkohole mocne	Licores
+Kaffe og te	Coffee and tea	Kaffee und Tee	Kawa i herbata	Café y té
+Take-away	Take-away	Take-away	Na wynos	Para llevar
+Folie og film	Foil and film	Folie	Folie	Film y papel aluminio
+Vask og rengjøring	Washing and cleaning	Waschen und Reinigen	Mycie i sprzątanie	Lavado y limpieza
+Papir og hygiene	Paper and hygiene	Papier und Hygiene	Papier i higiena	Papel e higiene
+Engangsutstyr	Disposables	Einwegartikel	Artykuły jednorazowe	Desechables
+Småutstyr kjøkken og bar	Small kitchen and bar equipment	Kleingeräte Küche und Bar	Drobny sprzęt kuchenny i barowy	Pequeño equipo de cocina y bar
+Kontor	Office	Büro	Biuro	Oficina
+Maskiner og utstyr	Machines and equipment	Maschinen und Geräte	Maszyny i sprzęt	Máquinas y equipos
+Møbler	Furniture	Möbel	Meble	Muebles
+Servise og glass	Tableware and glassware	Geschirr und Gläser	Zastawa i szkło	Vajilla y cristalería
