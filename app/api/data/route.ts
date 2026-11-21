@@ -19,7 +19,8 @@ export async function GET(req: Request) {
   const integrations = {
     planday: { available: plandayConfigured(), connected: !!pd, since: pd?.info?.connectedAt ?? null, lastSync: pd?.info?.lastSync ?? null, error: pd?.info?.lastError ?? null },
     accounting: { available: tripletexConfigured(), connected: !!tx, since: tx?.info?.connectedAt ?? null, system: "Tripletex", lastInbox: tx?.info?.lastInbox ?? null, inboxAuto: tx?.info?.inboxAuto !== false },
-    pos: { available: false, connected: !!pos, since: pos?.info?.connectedAt ?? null },
+    // Kassesystem: «koblet til» når salg kommer via API-et, ellers vises siste opplasting av salgsrapport
+    pos: { available: true, connected: !!pos?.info?.connectedAt, since: pos?.info?.connectedAt ?? null, lastSync: pos?.info?.lastSync ?? null, source: pos?.info?.lastSource ?? null },
     claude: { available: invoiceReaderEnabled(), connected: invoiceReaderEnabled() },
   };
   return json({ docs: out, integrations, me: { name: u.name, email: u.email, role: u.role, canManage: canManage(u), org: u.org_name }, features: { readInvoice: invoiceReaderEnabled() } });
