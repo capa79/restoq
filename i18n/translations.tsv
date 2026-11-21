@@ -901,3 +901,49 @@ Følg opp kvalitet, porsjoner og bestillinger fra salen.	Follow up on quality, p
 Skriv en kort kommentar ved hver registrering, så blir mønsteret lettere å se.	Write a short comment with each entry, so the pattern is easier to see.	Schreiben Sie bei jeder Erfassung einen kurzen Kommentar, dann ist das Muster leichter zu erkennen.	Dodawaj krótki komentarz przy każdym wpisie, wtedy łatwiej dostrzec wzorzec.	Escribe un breve comentario en cada registro para que el patrón sea más fácil de ver.
 til	at	zu	po	a
 Fakturaen er allerede registrert for denne leverandøren.	This invoice is already registered for this supplier.	Diese Rechnung ist für diesen Lieferanten bereits erfasst.	Ta faktura jest już zarejestrowana dla tego dostawcy.	Esta factura ya está registrada para este proveedor.
+Kom i gang	Get started	Erste Schritte	Pierwsze kroki	Primeros pasos
+Start veiviseren	Start the wizard	Assistenten starten	Uruchom kreator	Iniciar el asistente
+Kom i gang-veiviser	Getting-started wizard	Einrichtungsassistent	Kreator pierwszych kroków	Asistente de inicio
+Beholdning	Stock	Bestand	Stan	Existencias
+Ferdig	Done	Fertig	Gotowe	Listo
+legg inn leverandører og varer fra vareliste (Excel/CSV) og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.	add suppliers and items from an item list (Excel/CSV) and/or invoices. You choose which items to include, and whether to enter the stock now.	legen Sie Lieferanten und Artikel aus einer Artikelliste (Excel/CSV) und/oder Rechnungen an. Sie wählen selbst, welche Artikel übernommen werden und ob der Bestand jetzt erfasst wird.	dodaj dostawców i towary z listy (Excel/CSV) i/lub faktur. Sam wybierasz, które towary dodać i czy wprowadzić stan teraz.	añade proveedores y artículos desde una lista (Excel/CSV) y/o facturas. Tú eliges qué artículos incluir y si introducir las existencias ahora.
+Legg inn leverandører og varer fra vareliste og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.	Add suppliers and items from an item list and/or invoices. You choose which items to include, and whether to enter the stock now.	Legen Sie Lieferanten und Artikel aus einer Artikelliste und/oder Rechnungen an. Sie wählen selbst, welche Artikel übernommen werden und ob der Bestand jetzt erfasst wird.	Dodaj dostawców i towary z listy i/lub faktur. Sam wybierasz, które towary dodać i czy wprowadzić stan teraz.	Añade proveedores y artículos desde una lista y/o facturas. Tú eliges qué artículos incluir y si introducir las existencias ahora.
+administrator hos dere må legge inn leverandører og varer før dere kan telle og bestille.	your administrator needs to add suppliers and items before you can count and order.	Ihr Administrator muss Lieferanten und Artikel anlegen, bevor Sie zählen und bestellen können.	administrator musi dodać dostawców i towary, zanim będziecie mogli liczyć i zamawiać.	vuestro administrador debe añadir proveedores y artículos antes de poder contar y pedir.
+1. Leverandører	1. Suppliers	1. Lieferanten	1. Dostawcy	1. Proveedores
+3. Beholdning	3. Stock	3. Bestand	3. Stan	3. Existencias
+Neste: varer	Next: items	Weiter: Artikel	Dalej: towary	Siguiente: artículos
+Neste: beholdning	Next: stock	Weiter: Bestand	Dalej: stan	Siguiente: existencias
+Legg inn	Add	Übernehmen	Dodaj	Añadir
+Legger inn …	Adding …	Wird übernommen …	Dodawanie …	Añadiendo …
+Vareliste eller lagerliste	Item list or stock list	Artikelliste oder Bestandsliste	Lista towarów lub stanów	Lista de artículos o de existencias
+Leverandørfakturaer	Supplier invoices	Lieferantenrechnungen	Faktury od dostawców	Facturas de proveedores
+📄 Velg fil	📄 Choose file	📄 Datei wählen	📄 Wybierz plik	📄 Elegir archivo
+📎 Velg fakturaer	📎 Choose invoices	📎 Rechnungen wählen	📎 Wybierz faktury	📎 Elegir facturas
+Last ned Excel-mal	Download Excel template	Excel-Vorlage herunterladen	Pobierz szablon Excel	Descargar plantilla Excel
+Last ned mal (Excel)	Download template (Excel)	Vorlage herunterladen (Excel)	Pobierz szablon (Excel)	Descargar plantilla (Excel)
+Kolonner (sjekk at de stemmer)	Columns (check that they are right)	Spalten (prüfen Sie die Zuordnung)	Kolumny (sprawdź, czy się zgadzają)	Columnas (comprueba que sean correctas)
+Ark	Sheet	Blatt	Arkusz	Hoja
+Leverandør for alle varene i lista	Supplier for all items in the list	Lieferant für alle Artikel der Liste	Dostawca dla wszystkich towarów z listy	Proveedor para todos los artículos de la lista
+Velg varer som skal legges inn	Choose items to add	Artikel zum Übernehmen wählen	Wybierz towary do dodania	Elige los artículos que se añadirán
+Velg alle nye	Select all new	Alle neuen wählen	Zaznacz wszystkie nowe	Seleccionar todos los nuevos
+Fjern alle	Clear all	Alle abwählen	Odznacz wszystkie	Quitar todos
+Kilde	Source	Quelle	Źródło	Origen
+Liste	List	Liste	Lista	Lista
+ny	new	neu	nowy	nuevo
+Bruk antallene fra lista som første varetelling	Use the quantities from the list as the first stock count	Mengen aus der Liste als erste Inventur verwenden	Użyj ilości z listy jako pierwszej inwentaryzacji	Usar las cantidades de la lista como primer recuento
+Ikke legg inn beholdning nå	Don't enter stock now	Bestand jetzt nicht erfassen	Nie wprowadzaj stanu teraz	No introducir existencias ahora
+Bare varene opprettes. Dere teller varelageret senere under Varetelling.	Only the items are created. You count the stock later under Stock count.	Nur die Artikel werden angelegt. Den Bestand zählen Sie später unter Inventur.	Tworzone są tylko towary. Stan policzycie później w Inwentaryzacji.	Solo se crean los artículos. Contaréis las existencias más tarde en Recuento.
+✓ Ferdig	✓ Done	✓ Fertig	✓ Gotowe	✓ Listo
+Neste steg	Next steps	Nächste Schritte	Kolejne kroki	Siguientes pasos
+Tell varelageret	Count the stock	Bestand zählen	Policz stan magazynu	Contar las existencias
+Bestillingsfrekvens, forventet salg og ansatte	Order frequency, expected sales and staff	Bestellrhythmus, erwarteter Umsatz und Mitarbeiter	Częstotliwość zamówień, oczekiwana sprzedaż i pracownicy	Frecuencia de pedidos, ventas previstas y personal
+Til oversikten	To the overview	Zur Übersicht	Do przeglądu	Al resumen
+Beholdning er ikke lagt inn	Stock has not been entered	Bestand wurde nicht erfasst	Stan nie został wprowadzony	No se han introducido existencias
+Leser …	Reading …	Wird gelesen …	Odczytywanie …	Leyendo …
+– ikke bruk –	– don't use –	– nicht verwenden –	– nie używaj –	– no usar –
+Varenavn	Item name	Artikelname	Nazwa towaru	Nombre del artículo
+Pris per enhet	Price per unit	Preis pro Einheit	Cena za jednostkę	Precio por unidad
+Pakning	Pack size	Packungsgröße	Opakowanie	Envase
+Beholdning (antall)	Stock (quantity)	Bestand (Menge)	Stan (ilość)	Existencias (cantidad)
+Utløpsdato	Expiry date	Ablaufdatum	Data ważności	Fecha de caducidad
+Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad.	Use the Excel template, or an Excel or CSV file with column names in the first row.	Verwenden Sie die Excel-Vorlage oder eine Excel- bzw. CSV-Datei mit Spaltennamen in der ersten Zeile.	Użyj szablonu Excel lub pliku Excel/CSV z nazwami kolumn w pierwszym wierszu.	Usa la plantilla Excel o un archivo Excel o CSV con los nombres de columna en la primera fila.

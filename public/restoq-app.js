@@ -288,7 +288,7 @@ function render(){
   const nB = C.items.filter(r => r.status === 'bestill').length;
   renderTabs(nB);
   const ae = document.activeElement; const keep = ae && ae.id ? {id:ae.id, s:ae.selectionStart, e:ae.selectionEnd} : null;
-  ({oversikt:vOversikt, bestill:vBestill, mottak:vMottak, telling:vTelling, svinn:vSvinn, varer:vVarer, faktura:vFaktura, oppsett:vOppsett, leverandorer:vLeverandorer}[view] || vOversikt)();
+  ({oversikt:vOversikt, bestill:vBestill, mottak:vMottak, telling:vTelling, svinn:vSvinn, varer:vVarer, faktura:vFaktura, oppsett:vOppsett, leverandorer:vLeverandorer, komigang:vKomigang}[view] || vOversikt)();
   if (keep){ const el = document.getElementById(keep.id); if (el && el !== document.activeElement){ el.focus(); try { if (keep.s != null) el.setSelectionRange(keep.s, keep.e); } catch(e){} } }
 }
 const nInv = () => S.invoices.filter(i => ['kontroll','avvik'].includes(i.status)).length;
@@ -314,7 +314,7 @@ function vOversikt(){
     <div class="row"><button class="btn" data-go="svinn">+ Avskrivning</button><button class="btn primary" data-go="bestill">Lag bestilling</button></div></div>`;
   h += roNote();
   if (S.mode === 'local') h += `<div class="note warn"><b>Lagres bare på denne enheten.</b>&nbsp;Åpne appen innlogget via lenken fra eier, så deler alle ansatte samme tall.</div>`;
-  if (!getItems().length) h += `<div class="note info"><div><b>Kom i gang:</b> ${S.canManage ? 'legg inn leverandørene under Innstillinger, og importer varelista under Varer (Excel/CSV). Deretter teller dere varelageret.' : 'leder må legge inn leverandører og varer før dere kan telle og bestille.'}<div class="row" style="margin-top:10px">${S.canManage ? '<button class="btn primary" data-go="oppsett">Innstillinger</button><button class="btn" data-go="varer">Importer varer</button>' : ''}</div></div></div>`;
+  if (!getItems().length || (!C.cur && !SET().onboarded)) h += `<div class="note info wzbanner"><div><b>Kom i gang:</b> ${S.canManage ? 'legg inn leverandører og varer fra vareliste (Excel/CSV) og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.' : 'administrator hos dere må legge inn leverandører og varer før dere kan telle og bestille.'}</div>${S.canManage ? '<button class="btn primary" data-go="komigang">Start veiviseren</button>' : ''}</div>`;
   else if (!C.cur) h += `<div class="note info"><div><b>Start med første varetelling.</b> Uten telling vet ikke systemet hva som står på lager, og alle varer står som «Tell». Når tellingen er ført, regner appen ut beholdning, hvor mange dager den holder og hva som bør bestilles.<div style="margin-top:10px"><button class="btn primary" data-go="telling">Gå til varetelling</button></div></div></div>`;
   else if (daysBetween(C.cur.date, today) > 35) h += `<div class="note warn">Siste telling var ${fmtDL(C.cur.date)} (${daysBetween(C.cur.date,today)} dager siden). Tell på nytt så tallene holder seg riktige.&nbsp;<button class="btn sm" data-go="telling">Tell nå</button></div>`;
   if (due.length) h += `<div class="note info">📦 ${due.length} bestilling${due.length>1?'er':''} skulle vært levert innen i dag. Registrer varemottak når varene er sjekket.&nbsp;<button class="btn sm" data-go="mottak">Til varemottak</button></div>`;
@@ -719,7 +719,7 @@ function vOppsett(){
     <div class="grid g3" style="align-items:end"><label class="f">Forventet matsalg per uke (kr eks. mva)<input type="text" inputmode="numeric" id="sExp" value="${set.expectedSales||''}" placeholder="Auto: ${nf0.format(avg4)}"></label>
     <div class="small"><div class="muted">Snitt siste 4 uker</div><b>${kr(avg4)}</b></div><div class="small"><div class="muted">Snitt 13 uker · faktor nå</div><b>${kr(a13)} · ${nf1.format(expectedSales(set)/(a13||1)*100)} %</b></div></div></div>`;
   const itemsBySup = {}; getItems().forEach(i => itemsBySup[i.sup] = (itemsBySup[i.sup]||0) + 1);
-  h += `<div class="card grid" style="gap:14px"><div class="row between"><h3>Leverandører</h3><div class="row"><button class="btn sm" data-go="leverandorer">Kontaktinfo, kontonr. og adresser</button><button class="btn sm" id="supAdd" ${roM()}>+ Legg til leverandør</button></div></div>${Object.keys(set.suppliers).length ? '' : '<div class="muted">Ingen leverandører ennå.</div>'}${Object.keys(set.suppliers).map(c => { const s = set.suppliers[c]; return `<div class="grid" style="gap:10px;border-top:1px solid var(--line);padding-top:12px"><div class="row between"><b translate="no">${esc(s.name)} (${esc(c)})</b><span class="row"><span class="small muted">${itemsBySup[c]||0} varer</span>${itemsBySup[c] ? '' : `<button class="btn sm danger" data-supdel="${esc(c)}" ${roM()}>Fjern</button>`}</span></div>
+  h += `<div class="card grid" style="gap:14px"><div class="row between"><h3>Leverandører</h3><div class="row"><button class="btn sm" data-go="komigang" ${roM()}>Kom i gang-veiviser</button><button class="btn sm" data-go="leverandorer">Kontaktinfo, kontonr. og adresser</button><button class="btn sm" id="supAdd" ${roM()}>+ Legg til leverandør</button></div></div>${Object.keys(set.suppliers).length ? '' : '<div class="muted">Ingen leverandører ennå.</div>'}${Object.keys(set.suppliers).map(c => { const s = set.suppliers[c]; return `<div class="grid" style="gap:10px;border-top:1px solid var(--line);padding-top:12px"><div class="row between"><b translate="no">${esc(s.name)} (${esc(c)})</b><span class="row"><span class="small muted">${itemsBySup[c]||0} varer</span>${itemsBySup[c] ? '' : `<button class="btn sm danger" data-supdel="${esc(c)}" ${roM()}>Fjern</button>`}</span></div>
       <div class="chips">${[1,2,3,4,5,6,0].map(d=>`<button class="chip ${s.wd&&s.wd.includes(d)?'on':''}" data-wd="${c}:${d}">${WD[d]}</button>`).join('')}<span class="small muted" style="align-self:center">leveringsdager</span></div>
       <div class="grid g3"><label class="f">Dager mellom leveranser<input type="text" inputmode="decimal" data-sp="${c}:interval" value="${String(s.interval).replace('.',',')}"></label><label class="f">Ledetid (dager)<input type="text" inputmode="decimal" data-sp="${c}:lead" value="${s.lead}"></label><label class="f">Sikkerhetsdager<input type="text" inputmode="decimal" data-sp="${c}:safety" value="${s.safety}"></label></div>
       <div class="grid g3"><label class="f">Leveringsdager (tekst)<input type="text" data-sp="${c}:days" value="${esc(s.days)}"></label><label class="f">Notat til den som bestiller<input type="text" data-sp="${c}:notes" value="${esc(s.notes)}"></label><label class="f">Org.nr (kobler fakturaer fra Tripletex)<input type="text" inputmode="numeric" data-sp="${c}:orgnr" value="${esc(s.orgnr||'')}"></label></div></div>`; }).join('')}</div>`;
@@ -808,12 +808,11 @@ function parseCsv(text){
 }
 function normStore(s){ s = (s||'').toLowerCase(); if (/frys|frozen/.test(s)) return 'Frys'; if (/kjøl|kjol|fersk|chill/.test(s)) return 'Kjøl'; if (/rom|ambient/.test(s)) return 'Romtemp.'; return 'Tørr'; }
 function importItemsModal(){
-  modal(`<h3>Importer varer</h3><div class="small muted">Lagre vareliste fra Excel som CSV. Første rad må ha kolonnenavn. Kolonner: <b>Leverandør, Varenr, Navn</b> (påkrevd), Enhet, Pris, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Finnes varen fra før (samme leverandør og varenr), oppdateres den.</div>
-    <div class="row"><label class="btn primary" style="cursor:pointer">Velg fil<input type="file" id="impFile" accept=".csv,.txt,text/csv" class="hide"></label><button class="btn" id="impTpl">Last ned mal</button></div><div id="impRes"></div>
+  modal(`<h3>Importer varer</h3><div class="small muted">Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad. Kolonner: <b>Leverandør, Varenr, Navn</b> (påkrevd), Enhet, Pris, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Finnes varen fra før (samme leverandør og varenr), oppdateres den.</div>
+    <div class="row"><label class="btn primary" style="cursor:pointer">Velg fil<input type="file" id="impFile" accept=".xlsx,.csv,.txt,text/csv" class="hide"></label><a class="btn" href="/restoq-varemal.xlsx" download>Last ned mal (Excel)</a></div><div id="impRes"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary hide" id="impOk">Importer</button></div>`, m => {
     let parsed = [];
-    m.querySelector('#impTpl').onclick = () => download('restoq-varemal.csv', csv([['Leverandør','Varenr','Navn','Enhet','Pris','Lager','Kategori','Pakning','Holdbarhet','Forbruk per uke'],['SG','545657','SMØR 500G','stk',62.5,'Kjøl','Meieri',1,30,10]]));
-    m.querySelector('#impFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; const rows = parseCsv(await f.text()); if (rows.length < 2){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ingen rader.</div>'; return; }
+    m.querySelector('#impFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; let rows; try { const sh = await readSheetFile(f); rows = (sh.find(s => s.name === 'Varer') || sh[0] || {rows:[]}).rows; } catch(err){ m.querySelector('#impRes').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; return; } const g0 = wzGuess(rows); rows = rows.slice(g0.headRow); if (rows.length < 2){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ingen rader.</div>'; return; }
       const head = rows[0].map(h => h.trim().toLowerCase()); const idx = {}; IMPORT_COLS.forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0) idx[k] = i; });
       if (idx.sup == null || idx.no == null || idx.name == null){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ikke kolonnene Leverandør, Varenr og Navn i første rad.</div>'; return; }
       const g = (r,k) => idx[k] != null ? (r[idx[k]]||'').trim() : '';
@@ -831,6 +830,206 @@ function importItemsModal(){
     };
   });
 }
+let WZ_EDITS = {};
+/* ===== Kom i gang-veiviser ===== */
+const WZ_COLS = [...IMPORT_COLS, ['qty',['beholdning (antall)','antall','beholdning','på lager','telling','talt','lagerbeholdning','qty','quantity','stock','antall på lager']], ['exp',['utløp','utløpsdato','best før','holdbar til','expiry']]];
+const WZ_FIELDS = [['', '– ikke bruk –'], ['sup','Leverandør'], ['no','Varenr.'], ['name','Varenavn'], ['unit','Enhet'], ['price','Pris per enhet'], ['stor','Lager'], ['cat','Kategori'], ['pack','Pakning'], ['shelf','Holdbarhet (dager)'], ['manual','Forbruk per uke'], ['qty','Beholdning (antall)'], ['exp','Utløpsdato']];
+let WZ = null;
+function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null}; }
+async function readSheetFile(f){
+  if (/\.xlsx$/i.test(f.name)){
+    const fd = new FormData(); fd.append('file', f);
+    const res = await fetch('/api/import/sheet', {method:'POST', body:fd, credentials:'same-origin'}); const j = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(j.error || 'Kunne ikke lese filen.');
+    return j.sheets;
+  }
+  return [{name: f.name, rows: parseCsv(await f.text())}];
+}
+/** Finn overskriftsraden (første rad med en navnekolonne) og foreslå kolonner. */
+function wzGuess(rows){
+  for (let r = 0; r < Math.min(rows.length, 15); r++){
+    const head = rows[r].map(h => String(h||'').trim().toLowerCase());
+    const map = {}; WZ_COLS.forEach(([k, names]) => { const i = head.findIndex(h => names.includes(h)); if (i >= 0 && !Object.values(map).includes(i)) map[k] = i; });
+    if (map.name != null) return {headRow: r, map};
+  }
+  return {headRow: 0, map: {}};
+}
+const supNorm = s => normName(s).replace(/\b(AS|ASA|AB|DA|ANS|NORGE|NORWAY)\b/g,'').replace(/\s+/g,' ').trim();
+const sameSupName = (a, b) => { const x = supNorm(a), y = supNorm(b); return !!x && !!y && (x === y || (Math.min(x.length, y.length) > 3 && (x.includes(y) || y.includes(x)))); };
+/** Leverandør i lista: kode (SG) eller navn. Ukjent navn blir ny leverandør. */
+function wzSupFor(val){
+  const v = String(val || '').trim(); if (!v) return '';
+  const set = SET(); if (set.suppliers[v.toUpperCase()]) return v.toUpperCase();
+  const nv = normName(v).replace(/\b(AS|ASA|AB|DA|ANS)\b/g,'').trim();
+  const c = Object.keys(set.suppliers).find(c => { const s = normName(set.suppliers[c].name).replace(/\b(AS|ASA|AB|DA|ANS)\b/g,'').trim(); return s === nv || (nv.length > 3 && (s.includes(nv) || nv.includes(s))); }); if (c) return c;
+  const n = WZ.newSups.find(n => sameSupName(n.sup.name, v)); if (n) return n.code;
+  let code = suggestCode(v); while (WZ.newSups.some(n => n.code === code)) code = code.slice(0,3) + (WZ.newSups.length + 1);
+  WZ.newSups.push({code, sup: {name: v, orgnr:'', wd:[], days:'Etter avtale', interval:7, lead:1, safety:2, notes:'', fees:'', contacts:[]}, fromSheet: true}); return code;
+}
+function wzSheetRows(){
+  const s = WZ.sheet; if (!s) return [];
+  const rows = s.sheets[s.idx].rows.slice(s.headRow + 1); const m = WZ.map;
+  const g = (r, k) => m[k] != null && m[k] !== '' ? String(r[m[k]] ?? '').trim() : '';
+  return rows.map(r => ({src:'liste', sup: wzSupFor(g(r,'sup')) || WZ.defSup || '', no: g(r,'no'), name: g(r,'name'), unit: g(r,'unit') || 'stk', price: num(g(r,'price')) || 0, stor: normStore(g(r,'stor') || g(r,'cat')), cat: g(r,'cat') || 'Annet', pack: num(g(r,'pack')) || 1, shelf: num(g(r,'shelf')), manual: num(g(r,'manual')), qty: num(g(r,'qty')), exp: /^\d{4}-\d{2}-\d{2}$/.test(g(r,'exp')) ? g(r,'exp') : null})).filter(x => x.name);
+}
+/** Slår sammen kandidater fra liste og fakturaer, og markerer varer som finnes. */
+function wzBuildRows(){
+  const items = getItems(); const out = []; const seen = new Map();
+  const add = x => {
+    const supCode = x.sup;
+    const key = supCode + '|' + (x.no ? normNo(x.no) : 'N:' + normName(x.name));
+    const ex = items.find(i => i.sup === supCode && ((x.no && normNo(i.no) === normNo(x.no)) || normName(i.name) === normName(x.name)));
+    if (seen.has(key)){ const o = seen.get(key); if (x.qty != null) o.qty = (o.qty || 0) + x.qty; if (x.src !== o.src) o.src = 'begge'; if (x.price && x.srcDate >= (o.srcDate || '')) { o.price = x.price; o.srcDate = x.srcDate; } return; }
+    const fee = FEE_RE.test(x.name || '') || (x.price || 0) < 0;
+    const row = {...x, id: out.length, ex: ex || null, on: !ex && !fee && !!supCode, fee};
+    seen.set(key, row); out.push(row);
+  };
+  wzSheetRows().forEach(add);
+  WZ.invoices.filter(v => v.inv).forEach(v => { const sup = v.supCode; v.inv.lines.forEach(l => add({src:'faktura', srcDate: v.inv.invoiceDate || '', srcName: v.inv.invoiceNo, sup, no: l.itemNo || '', name: (l.description || '').toUpperCase(), unit: (l.unit || 'stk').toLowerCase(), price: l.unitPrice ?? (l.qty ? (l.lineTotal || 0) / l.qty : 0), stor: l.storage || normStore(l.category), cat: l.category || 'Annet', pack: 1, shelf: l.shelfDays ?? null, gtin: l.gtin || '', qty: null})); });
+  WZ.rows = out;
+}
+function vKomigang(){
+  if (!WZ) wzReset();
+  if (!S.canManage){ $('#view').innerHTML = `<div class="card"><h2>Kom i gang</h2><div class="muted">Det er administrator hos dere som legger inn leverandører og varer. Når det er gjort, kan du telle og bestille.</div></div>`; return; }
+  const set = SET(); const steps = ['Leverandører', 'Varer', 'Beholdning', 'Ferdig'];
+  let h = `<div class="row between"><div><h2>Kom i gang</h2><div class="muted">Legg inn leverandører og varer fra vareliste og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.</div></div><button class="btn" data-go="oversikt">Lukk</button></div>
+    <ol class="wzsteps">${steps.map((s, i) => `<li class="${WZ.step === i+1 ? 'on' : WZ.step > i+1 ? 'done' : ''}"><span>${WZ.step > i+1 ? '✓' : i+1}</span>${s}</li>`).join('')}</ol>`;
+  if (WZ.step === 1){
+    const codes = Object.keys(set.suppliers);
+    h += `<div class="card grid" style="gap:12px"><h3>1. Leverandører</h3><div class="small muted">Legg inn leverandørene dere handler fra. Laster du opp fakturaer i neste steg, kan nye leverandører opprettes derfra med kontonummer og kontaktinfo – da kan du hoppe over dette.</div>
+      ${codes.length ? `<div class="chips">${codes.map(c => `<button class="chip" data-supedit="${esc(c)}" translate="no">${esc(set.suppliers[c].name)}</button>`).join('')}</div>` : '<div class="empty" style="padding:10px">Ingen leverandører ennå.</div>'}
+      <div class="row"><button class="btn" id="wzSupNew">+ Ny leverandør</button></div></div>
+      <div class="row" style="justify-content:flex-end"><button class="btn primary lg" id="wzNext">Neste: varer</button></div>`;
+  }
+  if (WZ.step === 2){
+    const s = WZ.sheet;
+    h += `<div class="grid g2" style="align-items:start">
+      <div class="card grid" style="gap:10px"><h3>Vareliste eller lagerliste</h3><div class="small muted">Excel (.xlsx) eller CSV med én vare per rad. Har lista antall på lager, kan de brukes som første telling i neste steg. <a href="/restoq-varemal.xlsx" download>Last ned Excel-mal</a></div>
+        <div class="row"><label class="btn ${s ? '' : 'primary'}" style="cursor:pointer">📄 Velg fil<input type="file" id="wzSheet" accept=".xlsx,.csv,.txt" class="hide"></label><span class="small muted" translate="no">${s ? esc(s.file) : ''}</span>${s ? '<button class="btn sm" id="wzSheetDel">Fjern</button>' : ''}</div>
+        ${s ? `${s.sheets.length > 1 ? `<label class="f">Ark<select id="wzSheetIdx">${s.sheets.map((x, i) => `<option value="${i}" ${i === s.idx ? 'selected' : ''} translate="no">${esc(x.name)}</option>`).join('')}</select></label>` : ''}
+          <div class="small" style="font-weight:600">Kolonner (sjekk at de stemmer)</div>
+          <div class="wzmap">${(s.sheets[s.idx].rows[s.headRow] || []).map((hd, i) => `<label class="f"><span translate="no">${esc(hd || 'Kolonne ' + (i+1))}</span><select data-wzcol="${i}">${WZ_FIELDS.map(([k, l]) => `<option value="${k}" ${String(Object.keys(WZ.map).find(f => WZ.map[f] === i) || '') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}</div>
+          ${WZ.map.sup == null ? `<label class="f">Leverandør for alle varene i lista<select id="wzDefSup"><option value="">– velg –</option>${Object.keys(set.suppliers).map(c => `<option value="${esc(c)}" translate="no" ${WZ.defSup === c ? 'selected' : ''}>${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('')}</select><span class="small" style="font-weight:400">Lista har ingen leverandørkolonne. Mangler leverandøren, oppretter du den i steg 1.</span></label>` : ''}
+          <div class="small muted">${wzSheetRows().length} varer funnet${wzSheetRows().some(r => r.qty != null) ? `, ${wzSheetRows().filter(r => r.qty != null).length} med antall` : ''}.</div>` : ''}
+      </div>
+      <div class="card grid" style="gap:10px"><h3>Leverandørfakturaer</h3><div class="small muted">${S.features?.readInvoice ? 'Last opp én eller flere fakturaer (PDF, bilde eller EHF). Restoq leser varelinjer og priser, og finner leverandøren – eller foreslår å opprette den.' : 'Automatisk lesing av fakturaer er ikke satt opp (ANTHROPIC_API_KEY). Bruk varelista, eller legg inn varer manuelt.'}</div>
+        ${S.features?.readInvoice ? `<div class="row"><label class="btn ${WZ.invoices.length ? '' : 'primary'}" style="cursor:pointer">📎 Velg fakturaer<input type="file" id="wzInv" accept=".pdf,.png,.jpg,.jpeg,.tif,.tiff,.webp,.xml" multiple class="hide"></label></div>` : ''}
+        ${WZ.invoices.map((v, i) => `<div class="wzinv"><div class="row between"><b translate="no">${esc(v.name)}</b>${v.busy ? '<span class="small"><span class="spin"></span> Leser …</span>' : v.err ? `<span class="small" style="color:var(--red)">${esc(v.err)}</span>` : `<span class="small muted">${v.inv.lines.length} linjer${v.inv.invoiceDate ? ' · ' + fmtDL(v.inv.invoiceDate) : ''}</span>`}</div>
+          ${v.inv ? `<label class="f" style="margin-top:6px">Leverandør${v.inv.supplierName ? ` <span style="font-weight:400">(på fakturaen: <span translate="no">${esc(v.inv.supplierName)}</span>${v.inv.supplierOrgNo ? ' · ' + esc(fmtOrg(v.inv.supplierOrgNo)) : ''})</span>` : ''}<select data-wzsup="${i}">${!matchSupplier(set, v.inv) && v.inv.supplierName ? `<option value="__new" ${v.supCode === '__new' ? 'selected' : ''}>+ Opprett ny: ${esc(v.inv.supplierName)}</option>` : ''}${Object.keys(set.suppliers).map(c => `<option value="${esc(c)}" translate="no" ${v.supCode === c ? 'selected' : ''}>${esc(c)} – ${esc(set.suppliers[c].name)}</option>`).join('')}${WZ.newSups.map(n => `<option value="${esc(n.code)}" translate="no" ${v.supCode === n.code ? 'selected' : ''}>${esc(n.code)} – ${esc(n.sup.name)} (ny)</option>`).join('')}</select></label>` : ''}</div>`).join('')}
+      </div></div>`;
+    wzBuildRows();
+    const R = WZ.rows; const nOn = R.filter(r => r.on).length;
+    if (R.length){
+      h += `<div class="card flush"><div class="row between" style="padding:14px 16px 6px"><div><h3>Velg varer som skal legges inn</h3><div class="small muted">${R.length} linjer · ${nOn} valgt · ${R.filter(r => r.ex).length} finnes allerede (ikke valgt). Frakt, pant og gebyrer er ikke valgt.</div></div><div class="row"><button class="btn sm" id="wzAll">Velg alle nye</button><button class="btn sm" id="wzNone">Fjern alle</button></div></div>
+        <div class="tblwrap" style="max-height:480px"><table class="rvtbl"><thead><tr><th></th><th>Kilde</th><th>Lev.</th><th>Varenr</th><th>Navn</th><th>Enhet</th><th class="n">Pris</th><th>Lager</th><th>Kategori</th><th class="n">Antall</th></tr></thead><tbody>${R.map(r => `<tr data-wzr="${r.id}" class="${r.on ? '' : 'off'}"><td><input type="checkbox" class="wz-on" ${r.on ? 'checked' : ''} ${r.sup ? '' : 'disabled'} style="width:20px;height:20px"></td><td class="small">${r.src === 'liste' ? 'Liste' : r.src === 'begge' ? 'Liste + faktura' : 'Faktura'}</td><td class="small" translate="no">${esc(r.sup || '–')}${WZ.newSups.some(n => n.code === r.sup) ? ' <span class="pill p-tell">ny</span>' : ''}</td><td><input class="wz-no" value="${esc(r.no)}" style="width:86px"></td><td><input class="wz-name" value="${esc(r.name)}" style="min-width:190px">${r.ex ? `<div class="isub">Finnes: <span translate="no">${esc(r.ex.name)}</span>${r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005) ? ` · pris ${kr(r.ex.price)} → <b>${kr(r.price)}</b>` : ''}</div>` : ''}</td><td><input class="wz-unit" value="${esc(r.unit)}" style="width:56px"></td><td><input class="wz-price" inputmode="decimal" value="${r.price ? String(Math.round(r.price*100)/100).replace('.',',') : ''}" style="width:76px;text-align:right"></td><td><select class="wz-stor">${STORES.map(s => `<option ${r.stor === s ? 'selected' : ''}>${s}</option>`).join('')}</select></td><td><input class="wz-cat" value="${esc(r.cat)}" style="width:100px"></td><td class="n">${r.qty != null ? q(r.qty) : ''}</td></tr>`).join('')}</tbody></table></div></div>`;
+    }
+    h += `<div class="row between"><button class="btn" id="wzBack">Tilbake</button><div class="row"><span class="small muted">${R.length ? '' : 'Du kan også hoppe over og legge inn varer senere.'}</span><button class="btn primary lg" id="wzNext" ${WZ.invoices.some(v => v.busy) ? 'disabled' : ''}>${R.length ? 'Neste: beholdning' : 'Hopp over'}</button></div></div>`;
+  }
+  if (WZ.step === 3){
+    const sel = WZ.rows.filter(r => r.on || r.ex); const withQty = WZ.rows.filter(r => (r.on || r.ex) && r.qty != null);
+    const nNew = WZ.rows.filter(r => r.on && !r.ex).length, nUpd = WZ.rows.filter(r => r.on && r.ex).length;
+    h += `<div class="card grid" style="gap:12px"><h3>3. Beholdning</h3>
+      <div>${nNew} nye varer${nUpd ? ` og ${nUpd} varer med ny pris` : ''} legges inn${wzNewSupsUsed().length ? `, og ${wzNewSupsUsed().length} nye leverandører opprettes (<span translate="no">${esc(wzNewSupsUsed().map(n => n.sup.name).join(', '))}</span>)` : ''}.</div>
+      ${withQty.length ? `<div class="grid" style="gap:8px">
+        <label class="wzopt"><input type="radio" name="wzc" value="sheet" ${WZ.countMode === 'sheet' ? 'checked' : ''}><div><b>Bruk antallene fra lista som første varetelling</b><div class="small muted">${withQty.length} varer har antall. Varer uten antall regnes som ikke talt. Appen kan da regne ut beholdning og forslag med en gang.</div><label class="f" style="max-width:220px;margin-top:6px">Tellingsdato<input type="date" id="wzDate" value="${WZ.countDate}"></label></div></label>
+        <label class="wzopt"><input type="radio" name="wzc" value="none" ${WZ.countMode === 'none' ? 'checked' : ''}><div><b>Ikke legg inn beholdning nå</b><div class="small muted">Bare varene opprettes. Dere teller varelageret senere under Varetelling.</div></div></label></div>`
+        : `<div class="note info small"><div>Ingen av varene har antall, så beholdningen legges ikke inn nå. Dere teller varelageret under Varetelling når varene er på plass.</div></div>`}
+      ${WZ.invoices.some(v => v.inv) ? `<label class="row small" style="gap:8px"><input type="checkbox" id="wzReg" ${WZ.regInvoices ? 'checked' : ''} style="width:20px;height:20px"> Registrer også fakturaene under Faktura for kontroll og godkjenning (la stå av hvis de allerede er betalt og bokført)</label>` : ''}
+    </div>
+    <div class="row between"><button class="btn" id="wzBack">Tilbake</button><button class="btn primary lg" id="wzRun">Legg inn</button></div>`;
+  }
+  if (WZ.step === 4){
+    const r = WZ.result || {};
+    h += `<div class="card grid" style="gap:10px"><h3>✓ Ferdig</h3><ul class="wtips">${[r.sups ? `${r.sups} nye leverandører` : '', r.items ? `${r.items} nye varer` : '', r.prices ? `${r.prices} varer fikk ny pris` : '', r.counted ? `Første telling er lagt inn med ${r.counted} varer` : 'Beholdning er ikke lagt inn', r.invs ? `${r.invs} fakturaer registrert for kontroll` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>
+      <h3 style="margin-top:8px">Neste steg</h3><div class="row">${r.counted ? '' : '<button class="btn primary" data-go="telling">Tell varelageret</button>'}<button class="btn" data-go="oppsett">Bestillingsfrekvens, forventet salg og ansatte</button><button class="btn" data-go="leverandorer">Leverandører</button><button class="btn" data-go="oversikt">Til oversikten</button></div></div>`;
+  }
+  $('#view').innerHTML = h;
+  document.querySelectorAll('#view [data-go]').forEach(b => b.onclick = () => { if (WZ.step === 4) wzReset(); go(b.dataset.go); });
+  const nx = $('#wzNext'); if (nx) nx.onclick = () => { if (WZ.step === 2) wzReadTable(); WZ.step++; render(); $('#main').scrollTop = 0; };
+  const bk = $('#wzBack'); if (bk) bk.onclick = () => { if (WZ.step === 2) wzReadTable(); WZ.step--; render(); };
+  if (WZ.step === 1){
+    $('#wzSupNew').onclick = () => supplierEditModal(null, {}, () => render());
+    document.querySelectorAll('[data-supedit]').forEach(b => b.onclick = () => supplierEditModal(b.dataset.supedit, null, () => render()));
+  }
+  if (WZ.step === 2){
+    const sf = $('#wzSheet'); if (sf) sf.onchange = async e => { const f = e.target.files[0]; if (!f) return; try { const sheets = await readSheetFile(f); if (!sheets.length) throw new Error('Fant ingen rader i filen.'); const idx = Math.max(0, sheets.findIndex(s => s.name === 'Varer')); const g = wzGuess(sheets[idx].rows); WZ.sheet = {file: f.name, sheets, idx, headRow: g.headRow}; WZ.map = g.map; if (g.map.name == null) toast('Fant ikke kolonnen for varenavn. Velg kolonnene under.'); } catch(err){ toast(err.message || 'Kunne ikke lese filen.'); } render(); };
+    const sd = $('#wzSheetDel'); if (sd) sd.onclick = () => { WZ.sheet = null; WZ.map = {}; render(); };
+    const si = $('#wzSheetIdx'); if (si) si.onchange = () => { WZ.sheet.idx = +si.value; const g = wzGuess(WZ.sheet.sheets[WZ.sheet.idx].rows); WZ.sheet.headRow = g.headRow; WZ.map = g.map; render(); };
+    document.querySelectorAll('[data-wzcol]').forEach(sel => sel.onchange = () => { const i = +sel.dataset.wzcol; Object.keys(WZ.map).forEach(k => { if (WZ.map[k] === i) delete WZ.map[k]; }); if (sel.value){ WZ.map[sel.value] = i; } wzReadTable(); render(); });
+    const ds = $('#wzDefSup'); if (ds) ds.onchange = () => { wzReadTable(); WZ.defSup = ds.value; render(); };
+    const fi = $('#wzInv'); if (fi) fi.onchange = async e => {
+      const files = [...e.target.files].slice(0, 20); wzReadTable();
+      for (const f of files){
+        const v = {name: f.name, busy: true}; WZ.invoices.push(v); render();
+        try {
+          if (f.size > 10*1024*1024) throw new Error('Større enn 10 MB');
+          const fd = new FormData(); fd.append('file', f);
+          const up = await fetch('/api/files', {method:'POST', body:fd, credentials:'same-origin'}); const uj = await up.json().catch(() => ({})); if (!up.ok) throw new Error(uj.error || 'Opplasting feilet');
+          v.fileId = uj.id; v.inv = await readInvoiceFile(uj.id);
+          const m = matchSupplier(SET(), v.inv);
+          if (m) v.supCode = m;
+          else { const same = WZ.newSups.find(n => (v.inv.supplierOrgNo && n.sup.orgnr === v.inv.supplierOrgNo.replace(/\D/g,'')) || sameSupName(n.sup.name, v.inv.supplierName)); if (same){ v.supCode = same.code; const fi = supFromInvoice(v.inv); Object.keys(fi).forEach(k => { if (!same.sup[k] || (Array.isArray(same.sup[k]) && !same.sup[k].length)) same.sup[k] = fi[k]; }); if (same.fromSheet) same.sup.name = v.inv.supplierName || same.sup.name; } else if (v.inv.supplierName){ const sup = {...supFromInvoice(v.inv), wd:[], days:'Etter avtale', interval:7, lead:1, safety:2, notes:'', fees:''}; let code = suggestCode(sup.name); while (WZ.newSups.some(n => n.code === code)) code = code.slice(0,3) + Math.floor(Math.random()*9+1); WZ.newSups.push({code, sup}); v.supCode = code; } else v.supCode = ''; }
+        } catch(err){ v.err = err.message || 'Kunne ikke lese'; }
+        v.busy = false; render();
+      }
+    };
+    document.querySelectorAll('[data-wzsup]').forEach(sel => sel.onchange = () => { wzReadTable(); const v = WZ.invoices[+sel.dataset.wzsup]; if (sel.value === '__new'){ const n = WZ.newSups.find(n => normName(n.sup.name) === normName(v.inv.supplierName)); v.supCode = n ? n.code : ''; } else v.supCode = sel.value; render(); });
+    document.querySelectorAll('tr[data-wzr] .wz-on').forEach(cb => cb.onchange = () => { const r = WZ.rows[+cb.closest('tr').dataset.wzr]; r.on = cb.checked; cb.closest('tr').classList.toggle('off', !cb.checked); });
+    const all = $('#wzAll'); if (all) all.onclick = () => { wzReadTable(); WZ.rows.forEach(r => { if (!r.ex && !r.fee && r.sup) r.on = true; }); wzKeep(); render(); };
+    const none = $('#wzNone'); if (none) none.onclick = () => { wzReadTable(); WZ.rows.forEach(r => r.on = false); wzKeep(); render(); };
+  }
+  if (WZ.step === 3){
+    document.querySelectorAll('input[name=wzc]').forEach(r => r.onchange = () => { WZ.countMode = r.value; });
+    const dt = $('#wzDate'); if (dt) dt.onchange = () => { WZ.countDate = dt.value || C.today; };
+    const rg = $('#wzReg'); if (rg) rg.onchange = () => { WZ.regInvoices = rg.checked; };
+    $('#wzRun').onclick = wzRun;
+  }
+}
+// Rader i tabellen bygges på nytt ved hver visning; brukerens valg og rettelser huskes per nøkkel.
+
+const wzKey = r => r.sup + '|' + (r.no ? normNo(r.no) : 'N:' + normName(r.name));
+function wzReadTable(){
+  document.querySelectorAll('tr[data-wzr]').forEach(tr => { const r = WZ.rows[+tr.dataset.wzr]; if (!r) return; const g = c => tr.querySelector(c).value.trim();
+    WZ_EDITS[r.key0 || wzKey(r)] = {on: tr.querySelector('.wz-on').checked, no: g('.wz-no'), name: g('.wz-name'), unit: g('.wz-unit'), price: num(g('.wz-price')) ?? r.price, stor: g('.wz-stor'), cat: g('.wz-cat')}; });
+}
+function wzKeep(){ WZ.rows.forEach(r => { WZ_EDITS[r.key0 || wzKey(r)] = {...(WZ_EDITS[r.key0 || wzKey(r)] || {}), on: r.on}; }); }
+const _wzBuild = wzBuildRows;
+wzBuildRows = function(){ _wzBuild(); WZ.rows.forEach(r => { r.key0 = wzKey(r); const e = WZ_EDITS[r.key0]; if (e) Object.assign(r, e); if (!r.sup) r.on = false; }); };
+const wzNewSupsUsed = () => WZ.newSups.filter(n => WZ.invoices.some(v => v.supCode === n.code) || WZ.rows.some(r => r.on && r.sup === n.code));
+async function wzRun(){
+  const b = $('#wzRun'); b.disabled = true; b.textContent = 'Legger inn …';
+  try {
+    const set = JSON.parse(JSON.stringify(SET())); let sups = 0;
+    const used = new Set([...WZ.invoices.map(v => v.supCode), ...WZ.rows.filter(r => r.on).map(r => r.sup)]);
+    WZ.newSups.forEach(n => { if (used.has(n.code) && !set.suppliers[n.code]){ set.suppliers[n.code] = n.sup; sups++; } });
+    if (sups) await saveSettings(set);
+    const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
+    let items = 0, prices = 0; const idFor = {};
+    WZ.rows.forEach(r => {
+      if (r.ex){ idFor[r.id] = r.ex.id; if (r.on && r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005)){ const o = cfg.ov[r.ex.id] || {}; cfg.ov[r.ex.id] = {...o, price: Math.round(r.price*100)/100, priceHist: [...(o.priceHist || [{d:'', p:r.ex.price}]), {d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}].slice(-12)}; prices++; } return; }
+      if (!r.on || !r.sup || !r.name) return;
+      const no = r.no || normName(r.name).replace(/\s/g,'').slice(0,14);
+      const id = r.sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
+      const prev = cfg.ov[id] || {};
+      cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:r.sup, no, name:r.name, unit:r.unit || 'stk', price: Math.round((r.price || 0)*100)/100, stor:r.stor, cat:r.cat || 'Annet', area: prev.area || 'Kjøkken', pack: r.pack || 1, shelf: r.shelf ?? null, manual: r.manual ?? prev.manual ?? null, active:true, h100:0, b13:0, b6:0, ndel:0, last: r.srcDate || null, gtin: r.gtin || '', source: r.src === 'liste' ? 'import' : 'faktura', priceHist: r.price ? [{d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}] : []};
+      idFor[r.id] = id; items++;
+    });
+    if (items || prices) await saveItemCfg(cfg);
+    let counted = 0;
+    if (WZ.countMode === 'sheet'){
+      const lines = {}; WZ.rows.forEach(r => { const id = idFor[r.id]; if (id && r.qty != null && (r.on || r.ex)){ lines[id] = {q: r.qty, ...(r.exp ? {exp: r.exp} : {})}; counted++; } });
+      if (counted) await store.put('counts', uid(), {date: WZ.countDate || C.today, status:'fullført', lines, sales:null, ts:Date.now(), doneTs:Date.now(), source:'kom-i-gang'});
+    }
+    let invs = 0;
+    if (WZ.regInvoices) for (const v of WZ.invoices.filter(v => v.inv && v.supCode && SET().suppliers[v.supCode])){
+      try { await api('POST', '/api/invoices', {supplier:v.supCode, invoiceNo:v.inv.invoiceNo, kid:v.inv.kid, invoiceDate:v.inv.invoiceDate || C.today, dueDate:v.inv.dueDate || null, orderId:null, amountExVat:v.inv.amountExVat, vat:v.inv.vat, amount:v.inv.amount, fileId:v.fileId, lines:v.inv.lines.map(l => ({itemNo:l.itemNo, description:l.description, qty:l.qty ?? 0, unitPrice:l.unitPrice}))}); invs++; } catch(e){ toast(`${v.name}: ${e.message || 'kunne ikke registreres'}`); }
+    }
+    const s2 = JSON.parse(JSON.stringify(SET())); s2.onboarded = C.today; await saveSettings(s2);
+    if (MODE_API) await apiLoad(true);
+    WZ.result = {sups, items, prices, counted, invs}; WZ.step = 4; WZ_EDITS = {}; render();
+  } catch(e){ b.disabled = false; b.textContent = 'Legg inn'; toast(e.message || 'Noe gikk galt.'); }
+}
+
 async function loadUsers(){
   const box = $('#usersList'); if (!box) return;
   try {

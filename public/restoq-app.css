@@ -183,3 +183,17 @@ header.top > *{flex-shrink:0} header.top .hname{flex:0 1 auto} header.top .sp{fl
 .supform .sf-contact input{min-width:0}
 .modal:has(.supform){width:min(860px,96vw)}
 .supform .grid.g4{grid-template-columns:repeat(auto-fit,minmax(150px,1fr))}
+/* kom i gang-veiviser */
+.wzsteps{display:flex;gap:6px;list-style:none;margin:0;padding:0;flex-wrap:wrap}
+.wzsteps li{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:99px;background:var(--surface);border:1px solid var(--line);font-weight:600;color:var(--muted);font-size:14px}
+.wzsteps li span{display:inline-grid;place-items:center;width:22px;height:22px;border-radius:50%;background:var(--grey-bg);font-size:12px}
+.wzsteps li.on{border-color:var(--brand);color:var(--ink)} .wzsteps li.on span{background:var(--brand);color:#fff}
+.wzsteps li.done{color:var(--green)} .wzsteps li.done span{background:var(--green-bg);color:var(--green)}
+.wzmap{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:8px}
+.wzmap .f{font-size:12px} .wzmap select{min-height:36px;padding:4px 8px;font-size:13px}
+.wzinv{border:1px solid var(--line);border-radius:10px;padding:10px 12px}
+.wzopt{display:flex;gap:12px;align-items:flex-start;border:1.5px solid var(--line);border-radius:12px;padding:12px 14px;cursor:pointer}
+.wzopt:has(input:checked){border-color:var(--brand);background:color-mix(in srgb,var(--brand) 6%,transparent)}
+.wzopt input[type=radio]{width:20px;height:20px;margin-top:2px;flex-shrink:0}
+.rvtbl tr.off td:not(:first-child){opacity:.45}
+.wzbanner{align-items:center;justify-content:space-between;gap:12px}
