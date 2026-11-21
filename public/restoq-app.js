@@ -1043,7 +1043,8 @@ function wzBuildRows(){
     const ex = items.find(i => i.sup === supCode && ((x.no && normNo(i.no) === normNo(x.no)) || normName(i.name) === normName(x.name)));
     if (seen.has(key)){ const o = seen.get(key); if (x.qty != null) o.qty = (o.qty || 0) + x.qty; if (x.src !== o.src) o.src = 'begge'; if (x.price && x.srcDate >= (o.srcDate || '')) { o.price = x.price; o.srcDate = x.srcDate; o.srcName = x.srcName; } return; }
     const fee = FEE_RE.test(x.name || '') || (x.price || 0) < 0;
-    const row = {...x, id: out.length, ex: ex || null, on: !ex && !fee && !!supCode, fee, _key: key};
+    // varer som finnes: vis lagertype og kategori slik de er lagret, så bare brukerens egne endringer lagres
+    const row = {...x, ...(ex ? {stor: ex.stor || '', group: catOf(ex).group, cat: catOf(ex).cat} : {}), id: out.length, ex: ex || null, on: !ex && !fee && !!supCode, fee, _key: key};
     seen.set(key, row); if (!byName.has(nk)) byName.set(nk, row); out.push(row);
   };
   wzSheetRows().forEach(add);
@@ -1203,7 +1204,7 @@ function vKomigang(){
   }
   if (WZ.step === 4){
     const r = WZ.result || {};
-    h += `<div class="card grid" style="gap:10px"><h3>✓ Ferdig</h3><ul class="wtips">${[r.sups ? `${r.sups} nye leverandører` : '', r.items ? `${r.items} nye varer` : '', r.prices ? `${r.prices} varer fikk ny pris` : '', r.charges ? `${r.charges} linjer med gebyrer og frakt er lagt på leverandørene` : '', r.counted ? `Første telling er lagt inn med ${r.counted} varer` : 'Beholdning er ikke lagt inn', r.invs ? `${r.invs} fakturaer registrert for kontroll` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>
+    h += `<div class="card grid" style="gap:10px"><h3>✓ Ferdig</h3><ul class="wtips">${[r.sups ? `${r.sups} nye leverandører` : '', r.items ? `${r.items} nye varer` : '', r.prices ? `${r.prices} varer fikk ny pris` : '', r.changedEx ? `${r.changedEx} varer fikk endret lagertype eller kategori` : '', r.charges ? `${r.charges} linjer med gebyrer og frakt er lagt på leverandørene` : '', r.counted ? `Første telling er lagt inn med ${r.counted} varer` : 'Beholdning er ikke lagt inn', r.invs ? `${r.invs} fakturaer registrert for kontroll` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>
       <h3 style="margin-top:8px">Neste steg</h3><div class="row">${r.counted ? '' : '<button class="btn primary" data-go="telling">Tell varelageret</button>'}<button class="btn" data-go="oppsett">Bestillingsfrekvens, forventet salg og ansatte</button><button class="btn" data-go="leverandorer">Leverandører</button><button class="btn" data-go="oversikt">Til oversikten</button></div></div>`;
   }
   $('#view').innerHTML = h;
@@ -1228,6 +1229,7 @@ function vKomigang(){
     const ds = $('#wzDefSup'); if (ds) ds.onchange = () => { wzReadTable(); WZ.defSup = ds.value; render(); };
     const fi = $('#wzInv'); if (fi) fi.onchange = e => { wzReadTable(); wzReadInvoices([...e.target.files].slice(0, 20)); };
     document.querySelectorAll('[data-wzsup]').forEach(sel => sel.onchange = () => { wzReadTable(); const v = WZ.invoices[+sel.dataset.wzsup]; if (sel.value === '__new'){ const n = WZ.newSups.find(n => normName(n.sup.name) === normName(v.inv.supplierName)); v.supCode = n ? n.code : ''; } else v.supCode = sel.value; render(); });
+    document.querySelectorAll('tr[data-wzr] select, tr[data-wzr] input:not(.wz-on)').forEach(el => el.addEventListener('change', () => wzReadTable()));
     document.querySelectorAll('tr[data-wzr] .wz-on').forEach(cb => cb.onchange = () => { const r = WZ.rows[+cb.closest('tr').dataset.wzr]; r.on = cb.checked; cb.closest('tr').classList.toggle('off', !cb.checked); });
     document.querySelectorAll('[data-wzadd]').forEach(b => b.onclick = () => { wzReadTable(); wzAddItemModal(); });
     document.querySelectorAll('tr[data-wzch]').forEach(tr => { const k = tr.dataset.wzch; const upd = () => { WZ_CHG[k] = {on: tr.querySelector('.wzch-on').checked, kind: tr.querySelector('.wzch-kind').value}; tr.classList.toggle('off', !WZ_CHG[k].on); }; tr.querySelector('.wzch-on').onchange = upd; tr.querySelector('.wzch-kind').onchange = upd; });
@@ -1251,7 +1253,8 @@ function vKomigang(){
 const wzKey = r => r.sup + '|' + (r.no ? normNo(r.no) : 'N:' + normName(r.name));
 function wzReadTable(){
   document.querySelectorAll('tr[data-wzr]').forEach(tr => { const r = WZ.rows[+tr.dataset.wzr]; if (!r) return; const g = c => tr.querySelector(c).value.trim();
-    WZ_EDITS[r.key0 || wzKey(r)] = {on: tr.querySelector('.wz-on').checked, no: g('.wz-no'), name: g('.wz-name'), unit: g('.wz-unit'), stor: g('.wz-stor'), ...splitCat(tr.querySelector('.wz-cat').value)}; });
+    const e = {on: tr.querySelector('.wz-on').checked, no: g('.wz-no'), name: g('.wz-name'), unit: g('.wz-unit'), stor: g('.wz-stor'), ...splitCat(tr.querySelector('.wz-cat').value)};
+    WZ_EDITS[r.key0 || wzKey(r)] = e; Object.assign(r, e); });
 }
 function wzKeep(){ WZ.rows.forEach(r => { WZ_EDITS[r.key0 || wzKey(r)] = {...(WZ_EDITS[r.key0 || wzKey(r)] || {}), on: r.on}; }); }
 const _wzBuild = wzBuildRows;
@@ -1265,9 +1268,10 @@ async function wzRun(){
     WZ.newSups.forEach(n => { if (used.has(n.code) && !set.suppliers[n.code]){ set.suppliers[n.code] = n.sup; sups++; } });
     if (sups) await saveSettings(set);
     const cfg = JSON.parse(JSON.stringify(S.itemcfg || {ov:{}})); cfg.ov = cfg.ov || {};
-    let items = 0, prices = 0; const idFor = {}; const nextRe = reNoSeq(cfg);
+    let items = 0, prices = 0, changedEx = 0; const idFor = {}; const nextRe = reNoSeq(cfg);
     WZ.rows.forEach(r => {
-      if (r.ex){ idFor[r.id] = r.ex.id; if (r.on && r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005)){ const o = cfg.ov[r.ex.id] || {}; cfg.ov[r.ex.id] = {...o, price: Math.round(r.price*100)/100, priceHist: [...(o.priceHist || [{d:'', p:r.ex.price}]), {d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}].slice(-12)}; prices++; } return; }
+      if (r.ex){ const ed = WZ_EDITS[r.key0 || wzKey(r)]; if (ed){ const o = cfg.ov[r.ex.id] || {}; const upd = {}; if (STORES.includes(ed.stor) && ed.stor !== r.ex.stor) upd.stor = ed.stor; if (ed.cat && (ed.cat !== catOf(r.ex).cat || ed.group !== catOf(r.ex).group)){ upd.group = ed.group; upd.cat = ed.cat; } if (Object.keys(upd).length){ cfg.ov[r.ex.id] = {...o, ...(o.id ? {} : {...r.ex}), ...upd}; changedEx++; } }
+        idFor[r.id] = r.ex.id; if (r.on && r.price && Math.abs(r.price - r.ex.price) > Math.max(0.01, r.ex.price * 0.005)){ const o = cfg.ov[r.ex.id] || {}; cfg.ov[r.ex.id] = {...o, price: Math.round(r.price*100)/100, priceHist: [...(o.priceHist || [{d:'', p:r.ex.price}]), {d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}].slice(-12)}; prices++; } return; }
       if (!r.on || !r.sup || !r.name) return;
       const no = itemNoFor(r.sup, r.no, r.name, cfg, nextRe);
       const id = r.sup + '-' + no.replace(/[^A-Za-z0-9]/g,'');
@@ -1275,7 +1279,7 @@ async function wzRun(){
       cfg.ov[id] = {...prev, id, custom:true, removed:false, sup:r.sup, no, name:r.name, unit:r.unit || 'stk', price: Math.round((r.price || 0)*100)/100, stor:r.stor, group: r.group || '', cat:r.cat || '', area: prev.area || 'Kjøkken', pack: r.pack || 1, shelf: r.shelf ?? null, manual: r.manual ?? prev.manual ?? null, active: catStocked(r.group), h100:0, b13:0, b6:0, ndel:0, last: r.srcDate || null, gtin: r.gtin || '', source: r.src === 'liste' ? 'import' : 'faktura', priceHist: r.price ? [{d: r.srcDate || C.today, p: Math.round(r.price*100)/100, inv: r.srcName || ''}] : []};
       idFor[r.id] = id; items++;
     });
-    if (items || prices) await saveItemCfg(cfg);
+    if (items || prices || changedEx) await saveItemCfg(cfg);
     let counted = 0;
     if (WZ.countMode === 'sheet'){
       const lines = {}; WZ.rows.forEach(r => { const id = idFor[r.id]; if (id && r.qty != null && (r.on || r.ex)){ lines[id] = {q: r.qty, ...(r.exp ? {exp: r.exp} : {})}; counted++; } });
@@ -1292,7 +1296,7 @@ async function wzRun(){
     Object.keys(bySup).forEach(code => mergeCharges(s2.suppliers[code], bySup[code]));
     await saveSettings(s2);
     if (MODE_API) await apiLoad(true);
-    WZ.result = {sups, items, prices, counted, invs, charges}; WZ.step = 4; WZ_EDITS = {}; render();
+    WZ.result = {sups, items, prices, counted, invs, charges, changedEx}; WZ.step = 4; WZ_EDITS = {}; render();
   } catch(e){ b.disabled = false; b.textContent = 'Legg inn'; toast(e.message || 'Noe gikk galt.'); }
 }
 
@@ -1566,7 +1570,7 @@ const CAT_WORDS = [
   [/meieri|ost\b|melk|fløte|smør|yoghurt|rømme|egg/i, 'Mat', 'Meieri'], [/kjøtt|kylling|svin|storfe|lam|bacon|pølse|fisk|laks|reke|sjømat|torsk/i, 'Mat', 'Kjøtt og fisk'],
   [/grønt|grønnsak|frukt|eple|appelsin|sitron|lime|banan|drue|bær|mango|ananas|pære|melon|kiwi|salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|potet|gulrot|rotgrønnsak|kålrot|rødbet|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|asparges|purre/i, 'Mat', FG], 
   [/brød|bakst|bolle|brioche|bakeri|kake|baguette|surdeig/i, 'Mat', 'Brød og bakst'], [/tørr|mel\b|ris\b|pasta|sukker|krydder|olje|eddik|hermetikk|saus|nøtter|tørrvare/i, 'Mat', 'Tørrvarer'],
-  [/øl\b|pils|ipa|cider|lager\b/i, 'Drikke', 'Øl og cider'], [/vin\b|rødvin|hvitvin|musserende|prosecco|champagne/i, 'Drikke', 'Vin'], [/vodka|gin\b|rom\b|whisk|likør|brennevin|tequila|akevitt/i, 'Drikke', 'Brennevin'],
+  [/øl\b|pils|\bipa\b|cider|lager ?øl|\bpilsner/i, 'Drikke', 'Øl og cider'], [/vin\b|rødvin|hvitvin|musserende|prosecco|champagne/i, 'Drikke', 'Vin'], [/vodka|gin\b|rom\b|whisk|likør|brennevin|tequila|akevitt/i, 'Drikke', 'Brennevin'],
   [/kaffe|espresso|\bte\b|kakao/i, 'Drikke', 'Kaffe og te'], [/drikke|brus|cola|juice|vann\b|mineralvann|energi|red bull|tonic|saft/i, 'Drikke', 'Alkoholfritt'],
   [/emballasje|take.?away|boks|beger|lokk|pose|kartong/i, 'Emballasje', 'Take-away'], [/folie|film|plastfolie|bakepapir/i, 'Emballasje', 'Folie og film'],
   [/rengjør|vask|såpe|oppvask|desinfek|klut|svamp/i, 'Rengjøring og hygiene', 'Vask og rengjøring'], [/papir|serviett|tørkerull|toalett|håndkle/i, 'Rengjøring og hygiene', 'Papir og hygiene'],
