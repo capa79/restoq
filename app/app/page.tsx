@@ -23,11 +23,13 @@ export default async function AppPage() {
       <link rel="stylesheet" href="/restoq-app.css" precedence="default" />
       <div className="app">
         <header className="top">
-          <img id="hLogo" className="hide" alt="" />
-          <div className="hname">
-            <div className="title" id="hTitle" translate="no">{me.org_name ?? "Restoq"}</div>
-            <div className="powered hide" id="hSub" translate="no">powered by <LogoMark size={13} /> <b>Restoq</b></div>
-          </div>
+          <a href="#oversikt" className="homelink" id="hHome" title="Til oversikten" aria-label="Til oversikten">
+            <img id="hLogo" className="hide" alt="" />
+            <div className="hname">
+              <div className="title" id="hTitle" translate="no">{me.org_name ?? "Restoq"}</div>
+              <div className="powered hide" id="hSub" translate="no">powered by <LogoMark size={13} /> <b>Restoq</b></div>
+            </div>
+          </a>
           <div className="sp" />
           <LangSwitch current={lang} />
           <span className="sync" id="sync"><i /><span>Kobler til …</span></span>

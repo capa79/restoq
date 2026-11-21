@@ -267,6 +267,7 @@ const TABS = [
 let view = (location.hash || '#oversikt').slice(1);
 if (!TABS.find(t => t[0] === view) && view !== 'oppsett') view = 'oversikt';
 function go(v){ view = v; if (location.hash !== '#'+v) history.replaceState(null,'','#'+v); $('#main').scrollTop = 0; render(); }
+document.addEventListener('click', e => { const a = e.target.closest && e.target.closest('#hHome'); if (!a) return; e.preventDefault(); try { if (typeof closeModal === 'function') closeModal(); if (typeof closeDrawer === 'function') closeDrawer(); } catch(_){} go('oversikt'); });
 window.addEventListener('hashchange', () => { const v = location.hash.slice(1); if (v && v !== view){ view = v; render(); } });
 $('#btnSettings').onclick = () => go('oppsett');
 

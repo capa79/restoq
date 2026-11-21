@@ -211,3 +211,7 @@ header.top .powered svg{display:inline-block;vertical-align:-2px;margin:0 1px}
 .wzmaptbl td:first-child{white-space:nowrap}
 .wzmaptbl select{width:100%;max-width:380px;min-height:38px;padding:4px 8px;font-size:14px}
 .wzmaptbl tr.off td:not(:last-child){opacity:.55}
+header.top .homelink{display:flex;align-items:center;gap:14px;color:inherit;text-decoration:none;min-width:0;border-radius:8px}
+header.top .homelink:hover .title{text-decoration:underline;text-underline-offset:3px}
+header.top .homelink:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
+@media (max-width:700px){header.top .homelink{gap:8px}}
