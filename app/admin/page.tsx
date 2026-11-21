@@ -411,7 +411,7 @@ async function Setup({ email }: { email: string }) {
           <tr><td>E-post (Resend)</td><td><Pill ok={mailEnabled()} /> {process.env.MAIL_FROM ?? ""}</td></tr>
           <tr><td>Logg inn med Google</td><td><Pill ok={googleEnabled()} /></td></tr>
           <tr><td>Tripletex</td><td><Pill ok={tripletexConfigured()} on={process.env.TRIPLETEX_ENV === "prod" ? "Produksjon" : "Testmiljø"} /></td></tr>
-          <tr><td>Automatisk oversettelse (Claude)</td><td><Pill ok={aiTranslateEnabled()} /></td></tr>
+          <tr><td>Claude (fakturalesing og oversettelse)</td><td><Pill ok={aiTranslateEnabled()} /></td></tr>
           <tr><td>Henvendelser sendes til</td><td>{process.env.LEADS_EMAIL || process.env.ADMIN_EMAIL || "–"}</td></tr>
           <tr><td>Selskap i bunntekst og personvern</td><td>{process.env.LEGAL_ENTITY ? `${process.env.LEGAL_ENTITY}${process.env.LEGAL_ORGNR ? ` (${process.env.LEGAL_ORGNR})` : ""}` : <Pill ok={false} off="Mangler (LEGAL_ENTITY)" />}</td></tr>
         </tbody></table>
