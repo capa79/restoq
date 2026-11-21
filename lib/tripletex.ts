@@ -57,7 +57,7 @@ async function sessionFor(orgId: number): Promise<string> {
   if (!tripletexConfigured()) throw new TripletexError("Tripletex-koblingen er ikke satt opp på serveren (TRIPLETEX_CONSUMER_TOKEN og SECRET_KEY).");
   const p = await db();
   const r = (await p.query("SELECT secret, session_token, session_expires FROM integrations WHERE org_id = $1 AND provider = 'tripletex'", [orgId])).rows[0];
-  if (!r) throw new TripletexError("Tripletex er ikke koblet til. Leder kobler til under Innstillinger.");
+  if (!r) throw new TripletexError("Regnskap er ikke koblet til. Leder kobler til under Innstillinger → Regnskap.");
   const today = isoDate(new Date());
   if (r.session_token && r.session_expires && isoDate(new Date(r.session_expires)) > today) return decrypt(r.session_token);
   const s = await createSession(decrypt(r.secret));

@@ -215,3 +215,9 @@ header.top .homelink{display:flex;align-items:center;gap:14px;color:inherit;text
 header.top .homelink:hover .title{text-decoration:underline;text-underline-offset:3px}
 header.top .homelink:focus-visible{outline:2px solid var(--brand);outline-offset:3px}
 @media (max-width:700px){header.top .homelink{gap:8px}}
+.neg{color:var(--red,#c0392b)} .pos{color:#1f7a4d}
+.big2{font-size:22px;font-weight:700;line-height:1.2}
+.cvals{gap:10px} .cvals>div{background:var(--bg2,#f6f6f4);border-radius:10px;padding:10px 12px}
+@media (max-width:860px){.cvals{grid-template-columns:repeat(3,minmax(0,1fr))} .cvals .big2{font-size:17px}}
+.linkbtn{background:none;border:0;padding:0;color:inherit;text-decoration:underline;text-underline-offset:2px;cursor:pointer;font:inherit}
+.sigpad{width:100%;height:160px;background:#fff;border:1px dashed var(--line,#ccc);border-radius:10px;cursor:crosshair;touch-action:none}

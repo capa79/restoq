@@ -7,7 +7,7 @@ import { listSupplierInvoices } from "@/lib/tripletex";
 export async function POST(req: Request) {
   const u = await apiUser(req, true);
   if (u instanceof Response) return u;
-  if (!canManage(u)) return json({ error: "Bare leder kan hente fra Tripletex." }, 403);
+  if (!canManage(u)) return json({ error: "Bare leder kan hente fra regnskap." }, 403);
   const orgId = u.org_id!;
   const to = new Date();
   const from = new Date(Date.now() - 60 * 864e5);
@@ -33,7 +33,7 @@ export async function POST(req: Request) {
         if (hit.data.ttx?.supplierInvoiceId !== t.id) {
           const inv = (await getDoc<Invoice>(orgId, "invoices", hit.id))!;
           inv.ttx = { ...(inv.ttx ?? {}), supplierInvoiceId: t.id, voucherIds: t.voucher ? [t.voucher.id] : inv.ttx?.voucherIds };
-          inv.history = [...(inv.history ?? []), { ts: new Date().toISOString(), by: "Tripletex", action: "koblet til leverandørfaktura i Tripletex", note: `id ${t.id}` }];
+          inv.history = [...(inv.history ?? []), { ts: new Date().toISOString(), by: "Tripletex", action: "koblet til leverandørfaktura i regnskap", note: `id ${t.id}` }];
           await putDoc(orgId, "invoices", hit.id, inv, u.id);
           linked++;
         }
@@ -45,7 +45,7 @@ export async function POST(req: Request) {
         supplier: sup, invoiceNo: t.invoiceNumber ?? String(t.id), invoiceDate: t.invoiceDate ?? to.toISOString().slice(0, 10), dueDate: t.invoiceDueDate,
         amount: t.amount, amountExVat: t.amountExcludingVat, currency: "NOK", lines: [], source: "tripletex", status: "kontroll",
         ttx: { supplierInvoiceId: t.id, voucherIds: t.voucher ? [t.voucher.id] : [] },
-        history: [{ ts: new Date().toISOString(), by: "Tripletex", action: "hentet fra Tripletex" }], createdAt: new Date().toISOString(),
+        history: [{ ts: new Date().toISOString(), by: "Tripletex", action: "hentet fra regnskap" }], createdAt: new Date().toISOString(),
       };
       inv.match = matchInvoice(inv, d);
       if (inv.match.orderId) inv.orderId = inv.match.orderId;
@@ -55,6 +55,6 @@ export async function POST(req: Request) {
     }
     return json({ fetched: list.length, linked, created, unknown });
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : "Kunne ikke hente fra Tripletex." }, 502);
+    return json({ error: e instanceof Error ? e.message : "Kunne ikke hente fra regnskap." }, 502);
   }
 }

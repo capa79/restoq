@@ -28,25 +28,25 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
       if (inv.ttx.supplierInvoiceId) await approveSupplierInvoice(orgId, inv.ttx.supplierInvoiceId, note);
       inv.ttx.approvedAt = iso();
       if (!["sendt", "betalt"].includes(inv.status)) inv.status = "godkjent";
-      log(inv.ttx.supplierInvoiceId ? "godkjent (også i Tripletex)" : "godkjent", note);
+      log(inv.ttx.supplierInvoiceId ? "godkjent (også i regnskap)" : "godkjent", note);
     } else if (action === "send") {
       // Til bilagsmottaket i Tripletex for bokføring. Fakturaer som allerede ligger i Tripletex (EHF) sendes ikke på nytt.
-      if (inv.ttx.supplierInvoiceId) return json({ error: "Fakturaen ligger allerede i Tripletex." }, 400);
-      if (!inv.ttx.approvedAt) return json({ error: "Godkjenn fakturaen før den sendes til Tripletex." }, 400);
-      if (!inv.fileId) return json({ error: "Last opp fakturaen (PDF/bilde) før den sendes til Tripletex." }, 400);
+      if (inv.ttx.supplierInvoiceId) return json({ error: "Fakturaen ligger allerede i regnskapet." }, 400);
+      if (!inv.ttx.approvedAt) return json({ error: "Godkjenn fakturaen før den sendes til regnskap." }, 400);
+      if (!inv.fileId) return json({ error: "Last opp fakturaen (PDF/bilde) før den sendes til regnskap." }, 400);
       const f = await readFile(orgId, inv.fileId);
       if (!f) return json({ error: "Fant ikke fakturafilen." }, 404);
       const ids = await importDocument(orgId, f, `${inv.supplier} faktura ${inv.invoiceNo} – godkjent i Restoq${inv.orderId ? " (bestilling " + inv.orderId + ")" : ""}`);
       inv.ttx.voucherIds = ids;
       inv.status = "sendt";
-      log("sendt til Tripletex (bilagsmottak)", ids.length ? `bilag ${ids.join(", ")}` : "");
+      log("sendt til regnskap (bilagsmottak)", ids.length ? `bilag ${ids.join(", ")}` : "");
     } else if (action === "pay") {
-      if (!inv.ttx.supplierInvoiceId) return json({ error: "Fakturaen må være bokført i Tripletex først. Trykk «Hent fra Tripletex» når bilaget er bokført." }, 400);
+      if (!inv.ttx.supplierInvoiceId) return json({ error: "Fakturaen må være bokført i regnskapet først. Trykk «Hent fra regnskap» når bilaget er bokført." }, 400);
       if (!inv.ttx.approvedAt) return json({ error: "Godkjenn fakturaen først." }, 400);
       await addSupplierPayment(orgId, inv.ttx.supplierInvoiceId, { amount: inv.amount, paymentDate: inv.dueDate });
       inv.ttx.paymentAt = iso();
       inv.status = "betalt";
-      log("sendt til betaling i Tripletex", inv.dueDate ? `forfall ${inv.dueDate}` : "");
+      log("sendt til betaling i regnskap", inv.dueDate ? `forfall ${inv.dueDate}` : "");
     } else if (action === "reject") {
       inv.status = "avvist";
       log("avvist", note);
@@ -54,7 +54,7 @@ export async function POST(req: Request, ctx: { params: Promise<{ id: string; ac
       inv.status = inv.match?.ok ? "matchet" : "avvik";
       log("åpnet igjen", note);
     } else if (action === "delete") {
-      if (inv.status === "sendt" || inv.status === "betalt") return json({ error: "Fakturaen er sendt til Tripletex og kan ikke slettes her." }, 400);
+      if (inv.status === "sendt" || inv.status === "betalt") return json({ error: "Fakturaen er sendt til regnskap og kan ikke slettes her." }, 400);
       const p = await db();
       await p.query("DELETE FROM docs WHERE org_id = $1 AND col = 'invoices' AND id = $2", [orgId, id]);
       await audit(u.email, "slettet faktura", `${inv.supplier} ${inv.invoiceNo}`, orgId);

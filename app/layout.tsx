@@ -9,7 +9,7 @@ import { getUiLang } from "@/lib/i18n";
 export const metadata: Metadata = {
   metadataBase: new URL(process.env.APP_URL ?? "https://restoq.no"),
   title: "Restoq – Intelligent resource management for barer og restauranter",
-  description: "Varelager, bestillinger, varetelling, svinn og fakturakontroll i én plattform. Bestillingsforslag basert på salg og lager, og fakturaer rett til Tripletex.",
+  description: "Varelager, bestillinger, varetelling, svinn og fakturakontroll i én plattform. Bestillingsforslag basert på salg og lager, og fakturaer rett til regnskapet.",
   alternates: { canonical: "/" },
   openGraph: { title: "Restoq – Plan. Allocate. Execute.", description: "One platform. Complete operational control. Lager, bestilling og fakturakontroll for barer og restauranter.", url: "https://restoq.no", siteName: "Restoq", locale: "nb_NO", type: "website" },
 };

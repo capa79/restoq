@@ -15,7 +15,7 @@ export async function SiteNav({ links = true }: { links?: boolean }) {
           <nav aria-label="Hovedmeny">
             <a href="/#slik">Slik fungerer det</a>
             <a href="/#funksjoner">Funksjoner</a>
-            <a href="/#faktura">Faktura og Tripletex</a>
+            <a href="/#faktura">Faktura og regnskap</a>
             <a href="/#whitelabel">White label</a>
             <a href="/#kontakt">Kontakt</a>
           </nav>

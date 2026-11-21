@@ -242,7 +242,10 @@ function compute(){
     r.value = r.stockNow * (it.price||0);
     return r;
   });
-  return {items:res, cur, prev, sales, today};
+  // Teoretisk beholdning på en dato: forrige telling + mottatt − avskrevet − forventet forbruk
+  const byIdR = Object.fromEntries(res.map(r => [r.id, r]));
+  const theo = (id, d) => { const r = byIdR[id]; if (!r || !r.countDate) return null; const days = Math.max(0, daysBetween(r.countDate, d)); return Math.max(0, r.stockAtCount + sumIn(rcv, id, r.countDate, d) - sumIn(wasteArr, id, r.countDate, d) - (r.usageWeek || 0) / 7 * days); };
+  return {items:res, cur, prev, sales, today, theo};
 }
 const STATUS = {bestill:['Bestill nå','p-bestill'], snart:['Snart','p-snart'], ok:['OK','p-ok'], tell:['Tell','p-tell'], behov:['Ved behov','p-behov']};
 const pill = s => `<span class="pill ${STATUS[s][1]}">${STATUS[s][0]}</span>`;
@@ -463,26 +466,33 @@ function vTelling(){
     if (UI.cOnlyOpen) list = list.filter(i => !isCounted(i));
     list = [...list].sort((a,b) => STORES.indexOf(a.stor)-STORES.indexOf(b.stor) || a.cat.localeCompare(b.cat,'nb') || a.name.localeCompare(b.name,'nb'));
     const val = items.reduce((s,i) => s + (isCounted(i) ? L[i.id].q * (i.price||0) : 0), 0);
+    const tq = i => C.theo(i.id, countWork.date);
+    const theoCounted = items.reduce((s,i) => s + (isCounted(i) && tq(i) != null ? tq(i) * (i.price||0) : 0), 0);
+    const hasTheo = items.some(i => tq(i) != null);
+    const theoAny = items.some(i => isCounted(i) && tq(i) != null);
+    const diffV = val - theoCounted;
     h += `<div class="card"><div class="row between"><div><h3>Telling ${fmtDL(countWork.date)}</h3><div class="small muted">Lagres automatisk mens du teller · ${countSaving ? 'lagrer …' : countDirty ? 'endringer venter' : 'alt er lagret'}</div></div>
       <div class="row"><span class="num"><b>${nDone}</b> av ${items.length} talt · ${kr(val)}</span><button class="btn danger sm" id="cDiscard" ${ro()}>Forkast</button></div></div>
-      <div class="progress" style="margin-top:10px"><span style="width:${nDone/items.length*100}%"></span></div></div>`;
+      <div class="progress" style="margin-top:10px"><span style="width:${nDone/items.length*100}%"></span></div>
+      ${hasTheo ? `<div class="grid g3 cvals" style="margin-top:12px"><div><div class="small muted">Teoretisk verdi (talte varer)</div><div class="num big2">${theoAny ? kr(theoCounted) : '–'}</div></div><div><div class="small muted">Faktisk verdi (talt)</div><div class="num big2">${kr(val)}</div></div><div><div class="small muted">Avvik</div><div class="num big2 ${theoAny && diffV < -0.5 ? 'neg' : theoAny && diffV > 0.5 ? 'pos' : ''}">${theoAny ? `${diffV > 0 ? '+' : ''}${kr(diffV)}${theoCounted ? ` <span class="small">(${diffV > 0 ? '+' : ''}${nf1.format(diffV / theoCounted * 100)} %)</span>` : ''}` : '–'}</div></div></div>` : '<div class="small muted" style="margin-top:8px">Teoretisk verdi vises fra og med andre telling.</div>'}</div>`;
     h += `<div class="row between"><div class="chips">${[...STORES,'Alle'].map(s => { const arr = s==='Alle'?items:byStore(s); const d = arr.filter(isCounted).length; return `<button class="chip ${UI.cStore===s&&!sq?'on':''}" data-cs="${s}">${s} <span class="num muted">${d}/${arr.length}</span></button>`; }).join('')}
       <button class="chip ${UI.cOnlyOpen?'on':''}" id="cOpen">Bare utalte</button></div><div style="min-width:220px;flex:1;max-width:340px"><input type="search" id="cSearch" placeholder="Søk vare" value="${esc(UI.cSearch)}"></div></div>`;
     h += `<div class="card flush">` + (list.length ? list.map(i => { const l = L[i.id] || {}; const pv = prevC && prevC.lines && prevC.lines[i.id] ? prevC.lines[i.id].q : null; return `<div class="countrow ${isCounted(i)?'done':''}" id="row-${esc(i.id)}">
-        <div><div class="iname">${esc(i.name)}</div><div class="isub">${esc(i.stor)} · ${esc(i.cat)} · ${i.sup} ${esc(i.no)} · telles i <b>${esc(i.unit)}</b>${pv!=null?' · forrige: '+q(pv):''}</div></div>
+        <div><div class="iname">${esc(i.name)}</div><div class="isub">${esc(i.stor)} · ${esc(i.cat)} · ${i.sup} ${esc(i.no)} · telles i <b>${esc(i.unit)}</b>${pv!=null?' · forrige: '+q(pv):''}${tq(i)!=null?` · teoretisk: <b>${q(Math.round(tq(i)*10)/10)}</b>${isCounted(i) ? (d => Math.abs(d) >= 0.05 ? ` <span class="${d < 0 ? 'neg' : 'pos'}">(${d > 0 ? '+' : ''}${q(Math.round(d*10)/10)})</span>` : ' ✓')(L[i.id].q - tq(i)) : ''}`:''}</div></div>
         <div class="row" style="gap:6px;flex-wrap:nowrap"><div class="stepper"><button data-cstep="-1" data-id="${esc(i.id)}" ${ro()}>−</button><input id="c-${esc(i.id)}" inputmode="decimal" data-cq="${esc(i.id)}" value="${l.q!=null&&l.q!==''?String(l.q).replace('.',','):''}" placeholder="–" ${ro()}><button data-cstep="1" data-id="${esc(i.id)}" ${ro()}>+</button></div><button class="btn sm" data-zero="${esc(i.id)}" title="Tom hylle" ${ro()}>Tom</button></div>
         <div class="expwrap"><input type="date" class="exp" id="e-${esc(i.id)}" data-ce="${esc(i.id)}" value="${l.exp||''}" title="Tidligste utløpsdato" aria-label="Tidligste utløpsdato" ${ro()}></div></div>`; }).join('') : `<div class="empty">${UI.cOnlyOpen ? 'Alt er talt her. 🎉' : 'Ingen varer.'}</div>`) + `</div>`;
     h += `<div class="note info small">Tell i enheten som står på varen. Skriv <b>0</b> eller trykk «Tom» hvis varen hører til lageret men er tom. La feltet stå tomt hvis varen ikke føres. Datofeltet er <b>tidligste utløpsdato</b> (eldste pakning) – den gir varsel om svinnrisiko.</div>`;
     h += `<div class="sticky-foot"><div class="footbar"><div class="num"><b>${nDone}</b> av ${items.length} varer talt</div><div style="flex:1"></div><button class="btn primary lg" id="cFinish" ${ro()}>Fullfør telling</button></div></div>`;
   }
   if (done.length){
-    h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Tidligere tellinger</h3></div><table><thead><tr><th>Dato</th><th class="n">Varer talt</th><th class="n">Lagerverdi</th><th class="n">Matsalg i perioden</th><th></th></tr></thead><tbody>${done.map((c,ix) => { const its = getItems(); const n = its.filter(i => c.lines[i.id] && c.lines[i.id].q != null && c.lines[i.id].q !== '').length; const v = its.reduce((s,i) => s + (c.lines[i.id] && c.lines[i.id].q ? c.lines[i.id].q*(i.price||0) : 0), 0); return `<tr><td>${fmtDL(c.date)}</td><td class="n">${n}</td><td class="n">${kr(v)}</td><td class="n">${c.sales?kr(c.sales):'–'}</td><td class="n">${ix===0&&!draft?`<button class="btn sm" data-reopen="${c.id}" ${ro()}>Åpne for retting</button>`:''}<button class="btn sm" data-cdl="${c.id}">Last ned</button></td></tr>`; }).join('')}</tbody></table></div>`;
+    h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Tidligere tellinger</h3></div><table><thead><tr><th>Dato</th><th class="n">Varer talt</th><th class="n">Teoretisk verdi</th><th class="n">Faktisk verdi</th><th class="n">Avvik</th><th>Signert av</th><th></th></tr></thead><tbody>${done.map((c,ix) => { const its = getItems(); const n = its.filter(i => c.lines[i.id] && c.lines[i.id].q != null && c.lines[i.id].q !== '').length; const v = its.reduce((s,i) => s + (c.lines[i.id] && c.lines[i.id].q ? c.lines[i.id].q*(i.price||0) : 0), 0); return `<tr><td>${fmtDL(c.date)}</td><td class="n">${n}</td><td class="n">${c.signed && c.signed.theoValue != null ? kr(c.signed.theoValue) : '–'}</td><td class="n">${kr(c.signed && c.signed.actualValue != null ? c.signed.actualValue : v)}</td><td class="n">${c.signed && c.signed.theoValue != null ? `<span class="${c.signed.diff < -0.5 ? 'neg' : c.signed.diff > 0.5 ? 'pos' : ''}">${c.signed.diff > 0 ? '+' : ''}${kr(c.signed.diff)}</span>` : '–'}</td><td class="small">${c.signed ? `<button class="linkbtn" data-csig="${esc(c.id)}"><span translate="no">${esc(c.signed.name)}</span> · ${fmtD(c.signed.at.slice(0,10))}</button>` : '<span class="muted">Ikke signert</span>'}</td><td class="n">${ix===0&&!draft?`<button class="btn sm" data-reopen="${c.id}" ${ro()}>Åpne for retting</button>`:''}<button class="btn sm" data-cdl="${c.id}">Last ned</button></td></tr>`; }).join('')}</tbody></table></div>`;
   }
   $('#view').innerHTML = h;
   const sheetBtn = $('#cSheet'); if (sheetBtn) sheetBtn.onclick = () => download(`telleliste-${C.today}.csv`, csv([['Lager','Kategori','Leverandør','Varenr','Vare','Enhet','Antall','Tidligste utløpsdato'], ...[...items].sort((a,b)=>STORES.indexOf(a.stor)-STORES.indexOf(b.stor)||a.cat.localeCompare(b.cat,'nb')||a.name.localeCompare(b.name,'nb')).map(i => [i.stor,i.cat,i.sup,i.no,i.name,i.unit,'',''])]));
   const st = $('#cStart'); if (st) st.onclick = async () => { const d = $('#cDate').value || C.today; const id = uid(); await store.put('counts', id, {date:d, status:'pågår', lines:{}, ts:Date.now()}); toast('Tellingen er startet. Begynn med kjøl.'); };
-  document.querySelectorAll('[data-reopen]').forEach(b => b.onclick = () => confirmBox('Åpne siste telling for retting?', 'Tellingen blir «pågår» igjen til du fullfører den på nytt. Beregningene bruker forrige telling så lenge.', 'Åpne', async () => { const c = JSON.parse(JSON.stringify(S.counts.find(x => x.id === b.dataset.reopen))); const id = c.id; delete c.id; c.status = 'pågår'; await store.put('counts', id, c); }));
-  document.querySelectorAll('[data-cdl]').forEach(b => b.onclick = () => { const c = S.counts.find(x => x.id === b.dataset.cdl); download(`telling-${c.date}.csv`, csv([['Lager','Leverandør','Varenr','Vare','Enhet','Antall','Utløpsdato','Pris','Verdi'], ...getItems().map(i => { const l = c.lines[i.id] || {}; return [i.stor,i.sup,i.no,i.name,i.unit,l.q??'',l.exp||'',i.price,l.q?Math.round(l.q*i.price):'']; })])); });
+  document.querySelectorAll('[data-reopen]').forEach(b => b.onclick = () => confirmBox('Åpne siste telling for retting?', 'Tellingen blir «pågår» igjen til du fullfører og signerer den på nytt. Signaturen fjernes. Beregningene bruker forrige telling så lenge.', 'Åpne', async () => { const c = JSON.parse(JSON.stringify(S.counts.find(x => x.id === b.dataset.reopen))); const id = c.id; delete c.id; c.status = 'pågår'; delete c.signed; await store.put('counts', id, c); }));
+  document.querySelectorAll('[data-cdl]').forEach(b => b.onclick = () => { const c = S.counts.find(x => x.id === b.dataset.cdl); const sg = c.signed; download(`telling-${c.date}.csv`, csv([['Lager','Leverandør','Varenr','Vare','Enhet','Teoretisk antall','Talt antall','Avvik antall','Utløpsdato','Pris','Teoretisk verdi','Faktisk verdi','Avvik verdi'], ...getItems().map(i => { const l = c.lines[i.id] || {}; const pr = l.p ?? i.price; const t = l.t; return [i.stor,i.sup,i.no,i.name,i.unit,t ?? '',l.q??'',t != null && l.q != null && l.q !== '' ? Math.round((l.q - t)*100)/100 : '',l.exp||'',pr,t != null ? Math.round(t*pr) : '',l.q?Math.round(l.q*pr):'',t != null && l.q != null && l.q !== '' ? Math.round((l.q - t)*pr) : '']; }), [], ...(sg ? [['Signert av', sg.name], ['Rolle', sg.role || ''], ['Innlogget bruker', sg.by || ''], ['Tidspunkt', sg.at], ['Teoretisk verdi', sg.theoValue ?? ''], ['Faktisk verdi', sg.actualValue], ['Avvik', sg.diff ?? '']] : [['Ikke signert']])])); });
+  document.querySelectorAll('[data-csig]').forEach(b => b.onclick = () => countSignatureModal(S.counts.find(x => x.id === b.dataset.csig)));
   if (!draft) return;
   const L = countWork.lines;
   const mark = id => { const row = document.getElementById('row-'+id); const v = L[id] && L[id].q != null && L[id].q !== ''; if (row) row.classList.toggle('done', v); };
@@ -507,17 +517,73 @@ async function flushCount(){
   countSaving = false;
   if (countDirty) queueCountSave();
 }
+function countSummary(lines, items, d){
+  let theo = 0, act = 0, hasT = false; const rows = [];
+  items.forEach(i => { const l = lines[i.id]; if (!l || l.q == null || l.q === '') return; const t = C.theo(i.id, d); const pr = i.price || 0; act += l.q * pr; if (t != null){ hasT = true; theo += t * pr; rows.push({i, t, q: l.q, dv: (l.q - t) * pr}); } });
+  rows.sort((a, b) => Math.abs(b.dv) - Math.abs(a.dv));
+  return {theo: hasT ? Math.round(theo) : null, act: Math.round(act), diff: hasT ? Math.round(act - theo) : null, pct: hasT && theo ? (act - theo) / theo * 100 : null, top: rows.filter(r => Math.abs(r.dv) >= 1).slice(0, 8)};
+}
 function finishCount(draft, prev, items){
   const L = countWork.lines; const n = items.filter(i => L[i.id] && L[i.id].q != null && L[i.id].q !== '').length;
+  const sum = countSummary(L, items, countWork.date);
   // foreslå matsalg fra ukesalget i innstillingene
   let suggested = '';
   if (prev){ const ws = SET().weeks.filter(w => w.from >= prev.date && addDays(w.from, 6) <= countWork.date); if (ws.length) suggested = Math.round(ws.reduce((s,w)=>s+w.sales,0)); }
-  modal(`<h3>Fullfør telling ${fmtDL(countWork.date)}</h3>
+  const meName = (S.me && (S.me.name || S.me.email)) || '';
+  modal(`<h3>Fullfør og signer telling ${fmtDL(countWork.date)}</h3>
     <div>${n} av ${items.length} varer er talt.${n < items.length ? ' Varer uten tall regnes som «føres ikke» og får status «Tell».' : ''}</div>
-    ${prev ? `<label class="f">Matsalg mellom ${fmtD(prev.date)} og ${fmtD(countWork.date)} (kr eks. mva)<input type="text" inputmode="numeric" id="fSales" value="${suggested}" placeholder="Tripletex konto 3000 + 3005"></label><div class="small muted">Hentes fra Tripletex, konto 3000 + 3005 for perioden. Brukes til å regne ut faktisk forbruk per 100 000 kr i matsalg. Kan stå tomt, men da brukes innkjøpshistorikken videre.</div>` : '<div class="small muted">Første telling: faktisk forbruk regnes ut fra neste telling.</div>'}
-    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Fortsett å telle</button><button class="btn primary" id="fOk">Fullfør</button></div>`, m => {
-    m.querySelector('#fOk').onclick = async () => { const sales = prev ? num((m.querySelector('#fSales').value||'').replace(/\s/g,'')) : null; clearTimeout(countSaveTimer); countDirty = false; const data = JSON.parse(JSON.stringify(countWork)); const id = data.id; delete data.id; data.status = 'fullført'; data.sales = sales; data.doneTs = Date.now(); closeModal(); await store.put('counts', id, data); countWork = null; toast('Tellingen er fullført. Beholdning og forslag er oppdatert.'); go('oversikt'); };
+    <div class="grid g3 cvals"><div><div class="small muted">Teoretisk verdi</div><div class="num big2">${sum.theo != null ? kr(sum.theo) : '–'}</div></div><div><div class="small muted">Faktisk verdi</div><div class="num big2">${kr(sum.act)}</div></div><div><div class="small muted">Avvik</div><div class="num big2 ${sum.diff < 0 ? 'neg' : sum.diff > 0 ? 'pos' : ''}">${sum.diff != null ? (sum.diff > 0 ? '+' : '') + kr(sum.diff) : '–'}${sum.pct != null ? ` <span class="small">(${sum.pct > 0 ? '+' : ''}${nf1.format(sum.pct)} %)</span>` : ''}</div></div></div>
+    <div class="small muted">Teoretisk verdi er det lageret burde inneholde: forrige telling + mottatte varer − avskrivninger − forventet forbruk fram til tellingsdatoen. Faktisk verdi er det som er talt. Begge regnes med dagens innkjøpspriser.${sum.theo == null ? ' Ved første telling finnes ingen teoretisk verdi.' : ''}</div>
+    ${sum.top.length ? `<details><summary class="small"><b>Største avvik</b> (${sum.top.length})</summary><table class="small"><thead><tr><th>Vare</th><th class="n">Teoretisk</th><th class="n">Talt</th><th class="n">Avvik kr</th></tr></thead><tbody>${sum.top.map(r => `<tr><td translate="no">${esc(r.i.name)}</td><td class="n">${q(Math.round(r.t*10)/10)} ${esc(r.i.unit)}</td><td class="n">${q(r.q)}</td><td class="n ${r.dv < 0 ? 'neg' : 'pos'}">${r.dv > 0 ? '+' : ''}${kr(r.dv)}</td></tr>`).join('')}</tbody></table></details>` : ''}
+    ${prev ? `<label class="f">Matsalg mellom ${fmtD(prev.date)} og ${fmtD(countWork.date)} (kr eks. mva)<input type="text" inputmode="numeric" id="fSales" value="${suggested}" placeholder="Regnskap, konto 3000 + 3005"></label><div class="small muted">Hentes fra regnskapet, konto 3000 + 3005 for perioden. Brukes til å regne ut faktisk forbruk per 100 000 kr i matsalg. Kan stå tomt.</div>` : ''}
+    <div class="card grid" style="gap:10px;background:var(--bg2,#f6f6f4)"><h3 style="margin:0">Signatur fra ansvarlig</h3>
+      <div class="grid g2"><label class="f">Navn på ansvarlig<input type="text" id="sgName" value="${esc(meName)}" autocomplete="name"></label><label class="f">Rolle (valgfritt)<input type="text" id="sgRole" placeholder="f.eks. kjøkkensjef"></label></div>
+      <div class="f" style="display:flex;flex-direction:column;gap:6px"><span style="font-size:14px;font-weight:600;color:var(--muted)">Signer her med finger eller mus</span><canvas id="sgPad" class="sigpad" width="600" height="160"></canvas><div class="row between"><span class="small muted">Signaturen lagres sammen med navn, innlogget bruker og tidspunkt.</span><button class="btn sm" id="sgClear" type="button">Tøm</button></div></div>
+      <label class="row small" style="gap:8px;align-items:flex-start"><input type="checkbox" id="sgOk" style="width:20px;height:20px;flex:none"> <span>Jeg bekrefter at varetellingen er utført og at tallene er riktige så langt jeg kjenner til.</span></label>
+    </div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Fortsett å telle</button><button class="btn primary" id="fOk" disabled>Signer og fullfør</button></div>`, m => {
+    const pad = sigPad(m.querySelector('#sgPad'));
+    const okBtn = m.querySelector('#fOk');
+    const check = () => { okBtn.disabled = !(m.querySelector('#sgName').value.trim() && m.querySelector('#sgOk').checked && pad.signed()); };
+    pad.onchange = check; m.querySelector('#sgName').oninput = check; m.querySelector('#sgOk').onchange = check;
+    m.querySelector('#sgClear').onclick = () => { pad.clear(); check(); };
+    okBtn.onclick = async () => {
+      if (okBtn.disabled) return; okBtn.disabled = true;
+      const sales = prev ? num((m.querySelector('#fSales').value||'').replace(/\s/g,'')) : null; clearTimeout(countSaveTimer); countDirty = false;
+      const data = JSON.parse(JSON.stringify(countWork)); const id = data.id; delete data.id;
+      // lagre teoretisk antall og pris per vare, så rapporten står seg selv om priser endres senere
+      items.forEach(i => { const l = data.lines[i.id]; if (l && l.q != null && l.q !== ''){ const t = C.theo(i.id, data.date); if (t != null) l.t = Math.round(t * 100) / 100; l.p = i.price || 0; } });
+      data.status = 'fullført'; data.sales = sales; data.doneTs = Date.now();
+      data.signed = {name: m.querySelector('#sgName').value.trim(), role: m.querySelector('#sgRole').value.trim(), by: (S.me && S.me.email) || '', at: new Date().toISOString(), signature: pad.dataUrl(), theoValue: sum.theo, actualValue: sum.act, diff: sum.diff, counted: n, items: items.length};
+      closeModal(); await store.put('counts', id, data); countWork = null; toast('Tellingen er signert og fullført. Beholdning og forslag er oppdatert.'); go('telling');
+    };
   });
+}
+/** Enkel signaturflate (mus, finger, penn). */
+function sigPad(cv){
+  const ctx = cv.getContext('2d'); let drawing = false, strokes = 0, last = null; const api = {onchange: null};
+  const ratio = () => cv.width / cv.getBoundingClientRect().width;
+  const pos = e => { const r = cv.getBoundingClientRect(); const k = ratio(); return {x: (e.clientX - r.left) * k, y: (e.clientY - r.top) * k}; };
+  ctx.lineWidth = 2.6; ctx.lineCap = 'round'; ctx.lineJoin = 'round'; ctx.strokeStyle = '#141a18';
+  cv.style.touchAction = 'none';
+  cv.addEventListener('pointerdown', e => { drawing = true; last = pos(e); cv.setPointerCapture(e.pointerId); ctx.beginPath(); ctx.arc(last.x, last.y, 1.2, 0, Math.PI * 2); ctx.fillStyle = '#141a18'; ctx.fill(); });
+  cv.addEventListener('pointermove', e => { if (!drawing) return; const p = pos(e); ctx.beginPath(); ctx.moveTo(last.x, last.y); ctx.lineTo(p.x, p.y); ctx.stroke(); last = p; });
+  const end = () => { if (!drawing) return; drawing = false; strokes++; api.onchange && api.onchange(); };
+  cv.addEventListener('pointerup', end); cv.addEventListener('pointercancel', end); cv.addEventListener('pointerleave', end);
+  api.clear = () => { ctx.clearRect(0, 0, cv.width, cv.height); strokes = 0; };
+  api.signed = () => strokes > 0;
+  api.dataUrl = () => cv.toDataURL('image/png');
+  return api;
+}
+function countSignatureModal(c){
+  if (!c || !c.signed) return; const sg = c.signed;
+  modal(`<h3>Varetelling ${fmtDL(c.date)}</h3>
+    <div class="grid g3 cvals"><div><div class="small muted">Teoretisk verdi</div><div class="num big2">${sg.theoValue != null ? kr(sg.theoValue) : '–'}</div></div><div><div class="small muted">Faktisk verdi</div><div class="num big2">${kr(sg.actualValue)}</div></div><div><div class="small muted">Avvik</div><div class="num big2 ${sg.diff < 0 ? 'neg' : sg.diff > 0 ? 'pos' : ''}">${sg.diff != null ? (sg.diff > 0 ? '+' : '') + kr(sg.diff) : '–'}</div></div></div>
+    <div class="small">${sg.counted} av ${sg.items} varer talt.</div>
+    <div class="card" style="text-align:center"><img src="${sg.signature}" alt="Signatur" style="max-width:100%;height:auto;max-height:140px"></div>
+    <div><b translate="no">${esc(sg.name)}</b>${sg.role ? ` · <span translate="no">${esc(sg.role)}</span>` : ''}</div>
+    <div class="small muted">Signert ${new Date(sg.at).toLocaleString('nb-NO')} · innlogget som <span translate="no">${esc(sg.by || '–')}</span></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button></div>`);
 }
 
 /* ================= SVINN ================= */
@@ -671,7 +737,7 @@ function bindItemRows(){ document.querySelectorAll('[data-item]').forEach(el => 
 function itemDrawer(id){
   const r = C.items.find(x => x.id === id); if (!r) return;
   const set = SET(); const sp = set.suppliers[r.sup] || {};
-  const srcTxt = {manuell:'manuelt satt forbruk', telling:'faktisk forbruk fra siste to tellinger', innkjøp:'innkjøp siste 13 uker (Tripletex)'}[r.usageSource];
+  const srcTxt = {manuell:'manuelt satt forbruk', telling:'faktisk forbruk fra siste to tellinger', innkjøp:'innkjøp siste 13 uker (regnskap)'}[r.usageSource];
   const html = `<div class="row between"><div><div class="small muted">${r.sup} · varenr ${esc(r.no)}</div><h2 translate="no">${esc(r.name)}</h2></div><button class="btn" data-close>Lukk</button></div>
     <div class="row">${pill(r.status)}${r.wasteRisk?'<span class="pill p-svinn">Svinnrisiko</span>':''}<span class="muted small">${esc(catLabel(catOf(r).group, catOf(r).cat))} · ${esc(r.stor)} · ${esc(r.area)}</span></div>
     <div class="grid g2"><div class="tile"><span class="lbl">Har nå (beregnet)</span><span class="big">${r.countDate?q(r.stockNow):'–'} <span style="font-size:16px">${esc(r.unit)}</span></span></div><div class="tile"><span class="lbl">Holder</span><span class="big">${r.countDate?coverTxt(r):'–'}</span><span class="small muted">${r.runsOut&&r.countDate?'tom ca. '+fmtDL(r.runsOut):''}</span></div></div>
@@ -761,12 +827,12 @@ function vOppsett(){
   h += `<div class="card grid" style="gap:14px"><div class="row between"><h3>Leverandører</h3><div class="row"><button class="btn sm" data-go="komigang" ${roM()}>Kom i gang-veiviser</button><button class="btn sm" data-go="leverandorer">Kontaktinfo, kontonr. og adresser</button><button class="btn sm" id="supAdd" ${roM()}>+ Legg til leverandør</button></div></div>${Object.keys(set.suppliers).length ? '' : '<div class="muted">Ingen leverandører ennå.</div>'}${Object.keys(set.suppliers).map(c => { const s = set.suppliers[c]; return `<div class="grid" style="gap:10px;border-top:1px solid var(--line);padding-top:12px"><div class="row between"><b translate="no">${esc(s.name)} (${esc(c)})</b><span class="row"><span class="small muted">${itemsBySup[c]||0} varer</span>${itemsBySup[c] ? '' : `<button class="btn sm danger" data-supdel="${esc(c)}" ${roM()}>Fjern</button>`}</span></div>
       <div class="chips">${[1,2,3,4,5,6,0].map(d=>`<button class="chip ${s.wd&&s.wd.includes(d)?'on':''}" data-wd="${c}:${d}">${WD[d]}</button>`).join('')}<span class="small muted" style="align-self:center">leveringsdager</span></div>
       <div class="grid g3"><label class="f">Dager mellom leveranser<input type="text" inputmode="decimal" data-sp="${c}:interval" value="${String(s.interval).replace('.',',')}"></label><label class="f">Ledetid (dager)<input type="text" inputmode="decimal" data-sp="${c}:lead" value="${s.lead}"></label><label class="f">Sikkerhetsdager<input type="text" inputmode="decimal" data-sp="${c}:safety" value="${s.safety}"></label></div>
-      <div class="grid g3"><label class="f">Leveringsdager (tekst)<input type="text" data-sp="${c}:days" value="${esc(s.days)}"></label><label class="f">Notat til den som bestiller<input type="text" data-sp="${c}:notes" value="${esc(s.notes)}"></label><label class="f">Org.nr (kobler fakturaer fra Tripletex)<input type="text" inputmode="numeric" data-sp="${c}:orgnr" value="${esc(s.orgnr||'')}"></label></div></div>`; }).join('')}</div>`;
-  h += `<div class="card grid" style="gap:12px"><h3>Matsalg per uke (Tripletex 3000 + 3005)</h3><div class="small muted">Legg inn ny uke hver mandag. Snittet av de siste 4 ukene blir forventet salg når feltet over står tomt.</div>
+      <div class="grid g3"><label class="f">Leveringsdager (tekst)<input type="text" data-sp="${c}:days" value="${esc(s.days)}"></label><label class="f">Notat til den som bestiller<input type="text" data-sp="${c}:notes" value="${esc(s.notes)}"></label><label class="f">Org.nr (kobler fakturaer fra regnskapet)<input type="text" inputmode="numeric" data-sp="${c}:orgnr" value="${esc(s.orgnr||'')}"></label></div></div>`; }).join('')}</div>`;
+  h += `<div class="card grid" style="gap:12px"><h3>Matsalg per uke (regnskap, konto 3000 + 3005)</h3><div class="small muted">Legg inn ny uke hver mandag. Snittet av de siste 4 ukene blir forventet salg når feltet over står tomt.</div>
     <div class="grid g3" style="align-items:end"><label class="f">Uke starter (mandag)<input type="date" id="wkFrom" value="${addDays(C.today, -((pd(C.today).getDay()+6)%7) - 7)}"></label><label class="f">Matsalg (kr eks. mva)<input type="text" inputmode="numeric" id="wkSales"></label><button class="btn" id="wkAdd">Legg til uke</button></div>
     <div class="tblwrap" style="max-height:300px"><table><thead><tr><th>Uke</th><th>Fra</th><th class="n">Matsalg</th><th></th></tr></thead><tbody>${weeks.map(w=>`<tr><td>${w.wk}</td><td>${fmtDL(w.from)}</td><td class="n">${kr(w.sales)}</td><td class="n"><button class="btn sm danger" data-wkdel="${w.from}">Slett</button></td></tr>`).join('')}</tbody></table></div></div>`;
   h += `<div class="row" style="justify-content:flex-end"><button class="btn primary lg" id="sSave" ${roM()}>Lagre innstillinger</button></div>`;
-  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="ttxCard"><h3>Tripletex</h3><div id="ttxBody" class="muted small">Henter status …</div></div>
+  if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="ttxCard"><h3>Regnskap</h3><div class="small muted">Regnskapssystem: Tripletex</div><div id="ttxBody" class="muted small">Henter status …</div></div>
     <div class="card grid" style="gap:12px" id="keysCard"><div class="row between"><h3>API-nøkler</h3><button class="btn sm" id="kAdd">+ Ny API-nøkkel</button></div><div class="small muted">For skannere, EDI og andre systemer som skal registrere fakturaer og pakksedler i Restoq. Se <a href="/api-dokumentasjon" target="_blank" rel="noopener">API-dokumentasjonen</a>.</div><div id="keysList" class="muted small">Henter …</div></div>`;
   if (MODE_API && S.canManage) h += `<div class="card grid" style="gap:12px" id="usersCard"><div class="row between"><h3>Brukere</h3><button class="btn sm" id="uAdd">+ Legg til ansatt</button></div><div class="small muted">Ansatte kan telle, bestille, ta imot varer og føre avskrivning. Administratorer kan i tillegg legge til og fjerne brukere, endre roller og endre innstillinger, varer, leverandører, logo og fakturaer. Det må alltid være minst én administrator.</div><div id="usersList" class="muted small">Henter brukere …</div></div>`;
   const B = BRAND();
@@ -1280,13 +1346,13 @@ function vFaktura(){
   const cnt = s => S.invoices.filter(i => i.status === s).length;
   const sumOpen = S.invoices.filter(i => ['kontroll','avvik','matchet','godkjent'].includes(i.status)).reduce((s,i) => s + (i.amount || i.amountExVat || 0), 0);
   let h = `<div class="row between"><div><h2>Fakturaer og pakksedler</h2><div class="muted">Fakturaen kontrolleres mot bestilling og varemottak før den godkjennes, sendes til regnskap for bokføring og legges til betaling.</div></div>
-    <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxSync">Hent fra Tripletex</button>' : ''}</div></div>`;
+    <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxSync">Hent fra regnskap</button>' : ''}</div></div>`;
   h += `<div class="grid g4"><button class="tile blue" data-fs="kontroll"><span class="lbl">Til kontroll</span><span class="big">${cnt('kontroll')}</span><span class="small muted">mangler bestilling</span></button>
     <button class="tile red" data-fs="avvik"><span class="lbl">Avvik</span><span class="big">${cnt('avvik')}</span><span class="small muted">mengde eller pris stemmer ikke</span></button>
     <button class="tile green" data-fs="matchet"><span class="lbl">Klar til godkjenning</span><span class="big">${cnt('matchet')}</span><span class="small muted">stemmer med varemottak</span></button>
     <div class="tile"><span class="lbl">Åpne fakturaer</span><span class="big">${kr(sumOpen)}</span><span class="small muted">ikke sendt til regnskap</span></div></div>`;
   h += `<div class="chips">${[['aktive','Aktive'],['kontroll','Til kontroll'],['avvik','Avvik'],['matchet','Matchet'],['godkjent','Godkjent'],['sendt','Sendt til regnskap'],['betalt','Til betaling'],['avvist','Avvist'],['alle','Alle']].map(([k,l]) => `<button class="chip ${f===k?'on':''}" data-fs="${k}">${l}</button>`).join('')}</div>`;
-  h += `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Leverandør</th><th>Faktura</th><th>Dato</th><th>Forfall</th><th class="n">Beløp</th><th>Bestilling</th><th>Status</th></tr></thead><tbody>${rows.map(i => { const o = S.orders.find(x => x.id === i.orderId); return `<tr class="click" data-inv="${esc(i.id)}"><td translate="no"><b>${esc(i.supplier)}</b> <span class="isub">${esc(set.suppliers[i.supplier]?.name||'')}</span></td><td>${esc(i.invoiceNo)}${i.fileId?' 📎':''}${i.source==='tripletex'?' <span class="isub">fra Tripletex</span>':i.source==='api'?' <span class="isub">via API</span>':''}</td><td>${fmtDL(i.invoiceDate)}</td><td>${i.dueDate?fmtDL(i.dueDate):'–'}</td><td class="n">${i.amount!=null?kr(i.amount):i.amountExVat!=null?kr(i.amountExVat)+' eks.':'–'}</td><td>${o?fmtD(o.deliveryDate)+' · '+o.lines.length+' varer':'<span class="muted">–</span>'}</td><td>${invPill(i.status)}${i.match&&i.match.issues&&i.match.issues.length?` <span class="isub">${i.match.issues.length} avvik</span>`:''}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty">Ingen fakturaer her. Registrer en faktura, eller hent fra Tripletex.</div></td></tr>'}</tbody></table></div></div>`;
+  h += `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Leverandør</th><th>Faktura</th><th>Dato</th><th>Forfall</th><th class="n">Beløp</th><th>Bestilling</th><th>Status</th></tr></thead><tbody>${rows.map(i => { const o = S.orders.find(x => x.id === i.orderId); return `<tr class="click" data-inv="${esc(i.id)}"><td translate="no"><b>${esc(i.supplier)}</b> <span class="isub">${esc(set.suppliers[i.supplier]?.name||'')}</span></td><td>${esc(i.invoiceNo)}${i.fileId?' 📎':''}${i.source==='tripletex'?' <span class="isub">fra regnskap</span>':i.source==='api'?' <span class="isub">via API</span>':''}</td><td>${fmtDL(i.invoiceDate)}</td><td>${i.dueDate?fmtDL(i.dueDate):'–'}</td><td class="n">${i.amount!=null?kr(i.amount):i.amountExVat!=null?kr(i.amountExVat)+' eks.':'–'}</td><td>${o?fmtD(o.deliveryDate)+' · '+o.lines.length+' varer':'<span class="muted">–</span>'}</td><td>${invPill(i.status)}${i.match&&i.match.issues&&i.match.issues.length?` <span class="isub">${i.match.issues.length} avvik</span>`:''}</td></tr>`; }).join('') || '<tr><td colspan="7"><div class="empty">Ingen fakturaer her. Registrer en faktura, eller hent fra regnskap.</div></td></tr>'}</tbody></table></div></div>`;
   const slips = [...S.slips].sort((a,b) => (b.date||'').localeCompare(a.date||'')).slice(0,15);
   h += `<div class="card flush"><div style="padding:14px 16px 6px"><h3>Siste pakksedler</h3></div>${slips.length ? `<table><thead><tr><th>Dato</th><th>Leverandør</th><th>Pakkseddel</th><th class="n">Linjer</th><th>Bestilling</th></tr></thead><tbody>${slips.map(s => `<tr><td>${fmtDL(s.date)}</td><td>${esc(s.supplier)}</td><td>${esc(s.slipNo)}${s.fileId?` <a href="/api/files/${esc(s.fileId)}" target="_blank" rel="noopener">📎</a>`:''}</td><td class="n">${s.lines.length}</td><td>${s.orderId?(s.received?'<span class="pill p-ok">mottak registrert</span>':'koblet'):'<span class="muted">ikke funnet</span>'}</td></tr>`).join('')}</tbody></table>` : '<div class="empty">Ingen pakksedler ennå.</div>'}</div>`;
   $('#view').innerHTML = h;
@@ -1294,7 +1360,7 @@ function vFaktura(){
   document.querySelectorAll('[data-inv]').forEach(r => r.onclick = () => invoiceDrawer(r.dataset.inv));
   $('#invNew').onclick = () => invoiceModal();
   $('#slipNew').onclick = () => slipModal();
-  const sy = $('#ttxSync'); if (sy) sy.onclick = async () => { sy.disabled = true; try { const r = await api('POST', '/api/tripletex/sync', {}); toast(`Hentet ${r.fetched} fra Tripletex: ${r.created} nye, ${r.linked} koblet${r.unknown?`, ${r.unknown} med ukjent leverandør`:''}.`); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke hente.'); } sy.disabled = false; };
+  const sy = $('#ttxSync'); if (sy) sy.onclick = async () => { sy.disabled = true; try { const r = await api('POST', '/api/tripletex/sync', {}); toast(`Hentet ${r.fetched} fra regnskap: ${r.created} nye, ${r.linked} koblet${r.unknown?`, ${r.unknown} med ukjent leverandør`:''}.`); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke hente.'); } sy.disabled = false; };
 }
 async function uploadFile(input){
   const f = input.files[0]; if (!f) return null;
@@ -1389,7 +1455,7 @@ function invoiceDrawer(id){
   const o = S.orders.find(x => x.id === inv.orderId);
   const can = S.canManage; const t = inv.ttx || {};
   const html = `<div class="row between"><div><div class="small muted"><a href="#leverandorer" class="invsup" translate="no">${esc(set.suppliers[inv.supplier]?.name || inv.supplier)}</a></div><h2>Faktura <span translate="no">${esc(inv.invoiceNo)}</span></h2></div><button class="btn" data-close>Lukk</button></div>
-    <div class="row">${invPill(inv.status)}${inv.fileId?`<a class="btn sm" href="/api/files/${esc(inv.fileId)}" target="_blank" rel="noopener">📎 Åpne faktura</a>`:''}${t.supplierInvoiceId?'<span class="pill p-behov">I Tripletex</span>':''}</div>
+    <div class="row">${invPill(inv.status)}${inv.fileId?`<a class="btn sm" href="/api/files/${esc(inv.fileId)}" target="_blank" rel="noopener">📎 Åpne faktura</a>`:''}${t.supplierInvoiceId?'<span class="pill p-behov">I regnskap</span>':''}</div>
     <div class="card"><dl class="kv"><dt>Fakturadato</dt><dd>${fmtDL(inv.invoiceDate)}</dd><dt>Forfall</dt><dd>${inv.dueDate?fmtDL(inv.dueDate):'–'}</dd><dt>Beløp eks. mva</dt><dd>${inv.amountExVat!=null?kr(inv.amountExVat):'–'}</dd><dt>Å betale</dt><dd>${inv.amount!=null?kr(inv.amount):'–'}</dd>${inv.kid?`<dt>KID</dt><dd>${esc(inv.kid)}</dd>`:''}<dt>Bestilling</dt><dd>${o?`${fmtDL(o.orderDate)} → levert ${fmtDL(o.deliveryDate)} (${o.status})`:'Ikke funnet'}</dd>${m.expectedExVat!=null?`<dt>Forventet ut fra mottak</dt><dd>${kr(m.expectedExVat)} eks. mva</dd>`:''}</dl></div>
     ${m.issues && m.issues.length ? `<div class="note bad"><div><b>Avvik</b><ul style="margin:6px 0 0;padding-left:18px">${m.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>` : m.orderId ? '<div class="note good">Fakturaen stemmer med bestilling og varemottak.</div>' : ''}
     ${m.lines && m.lines.length ? `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Vare</th><th class="n">Bestilt</th><th class="n">Mottatt</th><th class="n">Fakturert</th><th class="n">Pris</th></tr></thead><tbody>${m.lines.map(l => `<tr style="${l.flags.length?'background:var(--red-bg)':''}"><td><div class="iname">${esc(l.name)}</div><div class="isub">${esc(l.itemNo)}${l.flags.length?' · <b style="color:var(--red)">'+esc(l.flags.join(' · '))+'</b>':''}</div></td><td class="n">${q(l.ordered)}</td><td class="n">${q(l.received)}</td><td class="n">${q(l.invoiced)}</td><td class="n">${l.invoicedPrice!=null?nf1.format(l.invoicedPrice):'–'}${l.agreedPrice!=null&&l.invoicedPrice!=null&&Math.abs(l.invoicedPrice-l.agreedPrice)>0.005?`<div class="isub">avtalt ${nf1.format(l.agreedPrice)}</div>`:''}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
@@ -1404,15 +1470,15 @@ function invoiceDrawer(id){
         ${!['sendt','betalt'].includes(inv.status) ? `<button class="btn danger" data-act="delete" ${can?'':'disabled'}>Slett</button>` : ''}
       </div>
       ${!can ? '<div class="small muted">Bare leder kan godkjenne, sende og betale.</div>' : ''}
-      <div class="small muted">Godkjent faktura sendes til bilagsmottaket i Tripletex, der den bokføres. Når bilaget er bokført, trykker du «Hent fra Tripletex», og fakturaen kan sendes til betaling. Selve utbetalingen skjer via banken som er koblet til Tripletex.</div></div>
+      <div class="small muted">Godkjent faktura sendes til bilagsmottaket i regnskapet, der den bokføres. Når bilaget er bokført, trykker du «Hent fra regnskap», og fakturaen kan sendes til betaling. Selve utbetalingen skjer via banken som er koblet til regnskapet.</div></div>
     <div class="card"><h3 style="margin-bottom:8px">Historikk</h3>${(inv.history||[]).slice().reverse().map(h => `<div class="small"><b>${fmtDL(h.ts.slice(0,10))}</b> ${esc(h.action)} – ${esc(h.by)}${h.note?': '+esc(h.note):''}</div>`).join('')}</div>`;
   drawer(html, d => {
     const isl = d.querySelector('.invsup'); if (isl) isl.onclick = e => { e.preventDefault(); closeLayer(); supplierEditModal(inv.supplier); };
     d.querySelector('#dvMatch').onclick = async () => { try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: d.querySelector('#dvOrder').value || null}); await apiLoad(true); invoiceDrawer(id); } catch(e){ toast(e.message || 'Feil.'); } };
     d.querySelectorAll('[data-act]').forEach(b => b.onclick = async () => {
       const act = b.dataset.act; const note = d.querySelector('#dvNote').value;
-      const go2 = async () => { b.disabled = true; try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/${act}`, {note}); await apiLoad(true); if (act === 'delete') closeLayer(); else invoiceDrawer(id); toast({approve:'Fakturaen er godkjent.', send:'Fakturaen er sendt til bilagsmottaket i Tripletex.', pay:'Fakturaen er lagt til betaling i Tripletex.', reject:'Fakturaen er avvist.', reopen:'Fakturaen er åpnet igjen.', delete:'Fakturaen er slettet.'}[act]); } catch(e){ toast(e.message || 'Noe gikk galt.'); b.disabled = false; } };
-      if (act === 'pay') confirmBox('Sende til betaling?', `${inv.amount!=null?kr(inv.amount):'Beløpet'} til ${set.suppliers[inv.supplier]?.name||inv.supplier}${inv.dueDate?' med forfall '+fmtDL(inv.dueDate):''} legges til betaling i Tripletex.`, 'Send til betaling', go2);
+      const go2 = async () => { b.disabled = true; try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/${act}`, {note}); await apiLoad(true); if (act === 'delete') closeLayer(); else invoiceDrawer(id); toast({approve:'Fakturaen er godkjent.', send:'Fakturaen er sendt til bilagsmottaket i regnskapet.', pay:'Fakturaen er lagt til betaling i regnskapet.', reject:'Fakturaen er avvist.', reopen:'Fakturaen er åpnet igjen.', delete:'Fakturaen er slettet.'}[act]); } catch(e){ toast(e.message || 'Noe gikk galt.'); b.disabled = false; } };
+      if (act === 'pay') confirmBox('Sende til betaling?', `${inv.amount!=null?kr(inv.amount):'Beløpet'} til ${set.suppliers[inv.supplier]?.name||inv.supplier}${inv.dueDate?' med forfall '+fmtDL(inv.dueDate):''} legges til betaling i regnskapet.`, 'Send til betaling', go2);
       else if (act === 'delete') confirmBox('Slette fakturaen?', 'Registreringen fjernes fra Restoq.', 'Slett', go2);
       else go2();
     });
@@ -1422,12 +1488,12 @@ async function loadTtx(){
   const box = $('#ttxBody'); if (!box) return;
   try {
     const s = await api('GET', '/api/tripletex');
-    if (!s.available){ box.innerHTML = 'Tripletex-koblingen er ikke aktivert på serveren ennå (Restoq må ha godkjent integrasjon hos Tripletex).'; return; }
+    if (!s.available){ box.innerHTML = 'Koblingen til regnskap er ikke aktivert på serveren ennå (Restoq må ha godkjent integrasjon hos Tripletex).'; return; }
     box.className = 'grid'; box.style.gap = '10px';
-    box.innerHTML = s.connected ? `<div class="note good">Koblet til Tripletex${s.env==='test'?' (testmiljø)':''} siden ${fmtDL(String(s.info?.connectedAt||'').slice(0,10))}.</div><div class="row"><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
+    box.innerHTML = s.connected ? `<div class="note good">Koblet til regnskap (Tripletex)${s.env==='test'?' (testmiljø)':''} siden ${fmtDL(String(s.info?.connectedAt||'').slice(0,10))}.</div><div class="row"><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
       : `<div class="small">Lag en API-nøkkel i Tripletex: <b>Brukerinnstillinger → API-tilgang → Ny nøkkel</b>, velg applikasjonen <b>Restoq</b> og tilgang til leverandørfaktura og bilag. Lim inn nøkkelen her. (Tilleggsmodulen «Integrasjoner» må være aktiv i Tripletex.)</div><div class="row" style="flex-wrap:nowrap"><input type="text" id="ttxTok" placeholder="Employee token fra Tripletex" autocomplete="off"><button class="btn primary" id="ttxOn">Koble til</button></div>`;
-    const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Tripletex er koblet til.'); loadTtx(); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
-    const off = $('#ttxOff'); if (off) off.onclick = () => confirmBox('Koble fra Tripletex?', 'Restoq kan ikke lenger sende eller hente fakturaer før dere kobler til på nytt.', 'Koble fra', async () => { await api('DELETE', '/api/tripletex'); loadTtx(); });
+    const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Regnskap er koblet til.'); loadTtx(); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
+    const off = $('#ttxOff'); if (off) off.onclick = () => confirmBox('Koble fra regnskap?', 'Restoq kan ikke lenger sende eller hente fakturaer før dere kobler til på nytt.', 'Koble fra', async () => { await api('DELETE', '/api/tripletex'); loadTtx(); });
   } catch(e){ box.textContent = 'Kunne ikke hente status.'; }
 }
 async function loadKeys(){
@@ -1446,8 +1512,7 @@ function isoWeek(d){ const t = new Date(Date.UTC(d.getFullYear(), d.getMonth(), 
 /* ---------- dialoger, filer ---------- */
 /* ===== Innkjøpskategorier (hovedkategori › underkategori) ===== */
 const CAT_DEFAULT = [
-  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Fryst', stor:'Frys'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
-  {name:'Frukt og grønnsaker', stocked:true, account:'', subs:[{name:'Frukt', stor:'Kjøl'},{name:'Grønnsaker', stor:'Kjøl'},{name:'Salat og urter', stor:'Kjøl'},{name:'Poteter og rotgrønnsaker', stor:'Tørr'}]},
+  {name:'Mat', stocked:true, account:'', subs:[{name:'Ferskt', stor:'Kjøl'},{name:'Meieri', stor:'Kjøl'},{name:'Kjøtt og fisk', stor:'Kjøl'},{name:'Frukt og grønnsaker', stor:'Kjøl'},{name:'Fryst', stor:'Frys'},{name:'Tørrvarer', stor:'Tørr'},{name:'Brød og bakst', stor:'Romtemp.'}]},
   {name:'Drikke', stocked:true, account:'', subs:[{name:'Alkoholfritt', stor:'Romtemp.'},{name:'Øl og cider', stor:'Kjøl'},{name:'Vin', stor:'Romtemp.'},{name:'Brennevin', stor:'Romtemp.'},{name:'Kaffe og te', stor:'Tørr'}]},
   {name:'Emballasje', stocked:true, account:'', subs:[{name:'Take-away', stor:'Tørr'},{name:'Folie og film', stor:'Tørr'}]},
   {name:'Rengjøring og hygiene', stocked:true, account:'', subs:[{name:'Vask og rengjøring', stor:'Tørr'},{name:'Papir og hygiene', stor:'Tørr'}]},
@@ -1456,19 +1521,20 @@ const CAT_DEFAULT = [
   {name:'Annet', stocked:true, account:'', subs:[{name:'Annet', stor:'Tørr'}]},
 ];
 const FG = 'Frukt og grønnsaker';
-/** Lagrede kategorier fra før «Frukt og grønnsaker» ble egen hovedkategori: legg den inn etter Mat og ta bort Mat › Grønt. */
+const FG_OLD = ['Grønt', 'Frukt', 'Grønnsaker', 'Salat og urter', 'Poteter og rotgrønnsaker'];
+/** Eldre oppsett: Mat › Grønt (eller en egen hovedkategori «Frukt og grønnsaker») blir Mat › Frukt og grønnsaker. */
 function catsMigrated(c){
-  if (c.some(g => g.name === FG)) return c;
-  const fg = JSON.parse(JSON.stringify(CAT_DEFAULT.find(g => g.name === FG)));
-  const out = c.map(g => g.name === 'Mat' ? {...g, subs: g.subs.filter(x => x.name !== 'Grønt')} : g);
-  const i = out.findIndex(g => g.name === 'Mat'); out.splice(i >= 0 ? i + 1 : 0, 0, fg); return out;
+  let out = c.filter(g => g.name !== FG).map(g => g.name === 'Mat' ? {...g, subs: g.subs.map(x => x.name === 'Grønt' ? {...x, name: FG} : x)} : g);
+  const mat = out.find(g => g.name === 'Mat');
+  if (mat && !mat.subs.some(x => x.name === FG)){ const k = mat.subs.findIndex(x => x.name === 'Kjøtt og fisk'); mat.subs.splice(k >= 0 ? k + 1 : mat.subs.length, 0, {name: FG, stor: 'Kjøl'}); }
+  return out;
 }
 let _catsSrc = null, _catsOut = null;
 const CATS = () => { const c = SET().categories; if (!(Array.isArray(c) && c.length)) return CAT_DEFAULT; if (c !== _catsSrc){ _catsSrc = c; _catsOut = catsMigrated(c); } return _catsOut; };
 const catLabel = (g, c) => g && c && g !== c ? `${g} › ${c}` : (c || g || 'Annet');
 const catOf = it => {
   // Varer lagret som Mat › Grønt (før egen hovedkategori) vises som Frukt og grønnsaker › Grønnsaker
-  if (it.cat === 'Grønt' && (!it.group || it.group === 'Mat') && !CATS().some(g => g.name === (it.group || 'Mat') && g.subs.some(x => x.name === 'Grønt'))) return {group: FG, cat: 'Grønnsaker'};
+  if ((it.group === FG || ((!it.group || it.group === 'Mat') && it.cat === 'Grønt')) && FG_OLD.concat(FG).includes(it.cat || 'Grønt') && !CATS().some(g => g.name === FG)) return {group: 'Mat', cat: FG};
   return {group: it.group || (CATS().find(g => g.subs.some(s => s.name === it.cat)) || {}).name || '', cat: it.cat || 'Annet'};
 };
 const catStocked = g => (CATS().find(x => x.name === g) || {stocked:true}).stocked !== false;
@@ -1482,10 +1548,7 @@ function catOptions(group, cat){
 const splitCat = v => { const [group, cat] = String(v || '').split('|'); return {group: group || '', cat: cat || group || 'Annet'}; };
 const CAT_WORDS = [
   [/meieri|ost\b|melk|fløte|smør|yoghurt|rømme|egg/i, 'Mat', 'Meieri'], [/kjøtt|kylling|svin|storfe|lam|bacon|pølse|fisk|laks|reke|sjømat|torsk/i, 'Mat', 'Kjøtt og fisk'],
-  [/frukt|eple|epler|appelsin|sitron|lime|banan|drue|bær|jordbær|bringebær|blåbær|mango|ananas|pære|melon|kiwi|granateple|clementin|grapefrukt/i, FG, 'Frukt'],
-  [/salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|gressløk|timian|rosmarin|karse/i, FG, 'Salat og urter'],
-  [/potet|gulrot|rotgrønnsak|kålrot|pastinakk|rødbet|selleri(rot)?|søtpotet|jordskokk/i, FG, 'Poteter og rotgrønnsaker'],
-  [/grønt|grønnsak|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|mais\b|erter|bønner|asparges|purre/i, FG, 'Grønnsaker'], [/frys|fryst|frossen|frozen|is\b|iskrem/i, 'Mat', 'Fryst'],
+  [/grønt|grønnsak|frukt|eple|appelsin|sitron|lime|banan|drue|bær|mango|ananas|pære|melon|kiwi|salat|isberg|rucola|spinat|urter|basilikum|persille|koriander|dill|mynte|potet|gulrot|rotgrønnsak|kålrot|rødbet|tomat|løk|agurk|sopp|paprika|brokkoli|blomkål|\bkål\b|squash|aubergine|avokado|chili|ingefær|asparges|purre/i, 'Mat', FG], [/frys|fryst|frossen|frozen|is\b|iskrem/i, 'Mat', 'Fryst'],
   [/brød|bakst|bolle|brioche|bakeri|kake|baguette|surdeig/i, 'Mat', 'Brød og bakst'], [/tørr|mel\b|ris\b|pasta|sukker|krydder|olje|eddik|hermetikk|saus|nøtter|tørrvare/i, 'Mat', 'Tørrvarer'],
   [/øl\b|pils|ipa|cider|lager\b/i, 'Drikke', 'Øl og cider'], [/vin\b|rødvin|hvitvin|musserende|prosecco|champagne/i, 'Drikke', 'Vin'], [/vodka|gin\b|rom\b|whisk|likør|brennevin|tequila|akevitt/i, 'Drikke', 'Brennevin'],
   [/kaffe|espresso|\bte\b|kakao/i, 'Drikke', 'Kaffe og te'], [/drikke|brus|cola|juice|vann\b|mineralvann|energi|red bull|tonic|saft/i, 'Drikke', 'Alkoholfritt'],

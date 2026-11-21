@@ -53,7 +53,7 @@ export default function ApiDocs() {
       <SiteNav links={false} />
       <main className="doc" data-no-translate>
         <h1>Restoq API v1</h1>
-        <p>Med API-et kan skannere, EDI-løsninger og andre systemer registrere leverandørfakturaer og pakksedler i Restoq. Restoq matcher dem automatisk mot bestilling og varemottak. Godkjenning, sending til Tripletex og betaling gjøres av leder i appen.</p>
+        <p>Med API-et kan skannere, EDI-løsninger og andre systemer registrere leverandørfakturaer og pakksedler i Restoq. Restoq matcher dem automatisk mot bestilling og varemottak. Godkjenning, sending til regnskap og betaling gjøres av leder i appen.</p>
 
         <h2>Autentisering</h2>
         <p>Leder lager en API-nøkkel under <b>Innstillinger → API-nøkler</b>. Nøkkelen gjelder for ett utsted og sendes i hver forespørsel:</p>
@@ -84,7 +84,7 @@ export default function ApiDocs() {
             <tr><td><code>amountExVat</code>, <code>vat</code>, <code>amount</code></td><td>Beløp eks. mva, mva og totalt å betale (NOK).</td></tr>
             <tr><td><code>orderId</code></td><td>Restoq-bestillingen. Utelates den, finner Restoq beste treff hos leverandøren rundt fakturadatoen.</td></tr>
             <tr><td><code>lines[]</code></td><td><code>itemNo</code> (leverandørens varenummer), <code>description</code>, <code>qty</code>, <code>unitPrice</code> eks. mva.</td></tr>
-            <tr><td><code>file</code></td><td>Valgfritt vedlegg: <code>{"{"} name, contentBase64 {"}"}</code>. PDF, PNG, JPEG, TIFF eller EHF (XML), maks 10 MB. Kreves for å sende fakturaen til Tripletex.</td></tr>
+            <tr><td><code>file</code></td><td>Valgfritt vedlegg: <code>{"{"} name, contentBase64 {"}"}</code>. PDF, PNG, JPEG, TIFF eller EHF (XML), maks 10 MB. Kreves for å sende fakturaen til regnskapet.</td></tr>
           </tbody>
         </table>
         <p>Svar:</p>
@@ -97,8 +97,8 @@ export default function ApiDocs() {
         <pre>{ex2}</pre>
         <p>Med <code>"receive": true</code> registreres varemottaket på den åpne bestillingen med pakkseddelens antall. Varer som står på bestillingen, men ikke på pakkseddelen, registreres som 0 mottatt.</p>
 
-        <h2>Tripletex</h2>
-        <p>Når leder har koblet Restoq til Tripletex (Innstillinger → Tripletex), sendes godkjente fakturaer til bilagsmottaket i Tripletex for bokføring. Leverandørfakturaer som allerede ligger i Tripletex, for eksempel EHF, hentes inn og matches i stedet for å sendes på nytt. Når fakturaen er bokført i Tripletex, kan den godkjennes og legges til betaling derfra via Restoq. Selve utbetalingen skjer gjennom banken som er koblet til Tripletex.</p>
+        <h2>Regnskap (Tripletex)</h2>
+        <p>Når leder har koblet Restoq til Tripletex (Innstillinger → Regnskap), sendes godkjente fakturaer til bilagsmottaket i Tripletex for bokføring. Leverandørfakturaer som allerede ligger i Tripletex, for eksempel EHF, hentes inn og matches i stedet for å sendes på nytt. Når fakturaen er bokført i Tripletex, kan den godkjennes og legges til betaling derfra via Restoq. Selve utbetalingen skjer gjennom banken som er koblet til Tripletex.</p>
 
         <h2>Feil</h2>
         <table>

@@ -25,7 +25,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
             <span className="eyebrow">Intelligent resource management</span>
             <h1><span>Plan.</span><span>Allocate.</span><span>Execute.</span></h1>
             <p className="tag">One platform. Complete operational control.</p>
-            <p className="lead">Restoq gir barer og restauranter kontroll på hele varestrømmen: hva som står på lager, hvor lenge det holder, hva som bør bestilles – og om fakturaen stemmer med det som faktisk ble levert, før den går til Tripletex.</p>
+            <p className="lead">Restoq gir barer og restauranter kontroll på hele varestrømmen: hva som står på lager, hvor lenge det holder, hva som bør bestilles – og om fakturaen stemmer med det som faktisk ble levert, før den går til regnskapet.</p>
             <div className="ctas"><a className="btn red" href="#kontakt">Book en demo</a><Link className="btn ghost" href="/login">Logg inn</Link></div>
           </div>
           <div className="shot" role="img" aria-label="Skjermbilde av Restoq-appen med kundens egen logo: oversikt over varer som må bestilles, og varer som går tom først">
@@ -62,7 +62,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
             <div className="step"><div className="no">01 · TELL</div><h3>Varetelling</h3><p>Én gang i måneden, hylle for hylle: kjøl, frys, tørr. Store knapper, fungerer på nettbrett og mobil, lagres mens du teller.</p></div>
             <div className="step"><div className="no">02 · PLAN</div><h3>Bestillingsforslag</h3><p>Forslag per leverandør ut fra salg, lager, åpne ordre, holdbarhet og leveringsdager. Juster med + og −, og send.</p></div>
             <div className="step"><div className="no">03 · MOTTA</div><h3>Varemottak</h3><p>Sjekk varene mot bestillingen eller pakkseddelen. Avvik registreres med en gang, og lageret oppdateres.</p></div>
-            <div className="step"><div className="no">04 · KONTROLLER</div><h3>Faktura og betaling</h3><p>Fakturaen matches mot bestilling og mottak. Når den stemmer, godkjennes den og går til Tripletex for bokføring og betaling.</p></div>
+            <div className="step"><div className="no">04 · KONTROLLER</div><h3>Faktura og betaling</h3><p>Fakturaen matches mot bestilling og mottak. Når den stemmer, godkjennes den og går til regnskapet for bokføring og betaling.</p></div>
           </div>
         </div>
       </section>
@@ -77,7 +77,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
             <div className="card"><Ico d={I.check} /><h3>Månedlig telling</h3><p>Tellingen viser faktisk forbruk per 100 000 kr i salg, og forslagene blir mer presise for hver måned.</p></div>
             <div className="card"><Ico d={I.bin} /><h3>Svinn</h3><p>Registrer det som kastes på sekunder. Se hva utgått og skadet vare koster, og få varsel før noe går ut på dato.</p></div>
             <div className="card"><Ico d={I.doc} /><h3>Fakturakontroll</h3><p>Trevei-matching av bestilling, pakkseddel og faktura. Pris- og mengdeavvik vises før noen godkjenner.</p></div>
-            <div className="card"><Ico d={I.plug} /><h3>Tripletex og API</h3><p>Godkjente fakturaer går rett til bilagsmottaket i Tripletex. Åpent API for skannere, EDI og andre systemer.</p></div>
+            <div className="card"><Ico d={I.plug} /><h3>Regnskap og API</h3><p>Godkjente fakturaer går rett til bilagsmottaket i regnskapssystemet (i dag Tripletex). Åpent API for skannere, EDI og andre systemer.</p></div>
             <div className="card"><Ico d={I.users} /><h3>Roller og tilgang</h3><p>Ansatte teller, bestiller og tar imot. Ledere styrer oppsett, godkjenner fakturaer og administrerer brukere.</p></div>
           </div>
         </div>
@@ -97,13 +97,13 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
 
       <section id="faktura" className="dark">
         <div className="wrap">
-          <div className="sec-head"><span className="eyebrow">Faktura og regnskap</span><h2>Ingen faktura betales før den stemmer</h2><p>Fakturaer og pakksedler registreres i appen, via API eller hentes fra Tripletex (også EHF). Restoq matcher dem mot bestilling og varemottak, og leder godkjenner med ett trykk.</p></div>
+          <div className="sec-head"><span className="eyebrow">Faktura og regnskap</span><h2>Ingen faktura betales før den stemmer</h2><p>Fakturaer og pakksedler registreres i appen, via API eller hentes fra regnskapssystemet (også EHF). Restoq matcher dem mot bestilling og varemottak, og leder godkjenner med ett trykk.</p></div>
           <div className="flow">
             <div className="node"><b>Bestilling</b><span>Antall og avtalt pris per vare</span></div><span className="arr">→</span>
             <div className="node"><b>Pakkseddel og mottak</b><span>Hva som faktisk kom</span></div><span className="arr">→</span>
             <div className="node"><b>Faktura</b><span>Mengde og pris kontrolleres automatisk</span></div><span className="arr">→</span>
             <div className="node"><b>Godkjenning</b><span>Avvik må kommenteres</span></div><span className="arr">→</span>
-            <div className="node"><b>Tripletex</b><span>Bilagsmottak, bokføring og betaling</span></div>
+            <div className="node"><b>Regnskap</b><span>Bilagsmottak, bokføring og betaling</span></div>
           </div>
           <div className="grid3" style={{ marginTop: 24 }}>
             <div className="card"><h3>Mengdeavvik</h3><p>Fakturert mer enn mottatt, varer som ikke ble bestilt, eller varer som mangler på fakturaen.</p></div>
@@ -134,8 +134,8 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ t
           </div>
           <div>
             <details className="faq"><summary>Hvor lang tid tar det å komme i gang?</summary><p>Vi importerer varelisten fra leverandørfakturaene deres og legger inn leverandørene med leveringsdager. Deretter gjør dere første varetelling – da er forslagene i gang.</p></details>
-            <details className="faq"><summary>Må vi bruke Tripletex?</summary><p>Nei. Lager, bestilling, telling og svinn fungerer uten regnskapssystem. Tripletex-koblingen brukes for å sende godkjente fakturaer videre til bokføring og betaling.</p></details>
-            <details className="faq"><summary>Fungerer det med EHF-fakturaer som allerede kommer til Tripletex?</summary><p>Ja. Restoq henter leverandørfakturaene fra Tripletex og matcher dem mot bestilling og varemottak, så de ikke registreres to ganger.</p></details>
+            <details className="faq"><summary>Må vi koble til regnskapssystemet?</summary><p>Nei. Lager, bestilling, telling og svinn fungerer uten regnskapssystem. Koblingen til regnskap (i dag Tripletex) brukes for å sende godkjente fakturaer videre til bokføring og betaling.</p></details>
+            <details className="faq"><summary>Fungerer det med EHF-fakturaer som allerede kommer til regnskapet?</summary><p>Ja. Restoq henter leverandørfakturaene fra regnskapssystemet og matcher dem mot bestilling og varemottak, så de ikke registreres to ganger.</p></details>
             <details className="faq"><summary>Hvilke enheter kan de ansatte bruke?</summary><p>Restoq kjører i nettleseren på nettbrett, mobil og PC. Ingen installasjon.</p></details>
             <details className="faq"><summary>Hvor lagres dataene?</summary><p>På servere i EU. Hver kunde har sine egne data, og bare innloggede brukere med tilgang til stedet ser dem.</p></details>
             <details className="faq"><summary>Hva koster det?</summary><p>Prisen avhenger av antall utsalgssteder og hvilke moduler dere bruker. Ta kontakt, så setter vi opp en demo.</p></details>
