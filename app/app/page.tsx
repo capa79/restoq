@@ -9,6 +9,9 @@ export const metadata = { title: "Restoq", robots: { index: false } };
 export const dynamic = "force-dynamic";
 
 // Selve appen er et klientskript (public/restoq-app.js) som henter og lagrer data via /api/data.
+// Versjon på klientfilene, så nettleseren henter ny kode etter hver utrulling
+const ASSET_V = (process.env.RENDER_GIT_COMMIT ?? String(Date.now())).slice(0, 10);
+
 export default async function AppPage() {
   const me = await requireUser();
   const lang = await getUiLang();
@@ -20,7 +23,7 @@ export default async function AppPage() {
   const boot = JSON.stringify({ name: me.name, email: me.email, role: me.role, org: me.org_name, dev: me.is_developer, version: (process.env.RENDER_GIT_COMMIT ?? "").slice(0, 7) }).replace(/</g, "\\u003c");
   return (
     <>
-      <link rel="stylesheet" href="/restoq-app.css" precedence="default" />
+      <link rel="stylesheet" href={`/restoq-app.css?v=${ASSET_V}`} precedence="default" />
       <div className="app">
         <header className="top">
           <a href="#oversikt" className="homelink" id="hHome" title="Til oversikten" aria-label="Til oversikten">
@@ -43,7 +46,7 @@ export default async function AppPage() {
       </div>
       <div id="layer" />
       <script id="boot" type="application/json" dangerouslySetInnerHTML={{ __html: boot }} />
-      <Script src="/restoq-app.js" strategy="afterInteractive" />
+      <Script src={`/restoq-app.js?v=${ASSET_V}`} strategy="afterInteractive" />
     </>
   );
 }
