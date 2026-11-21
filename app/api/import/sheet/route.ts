@@ -1,5 +1,7 @@
 import ExcelJS from "exceljs";
 import { apiUser, json } from "@/lib/api-auth";
+import { logError } from "@/lib/error-log";
+import { readXlsxLite, SheetFormatError } from "@/lib/xlsx-lite";
 
 // Leser første ark i en Excel-fil (.xlsx) og returnerer radene som tekst. Brukes av «Kom i gang» og vareimport.
 export async function POST(req: Request) {
@@ -10,7 +12,8 @@ export async function POST(req: Request) {
   if (!f || typeof f === "string") return json({ error: "Ingen fil." }, 400);
   if (f.size > 5 * 1024 * 1024) return json({ error: "Filen er større enn 5 MB." }, 413);
   const buf = Buffer.from(await f.arrayBuffer());
-  if (buf.subarray(0, 2).toString("latin1") !== "PK") return json({ error: "Bare Excel-filer (.xlsx) kan leses her. Gamle .xls-filer må lagres som .xlsx eller CSV." }, 400);
+  if (buf.subarray(0, 4).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0]))) return json({ error: "Dette er en gammel Excel-fil (.xls). Åpne den i Excel og velg Lagre som → Excel-arbeidsbok (.xlsx), eller lagre som CSV, og last opp på nytt." }, 400);
+  if (buf.subarray(0, 2).toString("latin1") !== "PK") return json({ error: "Bare Excel-filer (.xlsx) og CSV kan leses her." }, 400);
   try {
     const wb = new ExcelJS.Workbook();
     await wb.xlsx.load(buf as unknown as ArrayBuffer);
@@ -34,8 +37,18 @@ export async function POST(req: Request) {
       });
       return { name: ws.name, rows: rows.filter((r) => r.some((x) => x)) };
     }).filter((s) => s.rows.length);
+    if (sheets.length) return json({ sheets: sheets.slice(0, 10) });
+  } catch (e) {
+    // exceljs klarer ikke alle filer (bilder, pivottabeller, filer fra andre programmer) – prøv den enkle leseren
+    await logError({ source: "server", message: `exceljs: ${(e as Error)?.message ?? e} (${f.name})`, path: "/api/import/sheet", orgId: u.org_id, userId: u.id }).catch(() => {});
+  }
+  try {
+    const sheets = await readXlsxLite(buf);
+    if (!sheets.length) return json({ error: "Fant ingen rader med innhold i Excel-filen." }, 400);
     return json({ sheets: sheets.slice(0, 10) });
-  } catch {
-    return json({ error: "Kunne ikke lese Excel-filen." }, 400);
+  } catch (e) {
+    if (e instanceof SheetFormatError) return json({ error: e.message }, 400);
+    await logError({ source: "server", message: `xlsx-lite: ${(e as Error)?.message ?? e} (${f.name})`, path: "/api/import/sheet", orgId: u.org_id, userId: u.id }).catch(() => {});
+    return json({ error: "Kunne ikke lese Excel-filen. Prøv å lagre den på nytt som .xlsx eller CSV." }, 400);
   }
 }

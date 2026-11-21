@@ -832,7 +832,7 @@ function parseCsv(text){
 function normStore(s){ s = (s||'').toLowerCase(); if (/frys|frozen/.test(s)) return 'Frys'; if (/kjøl|kjol|fersk|chill/.test(s)) return 'Kjøl'; if (/rom|ambient/.test(s)) return 'Romtemp.'; return 'Tørr'; }
 function importItemsModal(){
   modal(`<h3>Importer varer</h3><div class="small muted">Bruk Excel-malen, eller en Excel- eller CSV-fil med kolonnenavn i første rad. Kolonner: <b>Leverandør, Varenr, Navn</b> (påkrevd), Enhet, Pris, Lager (kjøl/frys/tørr/romtemp), Kategori, Pakning, Holdbarhet, Forbruk per uke. Finnes varen fra før (samme leverandør og varenr), oppdateres den.</div>
-    <div class="row"><label class="btn primary" style="cursor:pointer">Velg fil<input type="file" id="impFile" accept=".xlsx,.csv,.txt,text/csv" class="hide"></label><a class="btn" href="/restoq-varemal.xlsx" download>Last ned mal (Excel)</a></div><div id="impRes"></div>
+    <div class="row"><label class="btn primary" style="cursor:pointer">Velg fil<input type="file" id="impFile" accept=".xlsx,.xlsm,.xls,.ods,.numbers,.csv,.txt,text/csv" class="hide"></label><a class="btn" href="/restoq-varemal.xlsx" download>Last ned mal (Excel)</a></div><div id="impRes"></div>
     <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary hide" id="impOk">Importer</button></div>`, m => {
     let parsed = [];
     m.querySelector('#impFile').onchange = async e => { const f = e.target.files[0]; if (!f) return; let rows; try { const sh = await readSheetFile(f); rows = (sh.find(s => s.name === 'Varer') || sh[0] || {rows:[]}).rows; } catch(err){ m.querySelector('#impRes').innerHTML = `<div class="note bad">${esc(err.message)}</div>`; return; } const g0 = wzGuess(rows); rows = rows.slice(g0.headRow); if (rows.length < 2){ m.querySelector('#impRes').innerHTML = '<div class="note bad">Fant ingen rader.</div>'; return; }
@@ -860,7 +860,7 @@ const WZ_FIELDS = [['', '– ikke bruk –'], ['sup','Leverandør'], ['no','Vare
 let WZ = null;
 function wzReset(){ WZ_EDITS = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: ''}; }
 async function readSheetFile(f){
-  if (/\.xlsx$/i.test(f.name)){
+  if (/\.(xlsx|xlsm|xls|ods|numbers)$/i.test(f.name) || /spreadsheet|excel/i.test(f.type)){
     const fd = new FormData(); fd.append('file', f);
     const res = await fetch('/api/import/sheet', {method:'POST', body:fd, credentials:'same-origin'}); const j = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(j.error || 'Kunne ikke lese filen.');
@@ -965,7 +965,7 @@ function vKomigang(){
     const s = WZ.sheet;
     h += `<div class="grid g2" style="align-items:start">
       <div class="card grid" style="gap:10px"><h3>Vareliste eller lagerliste</h3><div class="small muted">Excel (.xlsx) eller CSV med én vare per rad. Har lista antall på lager, kan de brukes som første telling i neste steg. <a href="/restoq-varemal.xlsx" download>Last ned Excel-mal</a></div>
-        <div class="row"><label class="btn ${s ? '' : 'primary'}" style="cursor:pointer">📄 Velg fil<input type="file" id="wzSheet" accept=".xlsx,.csv,.txt" class="hide"></label><span class="small muted" translate="no">${s ? esc(s.file) : ''}</span>${s ? '<button class="btn sm" id="wzSheetDel">Fjern</button>' : ''}</div>
+        <div class="row"><label class="btn ${s ? '' : 'primary'}" style="cursor:pointer">📄 Velg fil<input type="file" id="wzSheet" accept=".xlsx,.xlsm,.xls,.ods,.numbers,.csv,.txt" class="hide"></label><span class="small muted" translate="no">${s ? esc(s.file) : ''}</span>${s ? '<button class="btn sm" id="wzSheetDel">Fjern</button>' : ''}</div>
         ${s ? `${s.sheets.length > 1 ? `<label class="f">Ark<select id="wzSheetIdx">${s.sheets.map((x, i) => `<option value="${i}" ${i === s.idx ? 'selected' : ''} translate="no">${esc(x.name)}</option>`).join('')}</select></label>` : ''}
           <div class="small" style="font-weight:600">Kolonner (sjekk at de stemmer)</div>
           <div class="wzmap">${(s.sheets[s.idx].rows[s.headRow] || []).map((hd, i) => `<label class="f"><span translate="no">${esc(hd || 'Kolonne ' + (i+1))}</span><select data-wzcol="${i}">${WZ_FIELDS.map(([k, l]) => `<option value="${k}" ${String(Object.keys(WZ.map).find(f => WZ.map[f] === i) || '') === k ? 'selected' : ''}>${esc(l)}</option>`).join('')}</select></label>`).join('')}</div>
