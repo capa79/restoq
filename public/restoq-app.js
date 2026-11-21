@@ -350,7 +350,7 @@ const saveDraft = () => { try { localStorage.setItem('ac-dispo-draft', JSON.stri
 let C = null; // siste beregning
 function render(){
   const sync = $('#sync');
-  const m = {connecting:['','Kobler til …'], shared:['ok', MODE_API ? 'Lagret' : 'Delt · lagres for alle'], local:['local','Lagres kun på denne enheten'], slow:['local','Venter på nett …'], error:['local', MODE_API ? 'Ingen kontakt med serveren' : 'Mistet forbindelsen']}[S.mode] || ['',''];
+  const m = {connecting:['','Kobler til …'], shared:['ok', MODE_API ? 'Koblet til server' : 'Delt · lagres for alle'], local:['local','Lagres kun på denne enheten'], slow:['local','Venter på nett …'], error:['local', MODE_API ? 'Ingen kontakt med serveren' : 'Mistet forbindelsen']}[S.mode] || ['',''];
   sync.className = 'sync ' + m[0]; sync.lastElementChild.textContent = m[1] + (S.canWrite ? '' : ' · kun lesing');
   applyBrand();
   if (!S.ready){ $('#view').innerHTML = '<div class="empty">Laster lagerdata …</div>'; renderTabs(0); return; }
