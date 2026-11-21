@@ -37,7 +37,7 @@ services:
       - key: TRIPLETEX_CONSUMER_TOKEN
         sync: false
       - key: TRIPLETEX_ENV
-        value: test # «prod» når integrasjonen er godkjent for produksjon
+        value: prod # prod: API-token (JWT) fra vanlige Tripletex virker bare mot produksjon
       - key: TRIPLETEX_PAYMENT_TYPE
         sync: false # valgfri, betalingstype for :addPayment (se README)
       # Valgfri: automatisk oversettelse av manglende tekster (Utvikler → Oversettelser)
