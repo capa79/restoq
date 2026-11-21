@@ -41,8 +41,8 @@ export async function loadDocs(orgId: number): Promise<Docs> {
   const { rows } = await p.query("SELECT col, id, data FROM docs WHERE org_id = $1 AND col IN ('orders','slips','config')", [orgId]);
   const out: Docs = { orders: [], slips: [], items: {}, suppliers: {} };
   for (const r of rows) {
-    if (r.col === "orders") out.orders.push({ ...r.data, id: r.id });
-    else if (r.col === "slips") out.slips.push({ ...r.data, id: r.id });
+    if (r.col === "orders") out.orders.push({ ...r.data, lines: Array.isArray(r.data?.lines) ? r.data.lines : [], id: r.id });
+    else if (r.col === "slips") out.slips.push({ ...r.data, lines: Array.isArray(r.data?.lines) ? r.data.lines : [], id: r.id });
     else if (r.col === "config" && r.id === "items") for (const [k, v] of Object.entries((r.data.ov ?? {}) as Record<string, never>)) out.items[k] = v;
     else if (r.col === "config" && r.id === "settings") out.suppliers = r.data.suppliers ?? {};
   }
@@ -76,8 +76,9 @@ const normTxt = (s: string) => String(s || "").toUpperCase().replace(/[0-9.,%]+/
 
 export function matchInvoice(inv: Invoice, d: Docs): Match {
   const isCharge = (l: Line) => FEE_RE.test(l.description || "") && !(l.itemId || d.items[itemIdFor(inv.supplier, l.itemNo)]);
-  const chargeLines = inv.lines.filter(isCharge);
-  const lines = inv.lines.filter((l) => !isCharge(l)).map((l) => ({ ...l, itemId: l.itemId || itemIdFor(inv.supplier, l.itemNo) }));
+  const invLines = Array.isArray(inv.lines) ? inv.lines : [];
+  const chargeLines = invLines.filter(isCharge);
+  const lines = invLines.filter((l) => !isCharge(l)).map((l) => ({ ...l, itemId: l.itemId || itemIdFor(inv.supplier, l.itemNo) }));
   const order = findOrder(d, inv.supplier, inv.orderId, inv.invoiceDate, lines.map((l) => l.itemId!));
   const slip = inv.slipId ? d.slips.find((s) => s.id === inv.slipId) : order ? d.slips.find((s) => s.orderId === order.id) : undefined;
   const issues: string[] = [];

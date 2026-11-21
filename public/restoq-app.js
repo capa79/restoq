@@ -149,7 +149,7 @@ async function apiLoad(first){
   const pdI = (S.integrations || {}).planday;
   if (!plandayAutoTried && pdI && pdI.connected && (!pdI.lastSync || Date.now() - new Date(pdI.lastSync) > 12 * 36e5)){ plandayAutoTried = true; api('POST', '/api/planday/sync', {}).then(() => apiLoad(false)).catch(() => {}); }
   // Ikke tegn siden på nytt midt i skriving, i en dialog eller i innstillingene
-  const ae = document.activeElement; const busy = !first && ((ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) || $('#layer').innerHTML || view === 'oppsett' || countDirty || countSaving);
+  const ae = document.activeElement; const busy = !first && ((ae && /INPUT|TEXTAREA|SELECT/.test(ae.tagName)) || LAYER().innerHTML || view === 'oppsett' || countDirty || countSaving);
   if (!busy) render(); else renderTabs(C ? C.items.filter(r => r.status === 'bestill').length : 0);
 }
 async function connect(){
@@ -655,7 +655,7 @@ function finishCount(draft, prev, items){
   const sum = countSummary(L, items, countWork.date);
   // foreslå matsalg fra ukesalget i innstillingene
   let suggested = '';
-  if (prev){ const ws = SET().weeks.filter(w => w.from >= prev.date && addDays(w.from, 6) <= countWork.date); if (ws.length) suggested = Math.round(ws.reduce((s,w)=>s+w.sales,0)); }
+  if (prev){ const ws = (SET().weeks || []).filter(w => w.from >= prev.date && addDays(w.from, 6) <= countWork.date); if (ws.length) suggested = Math.round(ws.reduce((s,w)=>s+w.sales,0)); }
   const meName = (S.me && (S.me.name || S.me.email)) || '';
   modal(`<h3>Fullfør og signer telling ${fmtDL(countWork.date)}</h3>
     <div>${n} av ${items.length} varer er talt.${n < items.length ? ' Varer uten tall regnes som «føres ikke» og får status «Tell».' : ''}</div>
@@ -2373,9 +2373,11 @@ function itemsFromInvoiceModal(){
   });
 }
 
-function modal(html, bind){ $('#layer').innerHTML = `<div class="modal-bg" id="mbg"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`; const m = $('#layer .modal'); m.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal); $('#mbg').onclick = e => { if (e.target.id === 'mbg') closeModal(); }; bind && bind(m); const f = m.querySelector('input,button.primary'); f && f.focus(); }
-function closeModal(){ $('#layer').innerHTML = ''; }
-function drawer(html, bind){ $('#layer').innerHTML = `<div class="drawer-bg" id="dbg"><div class="drawer" role="dialog" aria-modal="true">${html}</div></div>`; const d = $('#layer .drawer'); d.querySelectorAll('[data-close]').forEach(b => b.onclick = closeLayer); $('#dbg').onclick = e => { if (e.target.id === 'dbg') closeLayer(); }; bind && bind(d); }
+/** Laget for dialoger og skuffer. Lages på nytt hvis det mangler (f.eks. fjernet av en nettleserutvidelse eller oversettelse). */
+function LAYER(){ let l = document.getElementById('layer'); if (!l){ l = document.createElement('div'); l.id = 'layer'; document.body.appendChild(l); } return l; }
+function modal(html, bind){ LAYER().innerHTML = `<div class="modal-bg" id="mbg"><div class="modal" role="dialog" aria-modal="true">${html}</div></div>`; const m = LAYER().querySelector('.modal'); m.querySelectorAll('[data-close]').forEach(b => b.onclick = closeModal); $('#mbg').onclick = e => { if (e.target.id === 'mbg') closeModal(); }; bind && bind(m); const f = m.querySelector('input,button.primary'); f && f.focus(); }
+function closeModal(){ LAYER().innerHTML = ''; }
+function drawer(html, bind){ LAYER().innerHTML = `<div class="drawer-bg" id="dbg"><div class="drawer" role="dialog" aria-modal="true">${html}</div></div>`; const d = LAYER().querySelector('.drawer'); d.querySelectorAll('[data-close]').forEach(b => b.onclick = closeLayer); $('#dbg').onclick = e => { if (e.target.id === 'dbg') closeLayer(); }; bind && bind(d); }
 const closeLayer = closeModal;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') closeModal(); });
 function confirmBox(title, text, okLabel, fn){ modal(`<h3>${esc(title)}</h3><div>${esc(text)}</div><div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="cfOk">${esc(okLabel)}</button></div>`, m => { m.querySelector('#cfOk').onclick = async () => { const b = m.querySelector('#cfOk'); b.disabled = true; try { await fn(); } catch(e){} closeModal(); }; }); }
