@@ -113,7 +113,7 @@ function handleWriteErr(e){
 }
 function applyDocs(d){
   S.waste = d.waste || []; S.orders = d.orders || []; S.counts = d.counts || []; S.invoices = d.invoices || []; S.slips = d.slips || [];
-  (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; if (id === 'ttxinbox') S.ttxinbox = data; });
+  (d.config || []).forEach(c => { const {id, ...data} = c; if (id === 'settings') S.settings = data; if (id === 'items') S.itemcfg = data; if (id === 'brand') S.brand = data; if (id === 'planday') S.planday = data; if (id === 'ttxinbox') S.ttxinbox = data; if (id === 'accounting') S.accounting = data; });
 }
 /* ---- Koblinger til andre systemer: grønt lys når de er koblet til ---- */
 function integrationList(){
@@ -1414,7 +1414,7 @@ async function wzRun(){
     }
     let invs = 0;
     if (WZ.regInvoices) for (const v of WZ.invoices.filter(v => v.inv && !v.dup && v.supCode && SET().suppliers[v.supCode])){
-      try { await api('POST', '/api/invoices', {supplier:v.supCode, invoiceNo:v.inv.invoiceNo, kid:v.inv.kid, invoiceDate:v.inv.invoiceDate || C.today, dueDate:v.inv.dueDate || null, orderId:null, amountExVat:v.inv.amountExVat, vat:v.inv.vat, amount:v.inv.amount, fileId:v.fileId, lines:v.inv.lines.map(l => ({itemNo:l.itemNo, description:l.description, qty:l.qty ?? 0, unitPrice:l.unitPrice}))}); invs++; } catch(e){ toast(`${v.name}: ${e.message || 'kunne ikke registreres'}`); }
+      try { await api('POST', '/api/invoices', {supplier:v.supCode, invoiceNo:v.inv.invoiceNo, kid:v.inv.kid, invoiceDate:v.inv.invoiceDate || C.today, dueDate:v.inv.dueDate || null, orderId:null, amountExVat:v.inv.amountExVat, vat:v.inv.vat, amount:v.inv.amount, fileId:v.fileId, lines:v.inv.lines.map(l => ({itemNo:l.itemNo, description:l.description, qty:l.qty ?? 0, unitPrice:l.unitPrice, total:l.lineTotal ?? undefined, vat:l.vatRate ?? undefined}))}); invs++; } catch(e){ toast(`${v.name}: ${e.message || 'kunne ikke registreres'}`); }
     }
     const s2 = JSON.parse(JSON.stringify(SET())); s2.onboarded = C.today;
     // gebyrer og frakt legges på leverandørene
@@ -1489,7 +1489,7 @@ function vFaktura(){
   const cnt = s => S.invoices.filter(i => i.status === s).length;
   const sumOpen = S.invoices.filter(i => ['kontroll','avvik','matchet','godkjent'].includes(i.status)).reduce((s,i) => s + (i.amount || i.amountExVat || 0), 0);
   let h = `<div class="row between"><div><h2>Fakturaer og pakksedler</h2><div class="muted">Fakturaen kontrolleres mot bestilling og varemottak før den godkjennes, sendes til regnskap for bokføring og legges til betaling.</div></div>
-    <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxInbox" title="Henter nye leverandørfakturaer fra bilagsmottaket i regnskapet">Hent fra bilagsmottak</button><button class="btn" id="ttxSync">Hent fra regnskap</button>' : ''}</div></div>`;
+    <div class="row"><button class="btn" id="slipNew" ${ro()}>+ Pakkseddel</button><button class="btn primary" id="invNew" ${ro()}>+ Registrer faktura</button>${S.canManage ? '<button class="btn" id="ttxInbox" title="Henter nye leverandørfakturaer fra bilagsmottaket i regnskapet">Hent fra bilagsmottak</button><button class="btn" id="ttxSync">Hent fra regnskap</button>' : ''}${S.canManage && S.integrations?.accounting?.connected && ACC().accounts.length ? (n => `<button class="btn primary" id="batchPost" ${n ? '' : 'disabled'}>Kontér og send (${n})</button>`)(S.invoices.filter(i => canPost(i) && !(i.ttx || {}).posting).length) : ''}</div></div>`;
   h += `<div class="grid g4"><button class="tile blue" data-fs="kontroll"><span class="lbl">Til kontroll</span><span class="big">${cnt('kontroll')}</span><span class="small muted">mangler bestilling</span></button>
     <button class="tile red" data-fs="avvik"><span class="lbl">Avvik</span><span class="big">${cnt('avvik')}</span><span class="small muted">mengde eller pris stemmer ikke</span></button>
     <button class="tile green" data-fs="matchet"><span class="lbl">Klar til godkjenning</span><span class="big">${cnt('matchet')}</span><span class="small muted">stemmer med varemottak</span></button>
@@ -1502,6 +1502,7 @@ function vFaktura(){
   document.querySelectorAll('[data-fs]').forEach(b => b.onclick = () => { UI.fStatus = b.dataset.fs; render(); });
   document.querySelectorAll('[data-inv]').forEach(r => r.onclick = () => invoiceDrawer(r.dataset.inv));
   $('#invNew').onclick = () => invoiceModal();
+  const bp = $('#batchPost'); if (bp) bp.onclick = batchPostModal;
   $('#slipNew').onclick = () => slipModal();
   const ib = $('#ttxInbox'); if (ib) ib.onclick = async () => { ib.disabled = true; ib.textContent = 'Henter …'; try { const r = await api('POST', '/api/tripletex/inbox', {force: true}); await apiLoad(true); toast(inboxSummary(r)); } catch(e){ toast(e.message || 'Kunne ikke hente fra bilagsmottaket.'); ib.disabled = false; ib.textContent = 'Hent fra bilagsmottak'; } };
   const sy = $('#ttxSync'); if (sy) sy.onclick = async () => { sy.disabled = true; try { const r = await api('POST', '/api/tripletex/sync', {}); toast(`Hentet ${r.fetched} fra regnskap: ${r.created} nye, ${r.linked} koblet${r.unknown?`, ${r.unknown} med ukjent leverandør`:''}.`); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke hente.'); } sy.disabled = false; };
@@ -1515,14 +1516,14 @@ async function uploadFile(input){
 }
 function orderOptions(sup, sel){ return `<option value="">Finn automatisk</option>` + S.orders.filter(o => o.sup === sup && o.status !== 'kansellert').sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||'')).slice(0,30).map(o => `<option value="${esc(o.id)}" ${o.id===sel?'selected':''}>${fmtDL(o.deliveryDate)} · ${o.lines.length} varer · ${kr(o.total)} · ${o.status}</option>`).join(''); }
 function lineEditor(lines){ return `<div class="tblwrap"><table id="lnTbl"><thead><tr><th>Varenr</th><th>Beskrivelse</th><th class="n">Antall</th><th class="n">Pris eks. mva</th><th></th></tr></thead><tbody>${lines.map(l => lineRow(l)).join('')}</tbody></table></div><div class="row"><button class="btn sm" id="lnAdd">+ Linje</button><button class="btn sm" id="lnFromOrder">Kopier linjer fra varemottaket</button></div>`; }
-const lineRow = l => `<tr><td><input type="text" class="ln-no" value="${esc(l.itemNo||'')}" style="min-width:90px"></td><td><input type="text" class="ln-desc" value="${esc(l.description||'')}" style="min-width:160px"></td><td><input type="text" inputmode="decimal" class="ln-qty" value="${l.qty!=null?String(l.qty).replace('.',','):''}" style="width:80px;text-align:right"></td><td><input type="text" inputmode="decimal" class="ln-price" value="${l.unitPrice!=null?String(l.unitPrice).replace('.',','):''}" style="width:100px;text-align:right"></td><td><button class="btn sm danger ln-del" aria-label="Fjern linje">×</button></td></tr>`;
+const lineRow = l => `<tr${l.vat != null ? ` data-vat="${+l.vat}"` : ''}><td><input type="text" class="ln-no" value="${esc(l.itemNo||'')}" style="min-width:90px"></td><td><input type="text" class="ln-desc" value="${esc(l.description||'')}" style="min-width:160px"></td><td><input type="text" inputmode="decimal" class="ln-qty" value="${l.qty!=null?String(l.qty).replace('.',','):''}" style="width:80px;text-align:right"></td><td><input type="text" inputmode="decimal" class="ln-price" value="${l.unitPrice!=null?String(l.unitPrice).replace('.',','):''}" style="width:100px;text-align:right"></td><td><button class="btn sm danger ln-del" aria-label="Fjern linje">×</button></td></tr>`;
 function bindLines(m, getSup, getOrder){
   const tb = () => m.querySelector('#lnTbl tbody');
   const bindDel = () => m.querySelectorAll('.ln-del').forEach(b => b.onclick = () => b.closest('tr').remove());
   m.querySelector('#lnAdd').onclick = () => { tb().insertAdjacentHTML('beforeend', lineRow({})); bindDel(); };
   m.querySelector('#lnFromOrder').onclick = () => { const items = Object.fromEntries(getItems().map(i => [i.id, i])); let o = S.orders.find(x => x.id === getOrder()); if (!o) o = S.orders.filter(x => x.sup === getSup() && x.status === 'mottatt').sort((a,b) => (b.deliveryDate||'').localeCompare(a.deliveryDate||''))[0]; if (!o){ toast('Fant ingen mottatt bestilling for leverandøren.'); return; } tb().innerHTML = o.lines.map(l => { const it = items[l.id] || {}; return lineRow({itemNo: it.no || l.id.split('-').slice(1).join('-'), description: it.name, qty: l.recv != null ? l.recv : l.qty, unitPrice: l.price ?? it.price}); }).join(''); bindDel(); };
   bindDel();
-  return () => [...m.querySelectorAll('#lnTbl tbody tr')].map(tr => ({itemNo: tr.querySelector('.ln-no').value.trim(), description: tr.querySelector('.ln-desc').value.trim(), qty: num(tr.querySelector('.ln-qty').value) ?? 0, unitPrice: num(tr.querySelector('.ln-price').value)})).filter(l => l.itemNo || l.description);
+  return () => [...m.querySelectorAll('#lnTbl tbody tr')].map(tr => ({itemNo: tr.querySelector('.ln-no').value.trim(), description: tr.querySelector('.ln-desc').value.trim(), qty: num(tr.querySelector('.ln-qty').value) ?? 0, unitPrice: num(tr.querySelector('.ln-price').value), ...(tr.dataset.vat != null ? {vat: +tr.dataset.vat} : {})})).filter(l => l.itemNo || l.description);
 }
 function invoiceModal(){
   const sups = Object.keys(SET().suppliers);
@@ -1552,7 +1553,7 @@ function invoiceModal(){
         if (found){ m.querySelector('#ivSup').value = found; fillOrders(); }
         const put = (s, v) => { if (v != null && v !== '') m.querySelector(s).value = typeof v === 'number' ? String(v).replace('.',',') : v; };
         put('#ivNo', inv.invoiceNo); put('#ivKid', inv.kid); put('#ivDate', inv.invoiceDate); put('#ivDue', inv.dueDate); put('#ivEx', inv.amountExVat); put('#ivVat', inv.vat); put('#ivTot', inv.amount);
-        if (inv.lines.length){ m.querySelector('#lnTbl tbody').innerHTML = inv.lines.map(l => lineRow({itemNo:l.itemNo, description:l.description, qty:l.qty, unitPrice:l.unitPrice})).join(''); m.querySelectorAll('.ln-del').forEach(b => b.onclick = () => b.closest('tr').remove()); m.querySelector('details').open = true; }
+        if (inv.lines.length){ m.querySelector('#lnTbl tbody').innerHTML = inv.lines.map(l => lineRow({itemNo:l.itemNo, description:l.description, qty:l.qty, unitPrice:l.unitPrice, vat:l.vatRate})).join(''); m.querySelectorAll('.ln-del').forEach(b => b.onclick = () => b.closest('tr').remove()); m.querySelector('details').open = true; }
         res.innerHTML = `<div class="note good small">Lest: ${inv.lines.length} linjer. Sjekk feltene før du registrerer.</div>${inv.warnings?.length ? `<div class="note warn small">${inv.warnings.map(esc).join('<br>')}</div>` : ''}<div class="supcheck">${supplierCheckHtml(inv, found)}</div>`;
         applySup = bindSupplierCheck(res.querySelector('.supcheck'), inv, c => { const sel = m.querySelector('#ivSup'); sel.insertAdjacentHTML('beforeend', `<option translate="no" value="${esc(c)}">${esc(c)} – ${esc(SET().suppliers[c].name)}</option>`); sel.value = c; fillOrders(); }, () => m.querySelector('#ivSup').focus());
       } catch(err){ res.innerHTML = `<div class="note bad small">${esc(err.message || 'Kunne ikke lese fakturaen.')}</div>`; }
@@ -1604,6 +1605,7 @@ function invoiceDrawer(id){
     ${m.issues && m.issues.length ? `<div class="note bad"><div><b>Avvik</b><ul style="margin:6px 0 0;padding-left:18px">${m.issues.map(x => `<li>${esc(x)}</li>`).join('')}</ul></div></div>` : m.orderId ? '<div class="note good">Fakturaen stemmer med bestilling og varemottak.</div>' : ''}
     ${m.lines && m.lines.length ? `<div class="card flush"><div class="tblwrap"><table><thead><tr><th>Vare</th><th class="n">Bestilt</th><th class="n">Mottatt</th><th class="n">Fakturert</th><th class="n">Pris</th></tr></thead><tbody>${m.lines.map(l => `<tr style="${l.flags.length?'background:var(--red-bg)':''}"><td><div class="iname">${esc(l.name)}</div><div class="isub">${l.charge ? '<span class="chgtag">Gebyr / frakt</span> ' : ''}${esc(l.itemNo)}${l.flags.length?' · <b style="color:var(--red)">'+esc(l.flags.join(' · '))+'</b>':''}${l.charge && l.flags.some(f => /Nytt gebyr/.test(f)) && S.canManage ? ` <button class="linkbtn small" data-addcharge="${esc(l.name)}" data-amt="${l.amount ?? ''}">Legg til på leverandøren</button>` : ''}</div></td><td class="n">${q(l.ordered)}</td><td class="n">${q(l.received)}</td><td class="n">${q(l.invoiced)}</td><td class="n">${l.invoicedPrice!=null?nf1.format(l.invoicedPrice):'–'}${l.agreedPrice!=null&&l.invoicedPrice!=null&&Math.abs(l.invoicedPrice-l.agreedPrice)>0.005?`<div class="isub">avtalt ${nf1.format(l.agreedPrice)}</div>`:''}</td></tr>`).join('')}</tbody></table></div></div>` : ''}
     <div class="card grid" style="gap:10px"><h3>Koble til bestilling</h3><div class="row" style="flex-wrap:nowrap"><select id="dvOrder">${orderOptions(inv.supplier, inv.orderId)}</select><button class="btn" id="dvMatch" ${ro()}>Kontroller på nytt</button></div></div>
+    ${postingCardHtml({...inv, id})}
     <div class="card grid" style="gap:10px"><h3>Behandling</h3>
       <label class="f">Kommentar${inv.status==='avvik'?' (påkrevd for å godkjenne med avvik)':''}<input type="text" id="dvNote" placeholder="f.eks. kreditnota avtalt for manglende vare"></label>
       <div class="row">
@@ -1614,9 +1616,10 @@ function invoiceDrawer(id){
         ${!['sendt','betalt'].includes(inv.status) ? `<button class="btn danger" data-act="delete" ${can?'':'disabled'}>Slett</button>` : ''}
       </div>
       ${!can ? '<div class="small muted">Bare leder kan godkjenne, sende og betale.</div>' : ''}
-      <div class="small muted">Godkjent faktura sendes til bilagsmottaket i regnskapet, der den bokføres. Når bilaget er bokført, trykker du «Hent fra regnskap», og fakturaen kan sendes til betaling. Selve utbetalingen skjer via banken som er koblet til regnskapet.</div></div>
+      <div class="small muted">${(S.integrations?.accounting?.connected && ACC().accounts.length) ? '<span>Med kontering over sendes bilaget tilbake til regnskapet med kontoforslag, bokføres, eller bokføres og legges til betaling. «Send til regnskap» sender bare fakturaen, uten kontering.</span>' : '<span>Godkjent faktura sendes til bilagsmottaket i regnskapet, der den bokføres. Når bilaget er bokført, trykker du «Hent fra regnskap», og fakturaen kan sendes til betaling.</span>'} <span>Selve utbetalingen skjer via banken som er koblet til regnskapet.</span></div></div>
     <div class="card"><h3 style="margin-bottom:8px">Historikk</h3>${(inv.history||[]).slice().reverse().map(h => `<div class="small"><b>${fmtDL(h.ts.slice(0,10))}</b> ${esc(h.action)} – ${esc(h.by)}${h.note?': '+esc(h.note):''}</div>`).join('')}</div>`;
   drawer(html, d => {
+    bindPostingCard(d, {...inv, id});
     const isl = d.querySelector('.invsup'); if (isl) isl.onclick = e => { e.preventDefault(); closeLayer(); supplierEditModal(inv.supplier); };
     d.querySelector('#dvMatch').onclick = async () => { try { await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: d.querySelector('#dvOrder').value || null}); await apiLoad(true); invoiceDrawer(id); } catch(e){ toast(e.message || 'Feil.'); } };
     d.querySelectorAll('[data-addcharge]').forEach(b => b.onclick = async () => { b.disabled = true; try { const set2 = JSON.parse(JSON.stringify(SET())); if (!set2.suppliers[inv.supplier]) return; mergeCharges(set2.suppliers[inv.supplier], [{kind: chargeKind(b.dataset.addcharge), name: b.dataset.addcharge, amount: num(b.dataset.amt), date: inv.invoiceDate || C.today, src: inv.invoiceNo || ''}]); await saveSettings(set2); await api('POST', `/api/invoices/${encodeURIComponent(id)}/match`, {orderId: inv.orderId || null}); await apiLoad(true); invoiceDrawer(id); toast('Gebyret er lagt til på leverandøren.'); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); b.disabled = false; } });
@@ -1627,6 +1630,157 @@ function invoiceDrawer(id){
       else if (act === 'delete') confirmBox('Slette fakturaen?', 'Registreringen fjernes fra Restoq.', 'Slett', go2);
       else go2();
     });
+  });
+}
+/* ---- Kontering: kontoplan fra regnskapet, kategori → konto, kontoforslag per faktura ---- */
+const ACC = () => S.accounting || {accounts: [], vatTypes: []};
+const ACCSET = () => SET().accounting || {};
+const VAT_BY_PCT = {25: '1', 15: '11', 12: '13', 0: '0'}; // standard SAF-T-koder for fradragsberettiget inngående mva
+const accName = n => { const a = ACC().accounts.find(x => x.number === +n); return a ? a.name : ''; };
+const accLabel = n => n ? `${n} ${accName(n)}`.trim() : '';
+/** Restoqs forslag når kategorien ikke er koblet: bare kontoer som finnes i kundens kontoplan (vanlige numre i NS 4102). */
+const ACC_GUESS = {'cat:Mat': 4000, 'cat:Drikke': 4300, 'chg:Frakt': 4060};
+function accFor(key, fallbacks){
+  const map = ACCSET().map || {};
+  for (const k of [key, ...fallbacks]) if (map[k] && map[k].account) return {account: +map[k].account, vat: map[k].vat ?? '', src: 'map'};
+  const g = [key, ...fallbacks].map(k => ACC_GUESS[k]).find(n => n && ACC().accounts.some(a => a.number === n && !a.inactive));
+  return g ? {account: g, vat: (map[key] || {}).vat ?? '', src: 'guess'} : {account: null, vat: '', src: ''};
+}
+/** Nøkkel for en fakturalinje: kategori (underkategori → hovedkategori → «uten kategori») eller gebyrtype. */
+function lineAccKey(inv, l, items){
+  const it = items[inv.supplier + '-' + String(l.itemNo || '').replace(/[^A-Za-z0-9]/g, '')];
+  if (!it && FEE_RE.test((l.description || '') + ' ' + (l.itemNo || ''))) { const k = chargeKind(l.description || ''); return {key: 'chg:' + k, fb: ['chg:Annet', 'cat:'], label: k}; }
+  const c = it ? catOf(it) : {group: '', cat: ''};
+  if (!c.group) return {key: 'cat:', fb: [], label: 'Uten kategori'};
+  const legacy = (CATS().find(g => g.name === c.group) || {}).account;
+  return {key: c.cat ? `cat:${c.group}|${c.cat}` : `cat:${c.group}`, fb: [`cat:${c.group}`, 'cat:'], label: catLabel(c.group, c.cat), legacy};
+}
+const vatNoForPct = pct => { const no = VAT_BY_PCT[Math.round(+pct)]; return no != null && ACC().vatTypes.some(v => v.number === no) ? no : ''; };
+const vatPctOf = (vatNo, account) => { if (vatNo !== '' && vatNo != null){ const v = ACC().vatTypes.find(x => x.number === String(vatNo)); return v ? v.pct : 0; } const a = ACC().accounts.find(x => x.number === +account); const v = a && ACC().vatTypes.find(x => x.id === a.vatTypeId); return v ? v.pct : 0; };
+const r2c = n => Math.round(n * 100) / 100;
+/** Kontoforslag: fakturalinjene gruppert per konto og mva-kode. */
+function postingProposal(inv){
+  const items = Object.fromEntries(getItems().map(i => [i.id, i]));
+  const groups = new Map(); const missing = [];
+  const add = (acc, vat, net, label, guess) => { const k = (acc || '?') + '|' + vat; const g = groups.get(k) || {account: acc, vat, net: 0, labels: new Set(), guess: false}; g.net += net; g.labels.add(label); g.guess = g.guess || guess; groups.set(k, g); };
+  let sumNet = 0;
+  (inv.lines || []).forEach(l => {
+    const net = l.total != null ? +l.total : (+l.qty || 0) * (+l.unitPrice || 0); if (!net) return; sumNet += net;
+    const k = lineAccKey(inv, l, items); let a = accFor(k.key, k.fb);
+    if (!a.account && k.legacy && /^\d{4}$/.test(String(k.legacy).trim())) a = {account: +k.legacy, vat: '', src: 'map'};
+    if (!a.account) missing.push(k.label);
+    const vat = a.vat !== '' && a.vat != null ? String(a.vat) : l.vat != null ? vatNoForPct(l.vat) : '';
+    add(a.account, vat, net, k.label, a.src === 'guess');
+  });
+  const out = [...groups.values()].map(g => ({account: g.account, vat: g.vat, net: r2c(g.net), description: [...g.labels].join(', ').slice(0, 180), guess: g.guess}));
+  // Rest som ikke er fordelt på linjene (f.eks. rabatt på fakturanivå eller linjer som ikke ble lest)
+  if (inv.amountExVat != null && Math.abs(inv.amountExVat - sumNet) > 1){
+    const big = out.slice().sort((a, b) => Math.abs(b.net) - Math.abs(a.net))[0];
+    const a = accFor('cat:', []);
+    out.push({account: big ? big.account : a.account, vat: big ? big.vat : '', net: r2c(inv.amountExVat - sumNet), description: 'Rest som ikke er fordelt på linjer', rest: true});
+  }
+  return {lines: out, missing: [...new Set(missing)]};
+}
+function proposalTotals(inv, lines){
+  const gross = r2c(lines.reduce((s, l) => s + r2c(l.net * (1 + vatPctOf(l.vat, l.account) / 100)), 0));
+  const diff = inv.amount != null ? r2c(inv.amount - gross) : null;
+  return {gross, diff, ok: diff != null && Math.abs(diff) <= 1 && lines.every(l => l.account)};
+}
+function accOptions(sel){
+  const acc = ACC().accounts.filter(a => !a.inactive && a.number >= 1000 && a.number < 9000);
+  const grp = [['Varekostnad (4xxx)', a => a.number >= 4000 && a.number < 5000], ['Andre driftskostnader (6xxx–7xxx)', a => a.number >= 6000 && a.number < 8000], ['Andre kontoer', a => a.number < 4000 || (a.number >= 5000 && a.number < 6000) || a.number >= 8000]];
+  return `<option value="">– velg konto –</option>` + grp.map(([n, f]) => `<optgroup label="${esc(n)}">${acc.filter(f).map(a => `<option value="${a.number}" ${+sel === a.number ? 'selected' : ''} translate="no">${a.number} ${esc(a.name)}</option>`).join('')}</optgroup>`).join('');
+}
+function vatOptions(sel, emptyLabel){
+  const pri = ['1', '11', '13', '0'];
+  const v = ACC().vatTypes.slice().sort((a, b) => (pri.indexOf(a.number) + 1 || 99) - (pri.indexOf(b.number) + 1 || 99) || (+a.number - +b.number));
+  return `<option value="">${esc(emptyLabel || 'Kontoens standard')}</option>` + v.map(x => `<option value="${esc(x.number)}" ${String(sel) === x.number ? 'selected' : ''} translate="no">${esc(x.number)} · ${esc(x.name)} (${String(x.pct).replace('.', ',')} %)</option>`).join('');
+}
+const POST_MODES = () => { const pay = ACCSET().payEnabled; return [['inbox', 'Send til bilagsmottak med kontoforslag'], ['ledger', 'Bokfør i regnskapet'], ...(pay ? [['pay', 'Bokfør og send til betaling']] : [])]; };
+const POST_DONE = {inbox: 'Kontoforslaget er sendt til bilagsmottaket i regnskapet.', ledger: 'Fakturaen er bokført i regnskapet.', pay: 'Fakturaen er bokført og lagt til betaling i regnskapet.'};
+const canPost = inv => { const t = inv.ttx || {}; return !t.supplierInvoiceId && !(t.posting && t.posting.mode !== 'inbox') && inv.status !== 'avvist' && (inv.status === 'matchet' || !!t.approvedAt) && (t.voucherIds?.length || inv.fileId); };
+/** Kort i fakturaskuffen: kontoforslag som kan endres, og knapper for å sende bilaget tilbake til regnskapet. */
+function postingCardHtml(inv){
+  const t = inv.ttx || {}; const acI = (S.integrations || {}).accounting || {};
+  if (!acI.connected) return '';
+  if (t.posting) return `<div class="card grid" style="gap:8px"><h3>Kontering</h3><div class="small muted"><span>${esc({inbox: 'Sendt til bilagsmottaket med kontoforslag', ledger: 'Bokført i regnskapet', pay: 'Bokført og lagt til betaling'}[t.posting.mode])}</span> <span translate="no">${fmtDL(t.posting.at.slice(0, 10))} · ${esc(t.posting.by)}</span></div>
+    <div class="tblwrap"><table><thead><tr><th>Konto</th><th>Mva</th><th class="n">Eks. mva</th><th class="n">Inkl. mva</th></tr></thead><tbody>${t.posting.lines.map(l => `<tr><td><div class="iname" translate="no">${l.account} ${esc(l.accountName)}</div><div class="isub">${esc(l.description)}</div></td><td translate="no">${l.vatType ?? '–'} (${String(l.vatPct).replace('.', ',')} %)</td><td class="n">${kr2(l.net)}</td><td class="n">${kr2(l.gross)}</td></tr>`).join('')}</tbody></table></div>
+    ${t.posting.mode === 'inbox' && !t.supplierInvoiceId ? `<div class="small muted">Regnskapsfører bokfører bilaget i bilagsmottaket. Vil du endre konteringen, sender du et nytt forslag under.</div>` : ''}</div>` + (t.posting.mode === 'inbox' && !t.supplierInvoiceId ? postingEditorHtml(inv) : '');
+  return postingEditorHtml(inv);
+}
+function postingEditorHtml(inv){
+  if (!ACC().accounts.length) return `<div class="card grid" style="gap:8px"><h3>Kontering</h3><div class="small muted">Hent kontoplanen fra regnskapet og koble kategoriene til kontoer under Innstillinger → Regnskap, så lager Restoq kontoforslag for fakturaene.</div></div>`;
+  const ok = canPost(inv); const pr = postingProposal(inv); const tt = proposalTotals(inv, pr.lines);
+  return `<div class="card grid" style="gap:10px" id="pcCard"><div class="row between"><h3>Kontering</h3><span class="small muted">Kontoforslag fra Restoq</span></div>
+    ${pr.missing.length ? `<div class="note warn small"><div><span>Ingen konto for:</span> ${esc(pr.missing.join(', '))}. <span>Velg konto under, eller koble kategoriene under Innstillinger → Regnskap.</span></div></div>` : ''}
+    <div class="tblwrap"><table><thead><tr><th>Konto</th><th>Mva-kode</th><th class="n">Eks. mva</th><th class="n">Inkl. mva</th></tr></thead><tbody>${pr.lines.map((l, i) => `<tr data-pl="${i}" data-net="${l.net}"><td><select class="pc-acc${l.guess || !l.account ? ' sugg' : ''}">${accOptions(l.account)}</select><div class="isub">${esc(l.description)}${l.guess ? ' · <span>forslag – sjekk kontoen</span>' : ''}</div></td><td><select class="pc-vat">${vatOptions(l.vat)}</select></td><td class="n">${kr2(l.net)}</td><td class="n pc-gross">${kr2(r2c(l.net * (1 + vatPctOf(l.vat, l.account) / 100)))}</td></tr>`).join('')}</tbody>
+      <tfoot><tr><td colspan="3" class="n"><b>Sum inkl. mva</b></td><td class="n"><b id="pcSum">${kr2(tt.gross)}</b></td></tr><tr><td colspan="3" class="n">Fakturabeløp</td><td class="n">${inv.amount != null ? kr2(inv.amount) : '–'}</td></tr></tfoot></table></div>
+    <div id="pcMsg"></div>
+    ${ok ? `<div class="row">${POST_MODES().map(([k, n]) => `<button class="btn ${k === (ACCSET().defaultMode || 'inbox') ? 'primary' : ''}" data-post="${k}" ${S.canManage ? '' : 'disabled'}>${esc(n)}</button>`).join('')}</div>` : `<div class="small muted">${inv.status === 'avvik' || inv.status === 'kontroll' ? 'Fakturaen må stemme med bestilling og pakkseddel, eller godkjennes, før den konteres.' : inv.status === 'avvist' ? 'Fakturaen er avvist.' : 'Fakturaen er allerede bokført.'}</div>`}</div>`;
+}
+function bindPostingCard(d, inv){
+  const card = d.querySelector('#pcCard'); if (!card) return;
+  const rows = () => [...card.querySelectorAll('tr[data-pl]')].map(tr => ({account: +tr.querySelector('.pc-acc').value || null, vat: tr.querySelector('.pc-vat').value, net: +tr.dataset.net, description: tr.querySelector('.isub').textContent.replace(/ · forslag.*$/, '')}));
+  const upd = () => {
+    card.querySelectorAll('tr[data-pl]').forEach(tr => { const a = tr.querySelector('.pc-acc').value, v = tr.querySelector('.pc-vat').value; tr.querySelector('.pc-gross').textContent = kr2(r2c(+tr.dataset.net * (1 + vatPctOf(v, a) / 100))); tr.querySelector('.pc-acc').classList.toggle('sugg', !a); });
+    const tt = proposalTotals(inv, rows()); card.querySelector('#pcSum').textContent = kr2(tt.gross);
+    card.querySelector('#pcMsg').innerHTML = !rows().every(l => l.account) ? '<div class="note warn small"><div>Velg konto på alle linjene.</div></div>' : tt.diff == null ? '<div class="note warn small"><div>Fakturaen mangler beløp inkl. mva.</div></div>' : Math.abs(tt.diff) > 1 ? `<div class="note bad small"><div><span>Konteringen går ikke opp mot fakturabeløpet. Differanse:</span> ${kr2(tt.diff)}. <span>Sjekk mva-kodene.</span></div></div>` : tt.diff ? `<div class="small muted"><span>Avrunding</span> ${kr2(tt.diff)} <span>legges på den største linjen.</span></div>` : '';
+    card.querySelectorAll('[data-post]').forEach(b => b.disabled = !S.canManage || !tt.ok);
+    return tt;
+  };
+  card.querySelectorAll('select').forEach(s => s.onchange = upd); upd();
+  card.querySelectorAll('[data-post]').forEach(b => b.onclick = () => {
+    const mode = b.dataset.post; const lines = rows();
+    const go = async () => { b.disabled = true; try { await withPassword(password => api('POST', `/api/invoices/${encodeURIComponent(inv.id)}/post`, {mode, postings: lines.map(l => ({account: l.account, vatType: l.vat === '' ? null : l.vat, net: l.net, description: l.description})), password})); await apiLoad(true); invoiceDrawer(inv.id); toast(POST_DONE[mode]); } catch(e){ toast(e.message || 'Noe gikk galt.'); await apiLoad(true); b.disabled = false; } };
+    if (mode === 'pay') confirmBox('Bokføre og sende til betaling?', `${inv.amount != null ? kr(inv.amount) : 'Beløpet'} til ${SET().suppliers[inv.supplier]?.name || inv.supplier}${inv.dueDate ? ' med forfall ' + fmtDL(inv.dueDate) : ''} bokføres og legges til betaling i regnskapet.`, 'Bokfør og send til betaling', go);
+    else if (mode === 'ledger') confirmBox('Bokføre i regnskapet?', 'Bilaget bokføres med kontoene over. Det kan bare rettes i regnskapet etterpå.', 'Bokfør', go);
+    else go();
+  });
+}
+/** Alle matchede fakturaer med fullstendig kontoforslag sendes på én gang (ett passord). */
+function batchPostModal(){
+  const list = S.invoices.filter(i => canPost(i) && !(i.ttx || {}).posting).map(i => ({inv: i, pr: postingProposal(i)})).map(x => ({...x, tt: proposalTotals(x.inv, x.pr.lines)}));
+  const ready = list.filter(x => x.tt.ok), notReady = list.filter(x => !x.tt.ok);
+  const set = SET(); const def = ACCSET().defaultMode || 'inbox';
+  modal(`<h3>Kontér og send til regnskap</h3>
+    <div class="small muted">Fakturaer som stemmer med bestilling og pakkseddel (eller er godkjent), og der alle linjene har konto og summen går opp.</div>
+    ${ready.length ? `<div class="tblwrap" style="max-height:320px"><table><thead><tr><th>Leverandør</th><th>Faktura</th><th class="n">Beløp</th><th>Kontoer</th></tr></thead><tbody>${ready.map(x => `<tr><td translate="no">${esc(set.suppliers[x.inv.supplier]?.name || x.inv.supplier)}</td><td translate="no">${esc(x.inv.invoiceNo)}</td><td class="n">${kr2(x.inv.amount)}</td><td class="small" translate="no">${x.pr.lines.map(l => l.account).join(', ')}</td></tr>`).join('')}</tbody></table></div>` : '<div class="note warn small"><div>Ingen fakturaer er klare.</div></div>'}
+    ${notReady.length ? `<div class="small"><b>${notReady.length}</b> <span>må kontrolleres i fakturaen først (mangler konto eller summen går ikke opp).</span></div>` : ''}
+    <label class="f">Hva skal skje<select id="bpMode">${POST_MODES().map(([k, n]) => `<option value="${k}" ${k === def ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+    <div id="bpRes"></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Lukk</button><button class="btn primary" id="bpOk" ${ready.length ? '' : 'disabled'}>Send ${ready.length}</button></div>`, m => {
+    m.querySelector('#bpOk').onclick = async () => {
+      const b = m.querySelector('#bpOk'); b.disabled = true; const mode = m.querySelector('#bpMode').value; let n = 0; const errs = [];
+      try {
+        await withPassword(async password => {
+          for (const x of ready){ if (x.done) continue; try { await api('POST', `/api/invoices/${encodeURIComponent(x.inv.id)}/post`, {mode, password, postings: x.pr.lines.map(l => ({account: l.account, vatType: l.vat === '' ? null : l.vat, net: l.net, description: l.description}))}); x.done = true; n++; } catch(e){ if (e && e.needPassword) throw e; x.done = true; errs.push(`${x.inv.invoiceNo}: ${e.message || 'feil'}`); } }
+        });
+      } catch(e){ errs.push(e.message || 'Avbrutt.'); }
+      await apiLoad(true);
+      m.querySelector('#bpRes').innerHTML = `<div class="note ${errs.length ? 'warn' : 'good'} small"><div><span>Sendt:</span> ${n}${errs.length ? '<br>' + errs.map(esc).join('<br>') : ''}</div></div>`;
+    };
+  });
+}
+/** Koble kategorier og gebyrtyper til kontoer i kundens kontoplan. */
+function accountMapModal(){
+  const map = JSON.parse(JSON.stringify(ACCSET().map || {}));
+  const rows = [];
+  CATS().forEach(g => { rows.push({key: `cat:${g.name}`, label: g.name, main: true, legacy: g.account}); g.subs.forEach(s => s.name && s.name !== g.name && rows.push({key: `cat:${g.name}|${s.name}`, label: s.name, sub: true})); });
+  rows.push({key: 'cat:', label: 'Uten kategori / annet', main: true});
+  CHARGE_KINDS.forEach(k => rows.push({key: 'chg:' + k, label: k, charge: true}));
+  const row = r => { const m = map[r.key] || {}; const guess = !m.account && !r.sub && ACC_GUESS[r.key] && ACC().accounts.some(a => a.number === ACC_GUESS[r.key]) ? ACC_GUESS[r.key] : null; const legacy = !m.account && r.legacy && /^\d{4}$/.test(String(r.legacy).trim()) ? +r.legacy : null; const val = m.account || legacy || guess;
+    return `<tr data-k="${esc(r.key)}"><td style="${r.sub ? 'padding-left:22px' : ''}">${r.sub ? '<span class="muted">› </span>' : ''}${r.main || r.charge ? '<b>' : ''}<span>${esc(r.label)}</span>${r.main || r.charge ? '</b>' : ''}</td><td><select class="am-acc${guess && !m.account ? ' sugg' : ''}">${accOptions(val).replace('– velg konto –', r.sub ? 'Som hovedkategorien' : '– velg konto –')}</select></td><td><select class="am-vat">${vatOptions(m.vat ?? '', 'Fra fakturaen / kontoen')}</select></td></tr>`; };
+  modal(`<h3>Koble kategorier til kontoer</h3>
+    <div class="small muted">Velg hvilken konto i kontoplanen varelinjene skal føres på. Underkategorier følger hovedkategorien hvis de ikke har egen konto. Mva-koden hentes fra fakturalinjen eller kontoen, hvis du ikke velger en fast kode. Lys oransje = forslag fra Restoq, sjekk at kontoen stemmer.</div>
+    <div class="tblwrap" style="max-height:52vh"><table><thead><tr><th>Kategori</th><th>Konto</th><th>Mva-kode</th></tr></thead><tbody>
+      ${rows.filter(r => !r.charge).map(row).join('')}<tr><td colspan="3" class="small muted" style="padding-top:12px"><b>Gebyrer og frakt</b> (føres ikke på lager)</td></tr>${rows.filter(r => r.charge).map(row).join('')}</tbody></table></div>
+    <div class="row" style="justify-content:flex-end"><button class="btn" data-close>Avbryt</button><button class="btn primary" id="amOk">Lagre</button></div>`, m => {
+    m.style.maxWidth = '820px'; m.style.width = '96vw';
+    m.querySelectorAll('.am-acc').forEach(s => s.onchange = () => s.classList.remove('sugg'));
+    m.querySelector('#amOk').onclick = async () => {
+      const out = {}; m.querySelectorAll('tr[data-k]').forEach(tr => { const a = tr.querySelector('.am-acc').value, v = tr.querySelector('.am-vat').value; if (a || v) out[tr.dataset.k] = {...(a ? {account: +a} : {}), ...(v ? {vat: v} : {})}; });
+      const s2 = JSON.parse(JSON.stringify(SET())); s2.accounting = {...(s2.accounting || {}), map: out}; await saveSettings(s2); closeModal(); toast('Kontoene er lagret.'); loadTtx();
+    };
   });
 }
 async function loadPlanday(){
@@ -1666,6 +1820,7 @@ function inboxSummary(r){
   const parts = [`${r.checked || 0} bilag sjekket`, `${r.imported || 0} nye fakturaer`];
   if (r.linked) parts.push(`${r.linked} koblet til eksisterende`);
   if (r.unknown) parts.push(`${r.unknown} fra leverandører som ikke er registrert`);
+  if (r.ignored) parts.push(`${r.ignored} fra leverandører som ikke importeres`);
   if (r.remaining) parts.push(`${r.remaining} gjenstår (hentes neste gang)`);
   if (r.errors) parts.push(`${r.errors} kunne ikke leses`);
   return parts.join(' · ');
@@ -1676,16 +1831,30 @@ async function loadTtx(){
     const s = await api('GET', '/api/tripletex');
     if (!s.available){ box.innerHTML = 'Koblingen til regnskap er ikke aktivert på serveren ennå (Restoq må ha godkjent integrasjon hos Tripletex).'; return; }
     box.className = 'grid'; box.style.gap = '10px';
-    const ib = S.ttxinbox || {}; const unk = Object.values(ib.seen || {}).filter(x => x.s === 'ukjent' && x.name).reduce((m, x) => { const k = (x.orgnr || '') + '|' + x.name; m[k] = m[k] || {...x, n: 0}; m[k].n++; return m; }, {});
+    const ib = S.ttxinbox || {}; const ign = ib.ignore || []; const unk = Object.values(ib.seen || {}).filter(x => x.s === 'ukjent' && x.name).reduce((m, x) => { const k = (x.orgnr || '') + '|' + x.name; m[k] = m[k] || {...x, n: 0}; m[k].n++; return m; }, {});
     box.innerHTML = s.connected ? `<div class="note good">Koblet til regnskap (Tripletex)${s.env==='test'?' (testmiljø)':''} siden ${fmtDL(String(s.info?.connectedAt||'').slice(0,10))}.</div>
       <label class="row small" style="gap:8px"><input type="checkbox" id="ttxAuto" ${s.info?.inboxAuto === false ? '' : 'checked'} style="width:20px;height:20px"> <span>Hent fakturaer fra bilagsmottaket automatisk (fra leverandører som er registrert i Restoq)</span></label>
       <div class="small muted">${ib.lastRun ? `<span>Sist hentet</span> <span translate="no">${new Date(ib.lastRun).toLocaleString('nb-NO')}</span>${ib.lastResult ? ' · ' + esc(inboxSummary(ib.lastResult)) : ''}` : 'Ikke hentet ennå.'}</div>
-      ${Object.keys(unk).length ? `<div class="small"><b>Fakturaer i bilagsmottaket fra leverandører som ikke er registrert:</b><div class="grid" style="gap:6px;margin-top:6px">${Object.values(unk).map(x => `<div class="row between"><span translate="no">${esc(x.name)}${x.orgnr ? ' · ' + esc(fmtOrg(x.orgnr)) : ''} (${x.n})</span><button class="btn sm" data-ttxnewsup="${esc(x.name)}" data-orgnr="${esc(x.orgnr || '')}">Opprett leverandør</button></div>`).join('')}</div><div class="small muted" style="margin-top:4px">Når leverandøren er opprettet, hentes fakturaene deres ved neste henting.</div></div>` : ''}
+      ${Object.keys(unk).length ? `<div class="small"><b>Fakturaer i bilagsmottaket fra leverandører som ikke er registrert:</b><div class="grid" style="gap:6px;margin-top:6px">${Object.values(unk).map(x => `<div class="row between"><span translate="no">${esc(x.name)}${x.orgnr ? ' · ' + esc(fmtOrg(x.orgnr)) : ''} (${x.n})</span><span class="row" style="gap:6px"><button class="btn sm" data-ttxnewsup="${esc(x.name)}" data-orgnr="${esc(x.orgnr || '')}">Opprett leverandør</button><button class="btn sm" data-ttxign="${esc(x.name)}" data-orgnr="${esc(x.orgnr || '')}">Ikke importer</button></span></div>`).join('')}</div><div class="small muted" style="margin-top:4px"><span>Når leverandøren er opprettet, hentes fakturaene deres ved neste henting.</span> <span>«Ikke importer» betyr at Restoq lar fakturaene fra leverandøren ligge i regnskapet.</span></div></div>` : ''}
+      ${ign.length ? `<div class="small"><b>Importeres ikke:</b><div class="grid" style="gap:6px;margin-top:6px">${ign.map(x => `<div class="row between"><span translate="no">${esc(x.name)}${x.orgnr ? ' · ' + esc(fmtOrg(x.orgnr)) : ''}</span><button class="btn sm" data-ttxunign="${esc(x.name)}" data-orgnr="${esc(x.orgnr || '')}">Importer likevel</button></div>`).join('')}</div></div>` : ''}
+      <div class="card grid" style="gap:10px;background:var(--bg2,transparent)"><h3>Kontering</h3>
+        <div class="small muted">Restoq henter kontoplanen fra regnskapet. Når kategoriene er koblet til kontoer, lager Restoq kontoforslag for fakturaer som stemmer med bestilling og pakkseddel. Bilaget sendes så tilbake til bilagsmottaket med kontoforslag, eller bokføres og eventuelt legges til betaling.</div>
+        <div class="small">${ACC().fetchedAt ? `<span>Kontoplan hentet</span> <span translate="no">${new Date(ACC().fetchedAt).toLocaleString('nb-NO')} · ${ACC().accounts.length}</span> <span>kontoer</span>` : 'Kontoplanen er ikke hentet ennå.'}${ACC().accounts.length ? ` · <span>${Object.keys(ACCSET().map || {}).length}</span> <span>koblinger</span>` : ''}</div>
+        <div class="row"><button class="btn" id="accFetch">↻ Hent kontoplan</button>${ACC().accounts.length ? '<button class="btn primary" id="accMap">Koble kategorier til kontoer</button>' : ''}</div>
+        ${ACC().accounts.length ? `<label class="f" style="max-width:420px">Standard når fakturaen konteres<select id="accMode">${POST_MODES().map(([k, n]) => `<option value="${k}" ${k === (ACCSET().defaultMode || 'inbox') ? 'selected' : ''}>${esc(n)}</option>`).join('')}</select></label>
+        <label class="row small" style="gap:8px"><input type="checkbox" id="accPay" ${ACCSET().payEnabled ? 'checked' : ''} style="width:20px;height:20px"> <span>Stedet betaler leverandørfakturaer fra regnskapet (bankintegrasjon i Tripletex) – vis «Bokfør og send til betaling»</span></label>` : ''}
+      </div>
       <div class="row"><button class="btn" id="ttxInbox2">↻ Hent fra bilagsmottak nå</button><button class="btn danger sm" id="ttxOff">Koble fra</button></div>`
       : `<div class="small">Lag en API-nøkkel i Tripletex: <b>Brukerinnstillinger → API-tilgang → Ny nøkkel</b>, velg applikasjonen <b>Restoq</b> og tilgang til leverandørfaktura og bilag. Lim inn nøkkelen her. (Tilleggsmodulen «Integrasjoner» må være aktiv i Tripletex.)</div><div class="row" style="flex-wrap:nowrap"><input type="text" id="ttxTok" placeholder="Employee token fra Tripletex" autocomplete="off"><button class="btn primary" id="ttxOn">Koble til</button></div>`;
     const on = $('#ttxOn'); if (on) on.onclick = async () => { on.disabled = true; try { await api('POST', '/api/tripletex', {employeeToken: $('#ttxTok').value}); toast('Regnskap er koblet til.'); await apiLoad(true); } catch(e){ toast(e.message || 'Kunne ikke koble til.'); on.disabled = false; } };
     const au = $('#ttxAuto'); if (au) au.onchange = async () => { try { await api('POST', '/api/tripletex', {inboxAuto: au.checked}); toast('Lagret.'); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); } };
     const ib2 = $('#ttxInbox2'); if (ib2) ib2.onclick = async () => { ib2.disabled = true; try { const r = await api('POST', '/api/tripletex/inbox', {force: true}); await apiLoad(true); toast(inboxSummary(r)); } catch(e){ toast(e.message || 'Kunne ikke hente.'); ib2.disabled = false; } };
+    box.querySelectorAll('[data-ttxign],[data-ttxunign]').forEach(b => b.onclick = async () => { b.disabled = true; const on = !!b.dataset.ttxign; try { await api('POST', '/api/tripletex/inbox', {[on ? 'ignore' : 'unignore']: {name: b.dataset.ttxign || b.dataset.ttxunign, orgnr: b.dataset.orgnr}}); await apiLoad(true); toast(on ? 'Fakturaer fra leverandøren importeres ikke.' : 'Fakturaer fra leverandøren importeres igjen når leverandøren er opprettet.'); loadTtx(); } catch(e){ toast(e.message || 'Kunne ikke lagre.'); b.disabled = false; } });
+    const af = $('#accFetch'); if (af) af.onclick = async () => { af.disabled = true; af.textContent = 'Henter …'; try { const r = await api('POST', '/api/accounting', {}); S.accounting = r; toast(`Hentet ${r.accounts.length} kontoer fra regnskapet.`); loadTtx(); } catch(e){ toast(e.message || 'Kunne ikke hente kontoplanen.'); af.disabled = false; af.textContent = '↻ Hent kontoplan'; } };
+    const am = $('#accMap'); if (am) am.onclick = accountMapModal;
+    const saveAcc = async patch => { const s2 = JSON.parse(JSON.stringify(SET())); s2.accounting = {...(s2.accounting || {}), ...patch}; await saveSettings(s2); toast('Lagret.'); loadTtx(); };
+    const amd = $('#accMode'); if (amd) amd.onchange = () => saveAcc({defaultMode: amd.value});
+    const ap = $('#accPay'); if (ap) ap.onchange = () => saveAcc({payEnabled: ap.checked, ...(!ap.checked && ACCSET().defaultMode === 'pay' ? {defaultMode: 'ledger'} : {})});
     box.querySelectorAll('[data-ttxnewsup]').forEach(b => b.onclick = () => supplierEditModal(null, {name: b.dataset.ttxnewsup, orgnr: b.dataset.orgnr}, async () => { await forgetUnknownInbox(); await apiLoad(true); }));
     const off = $('#ttxOff'); if (off) off.onclick = () => confirmBox('Koble fra regnskap?', 'Restoq kan ikke lenger sende eller hente fakturaer før dere kobler til på nytt.', 'Koble fra', async () => { await api('DELETE', '/api/tripletex'); await apiLoad(true); });
   } catch(e){ box.textContent = 'Kunne ikke hente status.'; }

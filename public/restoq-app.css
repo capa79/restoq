@@ -273,3 +273,5 @@ a.ichip:hover{border-color:var(--brand)}
 .segsm .btn+.btn{border-left:1px solid var(--line)}
 .segsm .btn.on{background:var(--ink,#141a18);color:#fff}
 .cal .cd-rev>div{white-space:nowrap}
+select.sugg{background-color:#fff1e2;border-color:#f0b47a}
+#pcCard .pc-acc{min-width:200px}#pcCard .pc-vat{min-width:150px}

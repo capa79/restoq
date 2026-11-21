@@ -2,7 +2,7 @@
 import { randomBytes } from "node:crypto";
 import { audit, db } from "./db";
 
-export type Line = { itemNo: string; itemId?: string; description?: string; qty: number; unitPrice?: number; total?: number };
+export type Line = { itemNo: string; itemId?: string; description?: string; qty: number; unitPrice?: number; total?: number; vat?: number };
 export type Invoice = {
   id?: string;
   supplier: string;
@@ -20,7 +20,7 @@ export type Invoice = {
   lines: Line[];
   source: "app" | "api" | "tripletex";
   status: "kontroll" | "avvik" | "matchet" | "godkjent" | "sendt" | "betalt" | "avvist";
-  ttx?: { supplierInvoiceId?: number; voucherIds?: number[]; approvedAt?: string; paymentAt?: string; inbox?: boolean };
+  ttx?: { supplierInvoiceId?: number; voucherIds?: number[]; approvedAt?: string; paymentAt?: string; inbox?: boolean; posting?: { at: string; by: string; mode: "inbox" | "ledger" | "pay"; lines: { account: number; accountName: string; vatType: number | null; vatPct: number; net: number; gross: number; description: string }[]; total: number } };
   match?: Match;
   history: { ts: string; by: string; action: string; note?: string }[];
   createdAt: string;
@@ -154,6 +154,7 @@ export function cleanLines(raw: unknown): Line[] {
     qty: Number(num(l?.qty ?? l?.antall) ?? 0),
     unitPrice: num(l?.unitPrice ?? l?.pris),
     total: num(l?.total ?? l?.sum),
+    vat: (() => { const v = num(l?.vat ?? l?.vatRate ?? l?.mva); return v != null && v >= 0 && v <= 100 ? v : undefined; })(),
   })).filter((l) => l.itemNo || l.description);
 }
 

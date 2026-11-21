@@ -224,3 +224,55 @@ export async function listVoucherReception(orgId: number, dateFrom: string, date
   }
   return out;
 }
+
+export type TtxAccount = { id: number; number: number; name: string; isInactive?: boolean; vatType?: { id: number; number?: string; percentage?: number; name?: string } | null };
+export type TtxVatType = { id: number; number: string; name: string; percentage: number };
+
+/** Kontoplanen til kunden (alle kontoer, også inaktive, så historikk kan vises). */
+export async function listAccounts(orgId: number): Promise<TtxAccount[]> {
+  const out: TtxAccount[] = [];
+  const fields = "id,number,name,isInactive,vatType(id,number,percentage,name)";
+  for (let from = 0; from < 5000; from += 1000) {
+    const q = new URLSearchParams({ from: String(from), count: "1000", fields });
+    const j = await ttx(orgId, "GET", `/ledger/account?${q}`);
+    const vals = (j?.values ?? []) as TtxAccount[];
+    out.push(...vals);
+    if (vals.length < 1000) break;
+  }
+  return out;
+}
+
+export async function listVatTypes(orgId: number): Promise<TtxVatType[]> {
+  const j = await ttx(orgId, "GET", `/ledger/vatType?${new URLSearchParams({ count: "1000", fields: "id,number,name,percentage" })}`);
+  return (j?.values ?? []) as TtxVatType[];
+}
+
+/**
+ * Konterer et leverandørfakturabilag i bilagsmottaket: PUT /supplierInvoice/voucher/{voucherId}/postings ([BETA] i Tripletex).
+ * Brutto beløp (inkl. mva) per linje; Tripletex beregner mva ut fra mva-koden.
+ * sendToLedger=false: konteringen blir liggende som forslag i bilagsmottaket. true: bilaget bokføres.
+ */
+export async function putVoucherPostings(orgId: number, voucherId: number, lines: { accountId: number; vatTypeId: number | null; gross: number; description: string }[], sendToLedger: boolean) {
+  const body = lines.map((l, i) => ({
+    posting: {
+      row: i + 1,
+      account: { id: l.accountId },
+      ...(l.vatTypeId != null ? { vatType: { id: l.vatTypeId } } : {}),
+      amountGross: l.gross,
+      amountGrossCurrency: l.gross,
+      description: l.description.slice(0, 200),
+    },
+  }));
+  const q = new URLSearchParams({ sendToLedger: String(sendToLedger) });
+  const j = await ttx(orgId, "PUT", `/supplierInvoice/voucher/${voucherId}/postings?${q}`, JSON.stringify(body), { "Content-Type": "application/json; charset=utf-8" });
+  return (j?.value ?? null) as { id?: number } | null;
+}
+
+/** Finn leverandørfakturaen som hører til et bilag (etter bokføring). */
+export async function supplierInvoiceForVoucher(orgId: number, voucherId: number, around: string): Promise<number | null> {
+  const t = Date.parse(around || new Date().toISOString());
+  const d = (n: number) => new Date(t + n * 864e5).toISOString().slice(0, 10);
+  const q = new URLSearchParams({ invoiceDateFrom: d(-400), invoiceDateTo: d(400), voucherId: String(voucherId), fields: "id" });
+  const j = await ttx(orgId, "GET", `/supplierInvoice?${q}`);
+  return (j?.values?.[0]?.id as number | undefined) ?? null;
+}

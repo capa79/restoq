@@ -143,6 +143,19 @@ For testing kan `PLANDAY_API_BASE` og `PLANDAY_TOKEN_URL` overstyres.
 
 Restoq henter leverandørfakturaer som ligger i bilagsmottaket i Tripletex (`GET /ledger/voucher/>voucherReception`), men bare fra leverandører som er registrert i Restoq. Står leverandøren på bilaget, sjekkes den først; ellers lastes vedlegget (`GET /document/{id}/content`, PDF/bilde/EHF) ned og leses med Claude. Fakturaen opprettes i Restoq med varelinjer og vedlegg og matches mot bestilling og varemottak. Hvert bilag behandles én gang (status i `config/ttxinbox`); høyst 10 lesinger per henting. Fakturaer fra ukjente leverandører listes under Innstillinger → Regnskap med «Opprett leverandør». Slike fakturaer sendes ikke tilbake til regnskapet ved godkjenning.
 
+## Kontering og tilbakesending til regnskapet
+
+1. **Innhenting:** bare bilag fra leverandører som er registrert i Restoq tas inn. Leverandører som ikke er registrert, vises under Innstillinger → Regnskap med «Opprett leverandør» eller «Ikke importer» (`config/ttxinbox.ignore`). Bilag fra dem blir liggende i Tripletex.
+2. **Kontroll:** fakturaen matches mot bestilling og pakkseddel (trevei-matching i `lib/invoices.ts`).
+3. **Kontoplan:** «Hent kontoplan» leser `GET /ledger/account` og `GET /ledger/vatType` og lagrer en kopi i `config/accounting`. Kunden kobler hver kategori (og underkategori), og hver gebyrtype, til en konto, med fast mva-kode som valg. Koblingen lagres i `settings.accounting.map`.
+4. **Kontoforslag:** i fakturaen grupperes linjene per konto og mva-kode. Mva-koden kommer fra den faste koden, ellers fra fakturalinjen (25 % → 1, 15 % → 11, 12 % → 13, 0 % → 0), ellers fra kontoens standardkode. Restoq kontrollerer at summen inkl. mva er lik fakturabeløpet. Avrunding inntil 1 kr legges på den største linjen.
+5. **Tilbakesending** (`POST /api/invoices/{id}/post`, krever passord) gjennom `PUT /supplierInvoice/voucher/{voucherId}/postings`, som Tripletex merker [BETA]:
+   - `inbox`: `sendToLedger=false`. Kontoforslaget blir liggende på bilaget i bilagsmottaket.
+   - `ledger`: `sendToLedger=true`. Bilaget bokføres.
+   - `pay`: bilaget bokføres, deretter `POST /supplierInvoice/{id}/:addPayment`. Dette vises bare når «Stedet betaler leverandørfakturaer fra regnskapet» er slått på.
+   
+   Fakturaer som er lagt inn i Restoq og ikke finnes i Tripletex, lastes først opp med `importDocument`. «Kontér og send» på fakturalisten sender alle fakturaer som er klare, med ett passord.
+
 ## Planlagt henting (to ganger om dagen)
 
 `GET /api/cron` med `Authorization: Bearer <CRON_SECRET>` henter fra bilagsmottaket i Tripletex og omsetning fra Planday for alle kunder. GitHub Actions (`.github/workflows/henting.yml`) kaller den kl. 05 og 13 UTC. Sett samme tilfeldige `CRON_SECRET` (minst 16 tegn) i Render og som Actions-hemmelighet i GitHub. I tillegg henter appen selv når dataene er eldre enn 12 timer og noen åpner den.
