@@ -444,7 +444,8 @@ function vOversikt(){
     <div class="row"><button class="btn" data-go="svinn">+ Avskrivning</button><button class="btn primary" data-go="bestill">Lag bestilling</button></div></div>`;
   h += roNote();
   if (S.mode === 'local') h += `<div class="note warn"><b>Lagres bare på denne enheten.</b>&nbsp;Åpne appen innlogget via lenken fra eier, så deler alle ansatte samme tall.</div>`;
-  if (!getItems().length || (!C.cur && !SET().onboarded)) h += `<div class="note info wzbanner"><div><b>Kom i gang:</b> ${S.canManage ? 'legg inn leverandører og varer fra vareliste (Excel/CSV) og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.' : 'administrator hos dere må legge inn leverandører og varer før dere kan telle og bestille.'}</div>${S.canManage ? '<button class="btn primary" data-go="komigang">Start veiviseren</button>' : ''}</div>`;
+  if (S.canManage && !SET().setupHidden && setupTasks().some(t => t.req && !t.done)) h += setupChecklistHtml({title: 'Kom i gang med Restoq', hideBtn: true});
+  else if (!getItems().length || (!C.cur && !SET().onboarded)) h += `<div class="note info wzbanner"><div><b>Kom i gang:</b> ${S.canManage ? 'legg inn leverandører og varer fra vareliste (Excel/CSV) og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.' : 'administrator hos dere må legge inn leverandører og varer før dere kan telle og bestille.'}</div>${S.canManage ? '<button class="btn primary" data-go="komigang">Start veiviseren</button>' : ''}</div>`;
   else if (!C.cur) h += `<div class="note info"><div><b>Start med første varetelling.</b> Uten telling vet ikke systemet hva som står på lager, og alle varer står som «Tell». Når tellingen er ført, regner appen ut beholdning, hvor mange dager den holder og hva som bør bestilles.<div style="margin-top:10px"><button class="btn primary" data-go="telling">Gå til varetelling</button></div></div></div>`;
   else if (daysBetween(C.cur.date, today) > 35) h += `<div class="note warn">Siste telling var ${fmtDL(C.cur.date)} (${daysBetween(C.cur.date,today)} dager siden). Tell på nytt så tallene holder seg riktige.&nbsp;<button class="btn sm" data-go="telling">Tell nå</button></div>`;
   if (due.length) h += `<div class="note info">📦 ${due.length} bestilling${due.length>1?'er':''} skulle vært levert innen i dag. Registrer varemottak når varene er sjekket.&nbsp;<button class="btn sm" data-go="mottak">Til varemottak</button></div>`;
@@ -474,7 +475,7 @@ function vOversikt(){
   h += wr.length ? `<table><thead><tr><th>Vare</th><th class="n">Har</th><th>Går ut</th></tr></thead><tbody>${wr.sort((a,b)=>a.daysToExp-b.daysToExp).map(r => `<tr class="click" data-item="${esc(r.id)}"><td><div class="iname">${esc(r.name)}</div><div class="isub">Bruk i dagens rett/personalmat · bestill mindre neste gang</div></td><td class="n">${q(r.stockNow)} ${esc(r.unit)}</td><td><b>${fmtD(r.expiry)}</b> <span class="small muted">(${r.daysToExp} d)</span></td></tr>`).join('')}</tbody></table>` : `<div class="empty">Ingen varer med svinnrisiko. Datoene hentes fra «tidligste utløpsdato» i varetellingen.</div>`;
   h += `</div></div>`;
   if (nT.length && C.cur) h += `<div class="note info">${nT.length} aktive varer mangler telling og står som «Tell». Tell dem neste gang, eller sett dem til «Ved behov» under Varer.</div>`;
-  $('#view').innerHTML = h;
+  $('#view').innerHTML = h; bindSetupChecklist($('#view'));
   document.querySelectorAll('[data-filter]').forEach(b => b.onclick = () => { const f = b.dataset.filter; UI.vStatus = f; UI.vSup=''; UI.vStore=''; UI.vSearch=''; go('varer'); });
   bindItemRows(); bindCal();
 }
@@ -1110,7 +1111,7 @@ const WZ_FIELDS = [['', '– Ikke bruk –'], ['name','Varenavn (må velges)'], 
 /** Hjelpetekst som vises under valget */
 const WZ_HELP = {name:'Navnet slik det står på fakturaen.', qty:'Det dere har på lager i dag. Brukes som første varetelling i steg 3.', bought:'Hvor mye som er kjøpt inn i perioden lista gjelder. Restoq deler på antall uker og får forbruk per uke.', date:'Brukes til å finne hvor lang perioden er.'};
 let WZ = null;
-function wzReset(){ WZ_EDITS = {}; WZ_CHG = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: '', manual: []}; }
+function wzReset(clear){ if (clear) wzClearDraft(); WZ_EDITS = {}; WZ_CHG = {}; WZ = {step: 1, sheet: null, map: {}, defSup: '', newSups: [], invoices: [], rows: [], countMode: 'sheet', countDate: C.today, regInvoices: false, result: null, supF: '', manual: []}; }
 async function readSheetFile(f){
   if (/\.(xlsx|xlsm|xls|ods|numbers)$/i.test(f.name) || /spreadsheet|excel/i.test(f.type)){
     const fd = new FormData(); fd.append('file', f);
@@ -1279,12 +1280,53 @@ async function wzReadInvoices(files){
         v.busy = false; wzMarkDups(); render();
       }
 }
+/* ---- Oppstart: sjekkliste over det som må være på plass, og lagring av påbegynt veiviser ---- */
+function setupTasks(){
+  const set = SET(); const sups = Object.values(set.suppliers || {}); const acc = (S.integrations || {}).accounting || {}; const pd = (S.integrations || {}).planday || {};
+  return [
+    {k: 'sup', req: true, label: 'Leverandører', why: 'Hvem dere handler fra. Raskest: last opp en faktura, så leser Restoq leverandøren.', done: sups.length > 0, go: 'komigang', btn: 'Legg inn'},
+    {k: 'items', req: true, label: 'Varer', why: 'Fra vareliste (Excel/CSV) eller fakturaer. Prisene hentes fra fakturaene.', done: getItems().length > 0, go: 'komigang', btn: 'Legg inn'},
+    {k: 'count', req: true, label: 'Første varetelling', why: 'Uten telling vet ikke Restoq hva som står på lager, og kan ikke foreslå bestillinger.', done: !!C.cur, go: 'telling', btn: 'Tell'},
+    {k: 'days', req: true, label: 'Leveringsdager per leverandør', why: 'Brukes til å regne ut når dere må bestille og hvor mye som må holde til neste levering.', done: sups.length > 0 && sups.every(s => String(s.days || '').trim() || (s.wd && s.wd.length)), go: 'leverandorer', btn: 'Sett opp'},
+    {k: 'sales', req: true, label: 'Forventet salg', why: 'Forbruket skaleres med salget. Legg inn salg per uke, eller koble Planday.', done: !!set.expectedSales || (set.weeks || []).length > 0 || !!pd.connected, go: 'oppsett', btn: 'Legg inn'},
+    {k: 'acc', req: false, label: 'Regnskap (Tripletex)', why: 'Henter fakturaer fra bilagsmottaket og sender dem tilbake med kontoforslag.', done: !!acc.connected, go: 'oppsett', btn: 'Koble til', hide: !acc.available},
+    {k: 'pd', req: false, label: 'Planday', why: 'Henter omsetningsplan og faktisk omsetning to ganger om dagen.', done: !!pd.connected, go: 'oppsett', btn: 'Koble til', hide: !pd.available},
+  ].filter(t => !t.hide);
+}
+function setupChecklistHtml(opts = {}){
+  const t = setupTasks(); const req = t.filter(x => x.req); const nDone = req.filter(x => x.done).length; const pct = Math.round(nDone / req.length * 100);
+  const next = req.find(x => !x.done);
+  return `<div class="card grid setupcard" style="gap:12px"><div class="row between"><div><h3>${opts.title || 'Oppstart'}</h3><div class="small muted"><span>${nDone} av ${req.length} på plass</span>${next ? ` · <span>Neste:</span> <b>${esc(next.label)}</b>` : ''}</div></div>${opts.hideBtn ? '<button class="btn sm" id="setupHide">Skjul</button>' : ''}</div>
+    <div class="setupbar"><i style="width:${pct}%"></i></div>
+    <ol class="setuplist">${t.map(x => `<li class="${x.done ? 'done' : ''}${x === next ? ' next' : ''}"><span class="ck">${x.done ? '✓' : ''}</span><div><b>${esc(x.label)}</b>${x.req ? '' : ' <span class="pill p-ok">valgfritt</span>'}<div class="small muted">${esc(x.why)}</div></div>${x.done ? '' : `<button class="btn sm ${x === next ? 'primary' : ''}" data-go="${x.go}">${esc(x.btn)}</button>`}</li>`).join('')}</ol>
+    <div class="small muted"><span>Står du fast?</span> <a href="#" class="setuphelp">Send oss en melding</a> <span>– vi hjelper deg i gang.</span></div></div>`;
+}
+function bindSetupChecklist(root){
+  root.querySelectorAll('.setuphelp').forEach(a => a.onclick = e => { e.preventDefault(); feedbackModal(); });
+  const hb = root.querySelector('#setupHide'); if (hb) hb.onclick = async () => { const s = JSON.parse(JSON.stringify(SET())); s.setupHidden = C.today; await saveSettings(s); toast('Sjekklisten finner du igjen under Kom i gang.'); };
+}
+const WZ_LS = () => 'restoq-wz-' + ((S.me && S.me.org) || 'lokal');
+let wzSaveT = null;
+function wzSave(){ clearTimeout(wzSaveT); wzSaveT = setTimeout(() => { if (!WZ) return; const busy = WZ.invoices.some(v => v.busy); if (busy) return;
+  const empty = WZ.step === 1 && !WZ.sheet && !WZ.invoices.length && !(WZ.manual || []).length && !WZ.newSups.length;
+  try { if (empty || WZ.step === 4){ localStorage.removeItem(WZ_LS()); return; } const d = {at: Date.now(), WZ: {...WZ, rows: []}, WZ_EDITS, WZ_CHG};
+    try { localStorage.setItem(WZ_LS(), JSON.stringify(d)); } catch(e){ d.WZ = {...d.WZ, sheet: null, map: {}}; d.noSheet = true; localStorage.setItem(WZ_LS(), JSON.stringify(d)); } } catch(e){} }, 400); }
+function wzLoadDraft(){ try { const d = JSON.parse(localStorage.getItem(WZ_LS())); if (!d || !d.WZ || Date.now() - d.at > 14 * 864e5) return null; return d; } catch(e){ return null; } }
+function wzClearDraft(){ try { localStorage.removeItem(WZ_LS()); } catch(e){} }
 function vKomigang(){
-  if (!WZ) wzReset();
+  if (!WZ){ const d = S.canManage ? wzLoadDraft() : null; if (d){ wzReset(); Object.assign(WZ, d.WZ); WZ_EDITS = d.WZ_EDITS || {}; WZ_CHG = d.WZ_CHG || {}; WZ.restored = {at: d.at, noSheet: !!d.noSheet}; if (WZ.step > 3) WZ.step = 3; } else wzReset(); }
   if (!S.canManage){ $('#view').innerHTML = `<div class="card"><h2>Kom i gang</h2><div class="muted">Det er administrator hos dere som legger inn leverandører og varer. Når det er gjort, kan du telle og bestille.</div></div>`; return; }
   const set = SET(); const steps = ['Leverandører', 'Varer', 'Beholdning', 'Ferdig'];
-  let h = `<div class="row between"><div><h2>Kom i gang</h2><div class="muted">Legg inn leverandører og varer fra vareliste og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå.</div></div><button class="btn" data-go="oversikt">Lukk</button></div>
-    <ol class="wzsteps">${steps.map((s, i) => `<li class="${WZ.step === i+1 ? 'on' : WZ.step > i+1 ? 'done' : ''}"><span>${WZ.step > i+1 ? '✓' : i+1}</span>${s}</li>`).join('')}</ol>`;
+  const fresh = !Object.keys(set.suppliers).length && !getItems().length && !WZ.invoices.length && !WZ.sheet;
+  let h = `<div class="row between" style="flex-wrap:nowrap;align-items:flex-start"><div style="flex:1;min-width:0"><h2>Kom i gang</h2><div class="muted">Legg inn leverandører og varer fra vareliste og/eller fakturaer. Du velger selv hvilke varer som tas med, og om beholdningen skal legges inn nå. Det tar vanligvis 10–20 minutter, og ingenting lagres før du trykker «Legg inn» i steg 3.</div></div><button class="btn" data-go="oversikt">Lukk</button></div>
+    <ol class="wzsteps">${steps.map((s, i) => `<li class="${WZ.step === i+1 ? 'on' : WZ.step > i+1 ? 'done' : ''}" ${WZ.step > i+1 && WZ.step < 4 ? `data-wzstep="${i+1}" role="button" tabindex="0" title="Gå tilbake til ${s}"` : ''}><span>${WZ.step > i+1 ? '✓' : i+1}</span>${s}</li>`).join('')}</ol>`;
+  if (WZ.restored && WZ.step < 4) h += `<div class="note info small"><div><span>Du fortsetter der du slapp</span> <span translate="no">(${new Date(WZ.restored.at).toLocaleString('nb-NO', {dateStyle: 'short', timeStyle: 'short'})})</span>. ${WZ.restored.noSheet ? '<span>Vareliste-fila var for stor til å huskes – velg den på nytt i steg 2.</span> ' : ''}<button class="btn sm" id="wzRestart">Start på nytt</button></div></div>`;
+  if (WZ.step === 1 && fresh) h += `<div class="card grid wzintro" style="gap:10px"><h3>Slik kommer du raskest i gang</h3>
+    <div class="grid g3">
+      <div><b>1. Ha klar</b><ul class="wtips small"><li>Noen ferske leverandørfakturaer (PDF, bilde eller EHF)</li><li>Gjerne en vareliste eller lagerliste i Excel – <a href="/restoq-varemal.xlsx" download>last ned mal</a></li></ul></div>
+      <div><b>2. Anbefalt rekkefølge</b><ul class="wtips small"><li>Last opp fakturaene først – da får du leverandører, varer og priser på én gang</li><li>Legg til varelista for varer som ikke står på fakturaene</li></ul></div>
+      <div><b>3. Etterpå</b><ul class="wtips small"><li>Tell varelageret (eller bruk antall fra lista)</li><li>Sett leveringsdager og forventet salg – så foreslår Restoq bestillinger</li></ul></div>
+    </div><div class="small muted"><span>Du kan gå fram og tilbake mellom stegene. Det du har gjort så langt huskes på denne enheten i 14 dager, også om du lukker siden.</span> <a href="#" class="setuphelp">Trenger du hjelp?</a></div></div>`;
   if (WZ.step === 1){
     const codes = Object.keys(set.suppliers);
     h += `<div class="card grid" style="gap:12px"><h3>1. Leverandører</h3><div class="small muted">Legg inn leverandørene dere handler fra. Laster du opp fakturaer i neste steg, kan nye leverandører opprettes derfra med kontonummer og kontaktinfo – da kan du hoppe over dette.</div>
@@ -1353,6 +1395,16 @@ function vKomigang(){
         <div class="tblwrap"><table class="wzinvtbl"><thead><tr><th></th><th>Leverandør</th><th>Type</th><th>Beskrivelse</th><th class="n">Beløp</th><th>Faktura</th></tr></thead><tbody>${CH.map(c => { const e = WZ_CHG[c.k] || {}; const on = e.on ?? true; return `<tr data-wzch="${esc(c.k)}" class="${on ? '' : 'off'}"><td><input type="checkbox" class="wzch-on" ${on ? 'checked' : ''} style="width:20px;height:20px"></td><td class="small" translate="no">${esc(c.sup ? wzSupName(c.sup) : '–')}</td><td><select class="wzch-kind">${CHARGE_KINDS.map(k => `<option value="${k}" ${(e.kind || c.kind) === k ? 'selected' : ''}>${k}</option>`).join('')}</select></td><td translate="no">${esc(c.name)}</td><td class="n">${c.amount != null ? kr2(c.amount) : '–'}</td><td class="small" translate="no">${esc(c.src || '')}</td></tr>`; }).join('')}</tbody></table></div></div>`;
     }
     if (!R.length) h += `<div class="card row between"><div><h3>Artikler</h3><div class="small muted">Ingen artikler ennå. Last opp en vareliste eller fakturaer over, eller legg til artikler én og én.</div></div><button class="btn primary" data-wzadd>+ Legg til artikkel</button></div>`;
+    if (R.length){
+      const on = R.filter(r => r.on && !r.ex);
+      const chk = [
+        [on.length > 0, on.length ? `${on.length} nye varer er valgt` : 'Ingen nye varer er valgt – huk av varene som skal legges inn', true],
+        [!R.some(r => !r.sup && !r.ex), `${R.filter(r => !r.sup && !r.ex).length} linjer mangler leverandør og kan ikke velges – velg leverandør for fila eller fakturaen over`, !R.some(r => !r.sup && !r.ex)],
+        [!on.some(r => !r.cat), `${on.filter(r => !r.cat).length} valgte varer mangler kategori (lys oransje) – velg kategori, eller rett det senere under Varer`, !on.some(r => !r.cat)],
+        [!on.some(r => !r.price), `${on.filter(r => !r.price).length} valgte varer har ingen pris ennå – prisen kommer fra fakturaene, så det kan rettes senere`, !on.some(r => !r.price)],
+      ].filter(([ok], i) => i === 0 || !ok);
+      h += `<div class="card grid wzready" style="gap:6px"><h3>Klar for neste steg?</h3>${chk.map(([ok, txt]) => `<div class="small ${ok ? 'ok' : 'warn'}"><span class="ck">${ok ? '✓' : '!'}</span> <span>${txt}</span></div>`).join('')}${chk.every(([ok]) => ok) ? '<div class="small muted">Alt ser bra ut.</div>' : '<div class="small muted">Punkter med ! stopper deg ikke, men gjør resultatet bedre.</div>'}</div>`;
+    }
     h += `<div class="row between"><button class="btn" id="wzBack">Tilbake</button><div class="row"><span class="small muted">${R.length ? '' : 'Du kan også hoppe over og legge inn varer senere.'}</span><button class="btn primary lg" id="wzNext" ${WZ.invoices.some(v => v.busy) ? 'disabled' : ''}>${R.length ? 'Neste: beholdning' : 'Hopp over'}</button></div></div>`;
   }
   if (WZ.step === 3){
@@ -1371,10 +1423,14 @@ function vKomigang(){
   if (WZ.step === 4){
     const r = WZ.result || {};
     h += `<div class="card grid" style="gap:10px"><h3>✓ Ferdig</h3><ul class="wtips">${[r.sups ? `${r.sups} nye leverandører` : '', r.items ? `${r.items} nye varer` : '', r.prices ? `${r.prices} varer fikk ny pris` : '', r.changedEx ? `${r.changedEx} varer fikk endret lagertype eller kategori` : '', r.charges ? `${r.charges} linjer med gebyrer og frakt er lagt på leverandørene` : '', r.counted ? `Første telling er lagt inn med ${r.counted} varer` : 'Beholdning er ikke lagt inn', r.invs ? `${r.invs} fakturaer registrert for kontroll` : ''].filter(Boolean).map(x => `<li>${x}</li>`).join('')}</ul>
-      <h3 style="margin-top:8px">Neste steg</h3><div class="row">${r.counted ? '' : '<button class="btn primary" data-go="telling">Tell varelageret</button>'}<button class="btn" data-go="oppsett">Bestillingsfrekvens, forventet salg og ansatte</button><button class="btn" data-go="leverandorer">Leverandører</button><button class="btn" data-go="oversikt">Til oversikten</button></div></div>`;
+      <div class="row"><button class="btn" data-go="oversikt">Til oversikten</button></div></div>${setupChecklistHtml({title: 'Dette gjenstår før Restoq kan foreslå bestillinger'})}`;
   }
+  if (WZ.step === 1 && !fresh && setupTasks().some(t => t.req && !t.done)) h += setupChecklistHtml({title: 'Oppstart'});
   $('#view').innerHTML = h;
-  document.querySelectorAll('#view [data-go]').forEach(b => b.onclick = () => { if (WZ.step === 4) wzReset(); go(b.dataset.go); });
+  wzSave(); bindSetupChecklist($('#view'));
+  document.querySelectorAll('#view [data-go]').forEach(b => b.onclick = () => { if (WZ.step === 4) wzReset(true); go(b.dataset.go); });
+  document.querySelectorAll('#view [data-wzstep]').forEach(li => { const f = () => { if (WZ.step === 2) wzReadTable(); WZ.step = +li.dataset.wzstep; render(); $('#main').scrollTop = 0; }; li.onclick = f; li.onkeydown = e => { if (e.key === 'Enter' || e.key === ' '){ e.preventDefault(); f(); } }; });
+  const rs = $('#wzRestart'); if (rs) rs.onclick = () => confirmBox('Starte på nytt?', 'Det du har lastet opp og valgt i veiviseren forkastes. Leverandører og varer som allerede er lagt inn, beholdes.', 'Start på nytt', () => { wzReset(true); render(); });
   const nx = $('#wzNext'); if (nx) nx.onclick = () => { if (WZ.step === 2) wzReadTable(); WZ.step++; render(); $('#main').scrollTop = 0; };
   const bk = $('#wzBack'); if (bk) bk.onclick = () => { if (WZ.step === 2) wzReadTable(); WZ.step--; render(); };
   if (WZ.step === 1){
